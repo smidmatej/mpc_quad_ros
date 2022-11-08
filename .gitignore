@@ -1,0 +1,9 @@
+img/
+.venv/
+venv/
+.ipynb_checkpoints/
+__pycache__/
+c_generated_code/
+source/.ipynb_checkpoints/
+source/__pycache__/
+source/c_generated_code/
