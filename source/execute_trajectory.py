@@ -11,6 +11,8 @@ from matplotlib import animation
 import seaborn as sns
 from tqdm import tqdm
 
+sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
+
 from source.quad import Quadrotor3D
 from source.utils.utils import skew_symmetric, quaternion_to_euler, unit_quat, v_dot_q, quaternion_inverse
 from source.utils import utils

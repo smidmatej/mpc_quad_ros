@@ -1,7 +1,7 @@
 {
     "acados_include_path": "/home/ja/Projects/MPC_drone/acados/include",
     "acados_lib_path": "/home/ja/Projects/MPC_drone/acados/lib",
-    "code_export_directory": "/home/ja/Projects/MPC_drone/mpc_quad/c_generated_code",
+    "code_export_directory": "/home/ja/Projects/MPC_drone/mpc_quad_ros/src/mpc_quad/source/c_generated_code",
     "constraints": {
         "C": [],
         "C_e": [],
