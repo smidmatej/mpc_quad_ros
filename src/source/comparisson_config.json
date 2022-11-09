@@ -1,0 +1,10 @@
+{
+  "runs":[
+    { "gpe":1, "trajectory":2, "v_max":10, "a_max":10},
+    { "gpe":0, "trajectory":2, "v_max":10, "a_max":10},
+    { "gpe":1, "trajectory":2, "v_max":15, "a_max":10},
+    { "gpe":0, "trajectory":2, "v_max":15, "a_max":10},
+    { "gpe":1, "trajectory":2, "v_max":20, "a_max":10},
+    { "gpe":0, "trajectory":2, "v_max":20, "a_max":10}
+  ]
+}
