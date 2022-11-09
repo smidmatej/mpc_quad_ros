@@ -2,8 +2,8 @@
 import rospy
 
 
-from geometry_msgs.msg import Pose, Point, Vector3
-from std_msgs.msg import Header
+from geometry_msgs.msg import Pose, Point, Vector3, Quaternion
+from std_msgs.msg import Header, String
 from mav_msgs.msg import Actuators
 from quadrotor_msgs.msg import ControlCommand
 
@@ -29,72 +29,115 @@ from source.quad_opt import quad_optimizer
 from source.utils.utils import load_trajectory, get_reference_chunk, v_dot_q, get_reference_chunk
 from source.trajectory_generation.generate_trajectory import generate_random_waypoints, create_trajectory_from_waypoints, generate_circle_trajectory_accelerating
 
-class TrajecroryBuilder:
+class TrajectoryBuilder:
         
     def __init__(self):
 
-        rospy.init_node("TrajecroryBuilder", anonymous=True)
+        rospy.init_node("TrajectoryBuilder", anonymous=False)
 
         quad_name = 'hummingbird'
 
 
-        marker_topic = quad_name + "/rviz/marker"
-        path_rviz_topic = quad_name + "/rviz/path" 
-        trajectory_topic = quad_name + "/reference/trajectory"
-        self.markerPub = rospy.Publisher(marker_topic, Marker, queue_size=10)
-
-        self.path_rviz_Pub = rospy.Publisher(path_rviz_topic, Path, queue_size=1) # rviz vizualization of the trajectory
-        self.trajectoryPub = rospy.Publisher(trajectory_topic, Trajectory, queue_size=1) # trajectory to be used by the controller
- 
         # Odometry is published with a average frequency of 100 Hz
         # TODO: check if this is the case, sometimes it is delayed a bit
         self.trajectory_dt = 1/100
+        self.v_max = 3
+        self.a_max = 3
 
         execution_path = os.path.dirname(os.path.realpath(__file__))
-        self.waypoint_filename = execution_path + '/source/trajectory_generation/waypoints/static_waypoints.csv'
+        self.static_waypoint_filename = execution_path + '/source/trajectory_generation/waypoints/static_waypoints.csv'
+        self.random_waypoint_filename = execution_path + '/source/trajectory_generation/waypoints/random_waypoints.csv'
         self.output_trajectory_filename = execution_path + '/source/trajectory_generation/trajectories/trajectory_sampled.csv'
+        self.circle_trajectory_filename = execution_path + '/source/trajectory_generation/trajectories/circle_trajectory.csv'
 
-        self.set_new_trajectory()
+
+        self.marker_topic = quad_name + "/rviz/marker"
+        self.path_rviz_topic = quad_name + "/rviz/path" 
+        self.trajectory_topic = quad_name + "/reference/trajectory"
+
+        self.new_trajectory_request_topic = quad_name + "/reference/new_trajectory_request"
+        self.new_trajectory_request_sub = rospy.Subscriber(self.new_trajectory_request_topic, String, self.new_trajectory_request_cb)
+
+        self.markerPub = rospy.Publisher(self.marker_topic, Marker, queue_size=10)
+
+        self.path_rviz_Pub = rospy.Publisher(self.path_rviz_topic, Path, queue_size=10) # rviz vizualization of the trajectory
+        self.trajectoryPub = rospy.Publisher(self.trajectory_topic, Trajectory, queue_size=1) # trajectory to be used by the controller
+ 
+
+
+
+        #self.set_new_trajectory(type='static')
 
         print("Trajectory publisher initialized")
 
-    def set_new_trajectory(self):
-        # Create trajectory from waypoints. One sample for every odometry message.   
-        create_trajectory_from_waypoints(self.waypoint_filename, self.output_trajectory_filename, v_max=5, a_max=5, dt=self.trajectory_dt) # Odometry is published by the simulator at 100 Hz!
+    def set_new_trajectory(self, type='circle'):
+        """
+        Generates a new trajectory and saves it to self.x_trajectory and self.t_trajectory based on the type of trajectory
+        :param type: type of trajectory to generate (circle, random, static)
+        """
+
+        if type == 'static':
+
+            # Create trajectory from waypoints with the same dt as the MPC control frequency    
+            create_trajectory_from_waypoints(self.static_waypoint_filename, self.output_trajectory_filename, self.v_max, self.a_max, self.trajectory_dt)
+            # trajectory has a specific time step that I do not respect here
+            self.x_trajectory, self.t_trajectory = load_trajectory(self.output_trajectory_filename)
         
-        
-        self.x_trajectory, self.t_trajectory = load_trajectory(self.output_trajectory_filename)
+        if type == 'random':
+            # Generate trajectory as reference for the quadrotor
+            # new trajectory
+            hsize = 10
+            num_waypoints = 3
+            generate_random_waypoints(self.random_waypoint_filename, hsize=hsize, num_waypoints=num_waypoints)
+            create_trajectory_from_waypoints(self.random_waypoint_filename, self.output_trajectory_filename, self.v_max, self.a_max, self.trajectory_dt)
 
-        self.publish_trajectory(self.x_trajectory, self.t_trajectory)
-        self.publish_trajectory_to_rviz(self.x_trajectory, self.t_trajectory)
+            # trajectory has a specific time step that I do not respect here
+            self.x_trajectory, self.t_trajectory = load_trajectory(self.output_trajectory_filename)
+
+        if type == 'circle':
+            # Circle trajectory
+            radius = 50
+            t_max = 30
+
+            generate_circle_trajectory_accelerating(self.circle_trajectory_filename, radius, self.v_max, t_max=t_max, dt=self.trajectory_dt)
+            # trajectory has a specific time step that I do not respect here
+            self.x_trajectory, self.t_trajectory = load_trajectory(self.circle_trajectory_filename)
 
 
-    def publish_trajectory(self, x_trajectory, t_trajectory):
+
+    def new_trajectory_request_cb(self, msg):
+        print("New trajectory requested")
+        self.set_new_trajectory(msg.data)
+        self.publish_trajectory()
+        self.publish_trajectory_to_rviz()
+
+        print(f"Published trajectory to {self.path_rviz_topic} and to {self.trajectory_topic}")
+
+    def publish_trajectory(self):
 
         traj = Trajectory()
-        traj.timeStamps = [None]*len(t_trajectory)
-        traj.positions = [Point()]*len(t_trajectory)
-        traj.velocities = [Vector3()]*len(t_trajectory)
-        traj.accelerations = [Vector3()]*len(t_trajectory)
+        
+        traj.timeStamps = [None]*len(self.t_trajectory)
+        traj.positions = [Point()]*len(self.t_trajectory)
+        traj.orientations = [Quaternion()]*len(self.t_trajectory)
+        traj.velocities = [Vector3()]*len(self.t_trajectory)
+        traj.rates = [Vector3()]*len(self.t_trajectory)
+
 
         traj.header.frame_id = "world"
         #print(f'len(path.poses): {len(path.poses)}')
-        for i in range(t_trajectory.shape[0]):
+        for i in range(self.t_trajectory.shape[0]):
+            
+
+            traj.positions[i] = Point(self.x_trajectory[i, 0], self.x_trajectory[i, 1], self.x_trajectory[i, 2])
+
+            # w property of the quaternion is last in the object but first in x_trajectory
+            traj.orientations[i] = Quaternion(self.x_trajectory[i, 4], self.x_trajectory[i, 5], self.x_trajectory[i, 6], self.x_trajectory[i, 3])
+            traj.velocities[i] = Vector3(self.x_trajectory[i, 7], self.x_trajectory[i, 8], self.x_trajectory[i, 9])
+            traj.rates[i] = Vector3(self.x_trajectory[i, 10], self.x_trajectory[i, 11], self.x_trajectory[i, 12])
 
 
 
-            # Pose at time t
-            traj.positions[i].x = x_trajectory[i, 0]
-            traj.positions[i].y = x_trajectory[i, 1]
-            traj.positions[i].z = x_trajectory[i, 2]
-
-            traj.velocities[i].x = x_trajectory[i, 3]
-            traj.velocities[i].y = x_trajectory[i, 4]
-            traj.velocities[i].z = x_trajectory[i, 5]
-
-            traj.accelerations[i].x = x_trajectory[i, 6]
-            traj.accelerations[i].y = x_trajectory[i, 7]
-            traj.accelerations[i].z = x_trajectory[i, 8]
 
 
             # Referential frame of the pose
@@ -103,8 +146,8 @@ class TrajecroryBuilder:
 
             # Time t
             # Convert seconds to the required stamp format
-            seconds = int(t_trajectory[i])
-            nanoseconds = int(int(t_trajectory[i] * 1e9) - seconds * 1e9) # Integer arithmetic is strange
+            seconds = int(self.t_trajectory[i])
+            nanoseconds = int(int(self.t_trajectory[i] * 1e9) - seconds * 1e9) # Integer arithmetic is strange
             #print(f'seconds: {seconds}, nanoseconds: {nanoseconds}')
             traj.timeStamps[i].stamp.secs = seconds
             traj.timeStamps[i].stamp.nsecs = nanoseconds
@@ -113,19 +156,19 @@ class TrajecroryBuilder:
         self.trajectoryPub.publish(traj)
 
 
-    def publish_trajectory_to_rviz(self, x_trajectory, t_trajectory):
+    def publish_trajectory_to_rviz(self):
 
         path = Path()
-        path.poses = [PoseStamped()]*len(t_trajectory)
+        path.poses = [PoseStamped()]*len(self.t_trajectory)
         path.header.frame_id = "world"
         #print(f'len(path.poses): {len(path.poses)}')
-        for i in range(t_trajectory.shape[0]):
+        for i in range(self.t_trajectory.shape[0]):
             pose_stamped = PoseStamped()
 
             # Pose at time t
-            pose_stamped.pose.position.x = x_trajectory[i, 0]
-            pose_stamped.pose.position.y = x_trajectory[i, 1]
-            pose_stamped.pose.position.z = x_trajectory[i, 2]
+            pose_stamped.pose.position.x = self.x_trajectory[i, 0]
+            pose_stamped.pose.position.y = self.x_trajectory[i, 1]
+            pose_stamped.pose.position.z = self.x_trajectory[i, 2]
 
 
             # Referential frame of the pose
@@ -133,14 +176,12 @@ class TrajecroryBuilder:
 
             # Time t
             # Convert seconds to the required stamp format
-            seconds = int(t_trajectory[i])
-            nanoseconds = int(int(t_trajectory[i] * 1e9) - seconds * 1e9) # Integer arithmetic is strange
+            seconds = int(self.t_trajectory[i])
+            nanoseconds = int(int(self.t_trajectory[i] * 1e9) - seconds * 1e9) # Integer arithmetic is strange
             #print(f'seconds: {seconds}, nanoseconds: {nanoseconds}')
             pose_stamped.header.stamp.secs = seconds
             pose_stamped.header.stamp.nsecs = nanoseconds
-
-
-
+            
             path.poses[i] = pose_stamped
 
         self.path_rviz_Pub.publish(path)
@@ -176,6 +217,7 @@ class TrajecroryBuilder:
 if __name__ == '__main__':
     traj = Trajectory()
     np.set_printoptions(precision=2)
-    traj_builder = TrajecroryBuilder()
-
+    traj_builder = TrajectoryBuilder()
+    
+    
     rospy.spin()

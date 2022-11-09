@@ -6,12 +6,16 @@ from geometry_msgs.msg import Pose
 from mav_msgs.msg import Actuators
 from quadrotor_msgs.msg import ControlCommand
 from nav_msgs.msg import Odometry
+from std_msgs.msg import String
 
 from visualization_msgs.msg import Marker
 
 # for path visualization
 from nav_msgs.msg import Path
 from geometry_msgs.msg import PoseStamped 
+
+
+from mpcros.msg import Trajectory
 
 import std_msgs
 import numpy as np
@@ -36,73 +40,186 @@ class MPC_controller:
         control_topic = "/" + quad_name + "/autopilot/control_command_input"
 
         marker_topic = quad_name + "/rviz/marker"
-        path_topic = quad_name + "/reference/path"
-        self.markerPub = rospy.Publisher(marker_topic, Marker, queue_size=10)
-
-        self.pathSub = rospy.Subscriber(path_topic, Path, self.path_received_cb)
-
-        self.mpc_ros_wrapper = MPCROSWrapper(quad_name=quad_name)
+        reference_trajectory_topic = quad_name + "/reference/trajectory"
+        reference_path_chunk_topic = quad_name + "/rviz/reference_chunk"
+        optimal_path_topic = quad_name + "/rviz/optimal_path"
 
 
-        
-        # trajectory has a specific time step that I do not respect here
-        #self.x_trajectory, t_trajectory = load_trajectory("source/trajectory_generation/trajectories/trajectory_sampled.csv")
 
         # Odometry is published with a average frequency of 100 Hz
         # TODO: check if this is the case, sometimes it is delayed a bit
         self.odometry_dt = 1/100
+         
+        self.optimal_path_pub = rospy.Publisher(optimal_path_topic, Path, queue_size=1) # Path from current quad position onto the path
+        self.reference_path_chunk_pub = rospy.Publisher(reference_path_chunk_topic, Path, queue_size=1) # Chunk of the reference path that is used for MPC
+        self.markerPub = rospy.Publisher(marker_topic, Marker, queue_size=10)
 
-
-        self.waypoint_filename = 'source/trajectory_generation/waypoints/static_waypoints.csv'
-        self.output_trajectory_filename = 'source/trajectory_generation/trajectories/trajectory_sampled.csv'
-
-
-
-
-        #self.x_trajectory, t_trajectory = load_trajectory("source/trajectory_generation/trajectories/trajectory_sampled.csv")
-
-        #yref, yref_N = self.quad_opt.set_reference_trajectory(x_trajectory)
-        #xf = np.array([1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0])
-        #self.mpc_ros_wrapper.quad_opt.set_reference_state(x_target=xf)
         
+        self.new_trajectory_request_topic = quad_name + "/reference/new_trajectory_request"
+        self.new_trajectory_request_pub = rospy.Publisher(self.new_trajectory_request_topic, String, queue_size=1)
+
+        self.trajectory_sub = rospy.Subscriber(reference_trajectory_topic, Trajectory, self.trajectory_received_cb)
+     
+
+
+        # Wait a while for the subscribers to connect
+        r = rospy.Rate(1)
+        r.sleep()
+
+        
+        self.request_new_trajectory("random")
+
+
+        self.mpc_ros_wrapper = MPCROSWrapper(quad_name=quad_name)
+
+
+
+
 
 
         self.pose_subscriber = rospy.Subscriber(pose_topic, Odometry, self.pose_received_cb) # Pose is published by the simulator at 100 Hz!
         self.actuator_publisher = rospy.Publisher(control_topic, ControlCommand, queue_size=1, tcp_nodelay=True)
 
 
-    def set_new_trajectory(self):
-        # Create trajectory from waypoints. One sample for every odometry message.   
-        create_trajectory_from_waypoints(self.waypoint_filename, self.output_trajectory_filename, v_max=10, a_max=10, dt=self.odometry_dt) # Odometry is published by the simulator at 100 Hz!
-        self.x_trajectory, self.t_trajectory = load_trajectory(self.output_trajectory_filename)
 
-        self.publish_trajectory_to_rviz(self.x_trajectory, self.t_trajectory)
+
+
+    def request_new_trajectory(self, type):
+        r = rospy.Rate(1)
+        self.trajectory_ready = False
+        self.new_trajectory_request_pub.publish(type)
+        print("Requested new trajectory, type: {} at topic {}".format(type, self.new_trajectory_request_topic))
         
+        while not self.trajectory_ready:
+            # Wait until I reaceive a path
+            r.sleep()
+            
+        print("Received trajectory")
+
+
+    def trajectory_received_cb(self, msg):
+        """
+        Callback function for trajectory subscriber. New path is received. Reset idx_traj to 0 and set x_trajectory to new path for following
+        """
+        print("Received new trajectory")
         self.idx_traj = 0
+
+        self.x_trajectory = np.empty((len(msg.timeStamps), 13)) # x, y, z, w, x, y, z, vx, vy, vz, wx, wy, wz
+        self.t_trajectory = np.empty((len(msg.timeStamps), 1)) # t
+        for i in range(0, len(msg.timeStamps)):
+            self.t_trajectory[i] = msg.timeStamps[i].stamp.secs + msg.timeStamps[i].stamp.nsecs * 1e-9
+
+            self.x_trajectory[i, 0] = msg.positions[i].x
+            self.x_trajectory[i, 1] = msg.positions[i].y
+            self.x_trajectory[i, 2] = msg.positions[i].z
+
+            self.x_trajectory[i, 3] = msg.orientations[i].w
+            self.x_trajectory[i, 4] = msg.orientations[i].x
+            self.x_trajectory[i, 5] = msg.orientations[i].y
+            self.x_trajectory[i, 6] = msg.orientations[i].z
+
+            self.x_trajectory[i, 7] = msg.velocities[i].x
+            self.x_trajectory[i, 8] = msg.velocities[i].y
+            self.x_trajectory[i, 9] = msg.velocities[i].z
+
+            self.x_trajectory[i, 10] = msg.rates[i].x
+            self.x_trajectory[i, 11] = msg.rates[i].y
+            self.x_trajectory[i, 12] = msg.rates[i].z
+
+
+        self.trajectory_ready = True
+        
+        print("Received new trajectory with duration {}".format(self.x_trajectory[-1, 0] - self.x_trajectory[0, 0]))
+
+
 
 
     def pose_received_cb(self, msg):
-        self.idx_traj = 0
+        """
+        Callback function for pose subscriber. When new odometry message is received, the controller is used to calculate new inputs.
+        Publishes calculated inputs to the autopilot
+        """
+        # I ignore odometry unless I have a trajectory. This is to avoid the controller to start before the trajectory is received
+        # Trajectory is received in the trajectory_received_cb function
+        # New trajectory is requested elsewhere
+        if self.trajectory_ready:
+
+            x = self.pose_to_state_world(msg)
+            self.mpc_ros_wrapper.quad_opt.set_quad_state(x)
 
 
-        self.x_trajectory = np.empty((len(msg.poses), 9)) # x, y, z, vx, vy, vz, ax, ay, az
-        self.t_trajectory = np.empty((len(msg.poses), 1)) # t
-        for i in range(0, len(msg.poses)):
+            x_ref = get_reference_chunk(self.x_trajectory, self.idx_traj, self.mpc_ros_wrapper.quad_opt.n_nodes)
+            t_ref = get_reference_chunk(self.t_trajectory, self.idx_traj, self.mpc_ros_wrapper.quad_opt.n_nodes)
+            #print(f'self.x_trajectory: {self.x_trajectory[0:10, 0:3]}')
 
 
-    def publish_trajectory_to_rviz(self, x_trajectory, t_trajectory):
+
+            self.publish_marker_to_rviz(x_ref[0,0:3])
+            yref, yref_N = self.mpc_ros_wrapper.quad_opt.set_reference_trajectory(x_ref)
+            self.idx_traj += 1
+            
+
+            x_opt, w_opt, t_cpu, cost_solution = self.mpc_ros_wrapper.quad_opt.run_optimization(x)
+
+
+            #print(f'w_opt: {w_opt}')
+            # Part of the current trajectory that is used for the optimization for control
+            reference_chunk_path = self.trajectory_chunk_to_path(x_ref, t_ref)
+            self.reference_path_chunk_pub.publish(reference_chunk_path)
+
+            # The path found by the optimization for control
+            optimal_path = self.trajectory_chunk_to_path(x_opt[1:,:], t_ref)
+            #print(f'x_opt.shape: {x_opt.shape}')
+            #print(f't_ref.shape: {t_ref.shape}')
+
+            self.optimal_path_pub.publish(optimal_path)
+
+
+            w = w_opt[0, :]
+
+            # Control input command to the autopilot
+            self.control_msg = ControlCommand()
+            self.control_msg.header = std_msgs.msg.Header()
+            self.control_msg.header.stamp = rospy.Time.now()
+            self.control_msg.control_mode = 2
+            self.control_msg.armed = True
+
+            # Autopilot needs desired body rates to set rotor speeds
+            self.control_msg.bodyrates.x = x_opt[1, -3]
+            self.control_msg.bodyrates.y = x_opt[1, -2]
+            self.control_msg.bodyrates.z = x_opt[1, -1]
+
+            # Autopilot needs desired thrust to set rotor speeds
+            self.control_msg.rotor_thrusts = w * self.mpc_ros_wrapper.quad.max_thrust
+            self.control_msg.collective_thrust = np.sum(w) * self.mpc_ros_wrapper.quad.max_thrust 
+            
+            
+            #print("control: {}".format(self.control_msg.collective_thrust))
+            
+            self.actuator_publisher.publish(self.control_msg)
+
+            if self.idx_traj == self.x_trajectory.shape[0]:
+                
+                print("Trajectory finished")
+                self.request_new_trajectory("random")
+
+
+
+
+
+    def trajectory_chunk_to_path(self, x_ref, t_ref):
 
         path = Path()
-        path.poses = [PoseStamped()]*len(t_trajectory)
+        path.poses = [PoseStamped()]*len(t_ref)
         path.header.frame_id = "world"
         #print(f'len(path.poses): {len(path.poses)}')
-        for i in range(t_trajectory.shape[0]):
+        for i in range(t_ref.shape[0]):
             pose_stamped = PoseStamped()
 
             # Pose at time t
-            pose_stamped.pose.position.x = x_trajectory[i, 0]
-            pose_stamped.pose.position.y = x_trajectory[i, 1]
-            pose_stamped.pose.position.z = x_trajectory[i, 2]
+            pose_stamped.pose.position.x = x_ref[i, 0]
+            pose_stamped.pose.position.y = x_ref[i, 1]
+            pose_stamped.pose.position.z = x_ref[i, 2]
 
 
             # Referential frame of the pose
@@ -110,67 +227,15 @@ class MPC_controller:
 
             # Time t
             # Convert seconds to the required stamp format
-            seconds = int(t_trajectory[i])
-            nanoseconds = int(int(t_trajectory[i] * 1e9) - seconds * 1e9) # Integer arithmetic is strange
+            seconds = int(t_ref[i])
+            nanoseconds = int(int(t_ref[i] * 1e9) - seconds * 1e9) # Integer arithmetic is strange
             #print(f'seconds: {seconds}, nanoseconds: {nanoseconds}')
             pose_stamped.header.stamp.secs = seconds
             pose_stamped.header.stamp.nsecs = nanoseconds
-
-
-
+            
             path.poses[i] = pose_stamped
-
-        self.pathPub.publish(path)
+        return path
         
-
-
-    def pose_received_cb(self, msg):
-
-
-        #xf = np.array([1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0])
-        #self.mpc_ros_wrapper.quad_opt.set_reference_state(x_target=xf)
-
-        #print(f' x_trajectory.shape: ', self.x_trajectory.shape)
-        x = self.pose_to_state_world(msg)
-        self.mpc_ros_wrapper.quad_opt.set_quad_state(x)
-        #print(f'p: {x[0:3]}')
-        #print(f'q: {x[3:7]}')
-
-        x_ref = get_reference_chunk(self.x_trajectory, self.idx_traj, self.mpc_ros_wrapper.quad_opt.n_nodes)
-
-        self.publish_marker_to_rviz(x_ref[0,0:3])
-        yref, yref_N = self.mpc_ros_wrapper.quad_opt.set_reference_trajectory(x_ref)
-        self.idx_traj += 1
-        
-
-        x_opt, w_opt, t_cpu, cost_solution = self.mpc_ros_wrapper.quad_opt.run_optimization(x)
-        #print(f'w_opt: {w_opt}')
-        w = w_opt[0, :]
-        #print(f'w_opt.shape: {w_opt.shape}')
-        print(f'w: {w}')
-
-        # Control input command to the autopilot
-        self.control_msg = ControlCommand()
-        self.control_msg.header = std_msgs.msg.Header()
-        self.control_msg.header.stamp = rospy.Time.now()
-        self.control_msg.control_mode = 2
-        self.control_msg.armed = True
-
-        # Autopilot needs desired body rates to set rotor speeds
-        self.control_msg.bodyrates.x = x_opt[1, -3]
-        self.control_msg.bodyrates.y = x_opt[1, -2]
-        self.control_msg.bodyrates.z = x_opt[1, -1]
-
-        # Autopilot needs desired thrust to set rotor speeds
-        self.control_msg.rotor_thrusts = w * self.mpc_ros_wrapper.quad.max_thrust
-        self.control_msg.collective_thrust = np.sum(w) * self.mpc_ros_wrapper.quad.max_thrust 
-        
-        
-        #print("control: {}".format(self.control_msg.collective_thrust))
-        
-        self.actuator_publisher.publish(self.control_msg)
-
-
 
     def pose_to_state(self, msg):
         """
@@ -195,6 +260,10 @@ class MPC_controller:
         return np.array([x[0], x[1], x[2], q[0], q[1], q[2], q[3], v_world[0], v_world[1], v_world[2], x[10], x[11], x[12]])
 
     def publish_marker_to_rviz(self, p):
+        """
+        Publish a marker to rviz for visualization
+        :param p: reference position on the trajectory
+        """
         robotMarker = Marker()
         #robotMarker.header.frame_id = "hummingbird/base_link"
         robotMarker.header.frame_id = "world"
@@ -220,6 +289,8 @@ class MPC_controller:
         robotMarker.color.a = 1.0
         robotMarker.lifetime = rospy.Duration(0) # forever
         self.markerPub.publish(robotMarker)
+
+
 
 if __name__ == '__main__':
     np.set_printoptions(precision=2)

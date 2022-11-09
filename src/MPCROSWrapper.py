@@ -10,7 +10,7 @@ import std_msgs
 import numpy as np
 import os 
 dir_path = os.path.dirname(os.path.realpath(__file__))
-print(dir_path)
+
 
 
 from source.quad import Quadrotor3D
@@ -44,7 +44,7 @@ def set_quad_parameters_from_file(quad, quad_name):
 
     this_path = os.path.dirname(os.path.realpath(__file__))
     print(f'this_path: {this_path}')
-    params_filename = os.path.join(this_path, 'config', quad_name + '.xacro')
+    params_filename = os.path.join(this_path, '..' , 'config', quad_name + '.xacro')
     print(f'params_filename: {params_filename}')
 
     # Get parameters for drone

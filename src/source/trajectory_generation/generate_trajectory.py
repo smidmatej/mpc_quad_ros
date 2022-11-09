@@ -66,9 +66,10 @@ def generate_random_waypoints(waypoint_filename, hsize=10, num_waypoints=10):
     # generate random waypoints
     print(f'Generating {num_waypoints} random waypoints in a {hsize}x{hsize} random walk and saving them to {waypoint_filename}')
     waypoints = list()
+    center_of_square = np.array([0,0,hsize])
     waypoints.append(np.array([0.0, 0.0, 0.0]))
     for i in range(num_waypoints):
-        newWaypoint = np.random.uniform(-hsize, hsize, 3)
+        newWaypoint = np.random.uniform(-hsize, hsize, 3) + center_of_square # Moved the center of the square to 0,0,hsize
         waypoints.append(newWaypoint)
     waypoints.append(np.array([0.0, 0.0, 3.0]))
     waypoints.append(np.array([0.0, 0.0, 0.0]))

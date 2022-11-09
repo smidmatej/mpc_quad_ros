@@ -251,12 +251,12 @@ class quad_optimizer:
 
 
     
-    def run_optimization(self, x_init=None):
+    def run_optimization(self, x_init):
         """
         Performs the acados_ocp_solver.solve() method with the current parameters and returns the solution
         """
         if x_init is None:
-            x_init = np.array([0,0,0, 1,0,0,0, 0,0,0, 0,0,0]) 
+            raise ValueError("x_init has to be set before running the optimization")
 
         # set initial conditions
         self.acados_ocp_solver.set(0, 'lbx', x_init) # not sure what these two lines do. Set the lower and upper bound for x to the same value?
