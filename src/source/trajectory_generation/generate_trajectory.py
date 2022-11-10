@@ -33,7 +33,7 @@ def main():
     #create_trajectory_from_waypoints(waypoint_filename, output_trajectory_filename, v_max, a_max, dt)
 
 
-def generate_circle_trajectory_accelerating(filename, radius, v_max, t_max=10, dt=0.01):
+def generate_circle_trajectory_accelerating(filename, radius, v_max, t_max=10, dt=0.01, start_point=np.array([0.0, 0.0, 0.0])):
     ts = np.arange(0, t_max, dt)
     p = np.empty((len(ts), 3))
     v = np.empty((len(ts), 3))
@@ -44,7 +44,7 @@ def generate_circle_trajectory_accelerating(filename, radius, v_max, t_max=10, d
         # I have no idea why the 2 is needed here
         w[i] = (i+1)/float(len(ts)) * v_max/radius/2
 
-        p[i, :] = np.array([radius * np.cos(w[i] * t), radius * np.sin(w[i] * t), 0]) + np.array([-radius, 0.0, 0.0])
+        p[i, :] = np.array([radius * np.cos(w[i] * t), radius * np.sin(w[i] * t), 0]) + np.array([-radius, 0.0, 0.0]) + start_point
         v[i, :] = np.array([-radius*w[i] * np.sin(w[i] * t), radius*w[i] * np.cos(w[i] * t), 0])*2 # and also here
         a[i, :] = np.array([-radius*w[i]*w[i] * np.cos(w[i] * t), -radius*w[i]*w[i] * np.sin(w[i] * t), 0])*2*2
 
@@ -62,19 +62,33 @@ def generate_circle_trajectory(filename, radius, v_max, t_max=10, dt=0.01):
         for t in np.arange(0, t_max, dt):
             f.write("{},{},{},{},{}\n".format(t, radius * np.cos(v_max * t), radius * np.sin(v_max * t), 0))
 
-def generate_random_waypoints(waypoint_filename, hsize=10, num_waypoints=10):
-    # generate random waypoints
+def generate_random_waypoints(waypoint_filename, hsize=10, num_waypoints=10, hover_first=True, start_point=np.array([0.0, 0.0, 0.0]), end_point=np.array([0.0, 0.0, 0.0])):
+    # generate random waypoints in a cube centered around center_of_cube
     print(f'Generating {num_waypoints} random waypoints in a {hsize}x{hsize} random walk and saving them to {waypoint_filename}')
     waypoints = list()
-    center_of_square = np.array([0,0,hsize])
-    waypoints.append(np.array([0.0, 0.0, 0.0]))
+    center_of_cube = np.array([0,0,1.5*hsize]) # Moved the center of the cube up so that the generated trajectories are above the ground plane
+    waypoints.append(start_point)
+    if hover_first:
+        waypoints.append(np.array([0.0, 0.0, hsize])) # first rise up from the ground plane
     for i in range(num_waypoints):
-        newWaypoint = np.random.uniform(-hsize, hsize, 3) + center_of_square # Moved the center of the square to 0,0,hsize
+        newWaypoint = np.random.uniform(-hsize, hsize, 3) + center_of_cube 
         waypoints.append(newWaypoint)
-    waypoints.append(np.array([0.0, 0.0, 3.0]))
-    waypoints.append(np.array([0.0, 0.0, 0.0]))
+
+    waypoints.append(np.array([0.0, 0.0, hsize])) # return above the ground plane
+    waypoints.append(end_point) 
     #waypoints.append(np.array([0.0, 0.0, 0.0]))
-    np.savetxt(waypoint_filename, waypoints, fmt="%.6f", delimiter=",")
+    write_waypoints_to_file(waypoints, waypoint_filename)
+    
+
+
+
+def write_waypoints_to_file(waypoints, filename):
+    """
+    Write waypoints to file. This exists to keep the same format even if the waypoints are generated in a different place.
+    """
+    np.savetxt(filename, waypoints, fmt="%.6f", delimiter=",")
+
+
 
 
 def create_trajectory_from_waypoints(waypoint_filename, output_trajectory_filename, v_max, a_max, dt=0.01):

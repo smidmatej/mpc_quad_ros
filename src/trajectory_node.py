@@ -15,7 +15,9 @@ from visualization_msgs.msg import Marker
 from nav_msgs.msg import Path
 from geometry_msgs.msg import PoseStamped 
 
-from mpcros.msg import Trajectory
+from mpcros.msg import Trajectory, Trajectory_request
+import warnings
+
 
 import std_msgs
 import numpy as np
@@ -27,7 +29,7 @@ from MPCROSWrapper import MPCROSWrapper
 from source.quad import Quadrotor3D
 from source.quad_opt import quad_optimizer
 from source.utils.utils import load_trajectory, get_reference_chunk, v_dot_q, get_reference_chunk
-from source.trajectory_generation.generate_trajectory import generate_random_waypoints, create_trajectory_from_waypoints, generate_circle_trajectory_accelerating
+from source.trajectory_generation.generate_trajectory import write_waypoints_to_file, generate_random_waypoints, create_trajectory_from_waypoints, generate_circle_trajectory_accelerating
 
 class TrajectoryBuilder:
         
@@ -41,14 +43,17 @@ class TrajectoryBuilder:
         # Odometry is published with a average frequency of 100 Hz
         # TODO: check if this is the case, sometimes it is delayed a bit
         self.trajectory_dt = 1/100
-        self.v_max = 3
-        self.a_max = 3
+
 
         execution_path = os.path.dirname(os.path.realpath(__file__))
+        # For user defined waypoints
         self.static_waypoint_filename = execution_path + '/source/trajectory_generation/waypoints/static_waypoints.csv'
+        # For generating trajectory between two points
+        self.line_waypoint_filename = execution_path + '/source/trajectory_generation/waypoints/static_waypoints.csv'
+        # For generating random waypoints for a trajectory
         self.random_waypoint_filename = execution_path + '/source/trajectory_generation/waypoints/random_waypoints.csv'
+        # The final trajectory is sampled and saved here
         self.output_trajectory_filename = execution_path + '/source/trajectory_generation/trajectories/trajectory_sampled.csv'
-        self.circle_trajectory_filename = execution_path + '/source/trajectory_generation/trajectories/circle_trajectory.csv'
 
 
         self.marker_topic = quad_name + "/rviz/marker"
@@ -56,7 +61,7 @@ class TrajectoryBuilder:
         self.trajectory_topic = quad_name + "/reference/trajectory"
 
         self.new_trajectory_request_topic = quad_name + "/reference/new_trajectory_request"
-        self.new_trajectory_request_sub = rospy.Subscriber(self.new_trajectory_request_topic, String, self.new_trajectory_request_cb)
+        self.new_trajectory_request_sub = rospy.Subscriber(self.new_trajectory_request_topic, Trajectory_request, self.new_trajectory_request_cb)
 
         self.markerPub = rospy.Publisher(self.marker_topic, Marker, queue_size=10)
 
@@ -70,26 +75,40 @@ class TrajectoryBuilder:
 
         print("Trajectory publisher initialized")
 
-    def set_new_trajectory(self, type='circle'):
+    def set_new_trajectory(self, type='circle', start_point=np.array([0,0,0]), end_point=np.array([0,0,0]), v_max=1.0, a_max=1.0):
         """
         Generates a new trajectory and saves it to self.x_trajectory and self.t_trajectory based on the type of trajectory
         :param type: type of trajectory to generate (circle, random, static)
         """
 
-        if type == 'static':
 
+        if type == 'line':
+            print('Generating line trajectory')
+            assert start_point is not None and end_point is not None, "start_point and end_point should not be None for line between two points"
+            
+            write_waypoints_to_file([start_point, end_point], self.line_waypoint_filename)
             # Create trajectory from waypoints with the same dt as the MPC control frequency    
-            create_trajectory_from_waypoints(self.static_waypoint_filename, self.output_trajectory_filename, self.v_max, self.a_max, self.trajectory_dt)
+            create_trajectory_from_waypoints(self.line_waypoint_filename, self.output_trajectory_filename, v_max, a_max, self.trajectory_dt)
             # trajectory has a specific time step that I do not respect here
             self.x_trajectory, self.t_trajectory = load_trajectory(self.output_trajectory_filename)
+
+        if type == 'static':
+            assert start_point is None and end_point is None, "start_point and end_point should be None for static trajectory"
+            # Create trajectory from waypoints with the same dt as the MPC control frequency    
+            create_trajectory_from_waypoints(self.static_waypoint_filename, self.output_trajectory_filename, v_max, a_max, self.trajectory_dt)
+            # trajectory has a specific time step that I do not respect here
+            self.x_trajectory, self.t_trajectory = load_trajectory(self.output_trajectory_filename)
+
         
         if type == 'random':
             # Generate trajectory as reference for the quadrotor
             # new trajectory
             hsize = 10
             num_waypoints = 3
-            generate_random_waypoints(self.random_waypoint_filename, hsize=hsize, num_waypoints=num_waypoints)
-            create_trajectory_from_waypoints(self.random_waypoint_filename, self.output_trajectory_filename, self.v_max, self.a_max, self.trajectory_dt)
+            # First generate random waypoints
+            generate_random_waypoints(self.random_waypoint_filename, hsize=hsize, num_waypoints=num_waypoints, start_point=start_point, end_point=end_point)
+            # Then interpolate the waypoints to create a trajectory
+            create_trajectory_from_waypoints(self.random_waypoint_filename, self.output_trajectory_filename, v_max, a_max, self.trajectory_dt)
 
             # trajectory has a specific time step that I do not respect here
             self.x_trajectory, self.t_trajectory = load_trajectory(self.output_trajectory_filename)
@@ -98,25 +117,43 @@ class TrajectoryBuilder:
             # Circle trajectory
             radius = 50
             t_max = 30
-
-            generate_circle_trajectory_accelerating(self.circle_trajectory_filename, radius, self.v_max, t_max=t_max, dt=self.trajectory_dt)
+            if end_point is not None:
+                warnings.warn("End point should be None for circle trajectory, because we dont know the end")
+            #assert end_point is None, "End point should be None for circle trajectory, because we dont know the end"
+            generate_circle_trajectory_accelerating(self.output_trajectory_filename, radius, v_max, t_max=t_max, dt=self.trajectory_dt, start_point=start_point)
             # trajectory has a specific time step that I do not respect here
-            self.x_trajectory, self.t_trajectory = load_trajectory(self.circle_trajectory_filename)
+            self.x_trajectory, self.t_trajectory = load_trajectory(self.output_trajectory_filename)
 
 
 
     def new_trajectory_request_cb(self, msg):
+        type = msg.type.data
+        start_point = np.array([msg.start_point.x, msg.start_point.y, msg.start_point.z])
+        end_point = np.array([msg.end_point.x, msg.end_point.y, msg.end_point.z])
+        v_max = msg.v_max.data
+        a_max = msg.a_max.data
         print("New trajectory requested")
-        self.set_new_trajectory(msg.data)
+        print(f'Type: {type}')
+        print(f'Start point: \n\r {start_point}')
+        print(f'End point: \n\r {end_point}')
+        print(f'v_max: {v_max}')
+        print(f'a_max: {a_max}')
+
+        self.set_new_trajectory(type, start_point, end_point, v_max, a_max)
         self.publish_trajectory()
         self.publish_trajectory_to_rviz()
 
         print(f"Published trajectory to {self.path_rviz_topic} and to {self.trajectory_topic}")
 
     def publish_trajectory(self):
-
+        """
+        Creates a custom trajectory message with the trajectory and publishes it to the trajectory topic
+        Trajectory is basically the contents of the trajectory_sampled file
+        CAREFUL: The trajectory only contains position, velocity and acceleration information. The orientation and rates are made up
+        """
         traj = Trajectory()
         
+
         traj.timeStamps = [None]*len(self.t_trajectory)
         traj.positions = [Point()]*len(self.t_trajectory)
         traj.orientations = [Quaternion()]*len(self.t_trajectory)

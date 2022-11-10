@@ -917,7 +917,7 @@ def get_reference_chunk(reference_trajectory, current_idx, control_nodes):
         reference_chunk = reference_trajectory[sample_idx:sample_idx+control_nodes, :]
         #print(f'reference_chunk.shape: {reference_chunk.shape}')
         #print(f'slice :{sample_idx:sample_idx+control_nodes:undersample]}')
-    else:
+    elif samples_left_in_trajectory > 0:
         # I have less trajectory nodes than control_nodes
         last_pos = reference_trajectory[-1, :].reshape((1,-1))
         last_pos_repeat = np.repeat(last_pos, repeats=control_nodes-samples_left_in_trajectory, axis=0)
@@ -926,6 +926,13 @@ def get_reference_chunk(reference_trajectory, current_idx, control_nodes):
         reference_left = reference_trajectory[sample_idx:sample_idx+samples_left_in_trajectory, :]
         # and add the last pos of the trajectory at the end
         reference_chunk = np.concatenate((reference_left, last_pos_repeat))
+
+    else:
+        # 0 samples left in trajectory
+        # I am at the end of the trajectory, just repeat the last position
+        last_pos = reference_trajectory[-1, :].reshape((1,-1))
+        last_pos_repeat = np.repeat(last_pos, repeats=control_nodes, axis=0)
+        reference_chunk = last_pos_repeat
 
     return reference_chunk
 
