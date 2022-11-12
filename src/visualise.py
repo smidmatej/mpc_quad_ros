@@ -13,6 +13,7 @@ def main ():
     data_dict = load_dict('outputs/log.pkl')
 
 
+    print(f'Data dict keys: {data_dict.keys()}')
     v_norm = np.linalg.norm(data_dict['odom'][:,7:10], axis=1)
     v_ref_norm = np.linalg.norm(data_dict['x_ref'][:,7:10], axis=1)
 
@@ -30,10 +31,10 @@ def main ():
             [x/256 for x in (118, 148, 159)], \
             [x/256 for x in (232, 197, 71)]] 
 
-    cs_rgb = [[x/256 for x in (205, 70, 49, 1)], \
-              [x/256 for x in (112, 174, 110, 1)], \
-              [x/256 for x in (13, 59, 102, 1)], \
-              [x/256 for x in (40, 0, 3, 1)]]
+    cs_rgb = [[x/256 for x in (205, 70, 49)], \
+              [x/256 for x in (105, 220, 158)], \
+              [x/256 for x in (102, 16, 242)], \
+              [x/256 for x in (7, 59, 58)]]
 
 
 
@@ -45,7 +46,7 @@ def main ():
     sns.set_style("whitegrid")
     
 
-    fig = plt.figure(figsize=(10, 10))
+    fig = plt.figure(figsize=(20, 10))
     #gs = gridspec.GridSpec(3, 4, width_ratios=[1, 1, 1], height_ratios=[1, 1, 1, 1])
     gs = gridspec.GridSpec(3, 4, width_ratios=[1, 1, 1, 1], height_ratios=[1, 1, 1])
     ax1 = plt.subplot(gs[0, 0])
@@ -73,63 +74,90 @@ def main ():
     ax1.set_ylabel('Position [m]')
     ax1.set_title('Position')
 
-    ax2.plot(data_dict['t'], data_dict['odom'][:,3], label='qw', color='red')
-    ax2.plot(data_dict['t'], data_dict['odom'][:,4], label='qx', color='green')
-    ax2.plot(data_dict['t'], data_dict['odom'][:,5], label='qy', color='blue')
-    ax2.plot(data_dict['t'], data_dict['odom'][:,6], label='qz', color='orange')
-    ax2.plot(data_dict['t'], data_dict['x_ref'][:,3], label='qw_ref', color='red', linestyle='dashed')
-    ax2.plot(data_dict['t'], data_dict['x_ref'][:,4], label='qx_ref', color='green', linestyle='dashed')
-    ax2.plot(data_dict['t'], data_dict['x_ref'][:,5], label='qy_ref', color='blue', linestyle='dashed')
-    ax2.plot(data_dict['t'], data_dict['x_ref'][:,6], label='qz_ref', color='orange', linestyle='dashed')
+    ax2.plot(data_dict['t'], data_dict['odom'][:,3], label='qw', color=cs_rgb[0])
+    ax2.plot(data_dict['t'], data_dict['odom'][:,4], label='qx', color=cs_rgb[1])
+    ax2.plot(data_dict['t'], data_dict['odom'][:,5], label='qy', color=cs_rgb[2])
+    ax2.plot(data_dict['t'], data_dict['odom'][:,6], label='qz', color=cs_rgb[3])
+    ax2.plot(data_dict['t'], data_dict['x_ref'][:,3], label='qw_ref', color=cs_rgb[0], linestyle='dashed')
+    ax2.plot(data_dict['t'], data_dict['x_ref'][:,4], label='qx_ref', color=cs_rgb[1], linestyle='dashed')
+    ax2.plot(data_dict['t'], data_dict['x_ref'][:,5], label='qy_ref', color=cs_rgb[2], linestyle='dashed')
+    ax2.plot(data_dict['t'], data_dict['x_ref'][:,6], label='qz_ref', color=cs_rgb[3], linestyle='dashed')
     ax2.set_xlabel('Time [s]')
     ax2.set_ylabel('Quaternion')
     ax2.set_title('Orientation')
 
-    ax3.plot(data_dict['t'], data_dict['odom'][:,7], label='vx', color='red')
-    ax3.plot(data_dict['t'], data_dict['odom'][:,8], label='vy', color='green')
-    ax3.plot(data_dict['t'], data_dict['odom'][:,9], label='vz', color='blue')
-    ax3.plot(data_dict['t'], data_dict['x_ref'][:,7], label='vx_ref', color='red', linestyle='dashed')
-    ax3.plot(data_dict['t'], data_dict['x_ref'][:,8], label='vy_ref', color='green', linestyle='dashed')
-    ax3.plot(data_dict['t'], data_dict['x_ref'][:,9], label='vz_ref', color='blue', linestyle='dashed')
+    ax3.plot(data_dict['t'], data_dict['odom'][:,7], label='vx', color=cs_rgb[0])
+    ax3.plot(data_dict['t'], data_dict['odom'][:,8], label='vy', color=cs_rgb[1])
+    ax3.plot(data_dict['t'], data_dict['odom'][:,9], label='vz', color=cs_rgb[2])
+    ax3.plot(data_dict['t'], data_dict['x_ref'][:,7], label='vx_ref', color=cs_rgb[0], linestyle='dashed')
+    ax3.plot(data_dict['t'], data_dict['x_ref'][:,8], label='vy_ref', color=cs_rgb[1], linestyle='dashed')
+    ax3.plot(data_dict['t'], data_dict['x_ref'][:,9], label='vz_ref', color=cs_rgb[2], linestyle='dashed')
 
-    ax3.plot(data_dict['t'], v_norm, label='v_norm', color='black')
-    ax3.plot(data_dict['t'], v_ref_norm, label='v_ref_norm', color='black', linestyle='dashed')
+    ax3.plot(data_dict['t'], v_norm, label='v_norm', color=cs_rgb[3])
+    ax3.plot(data_dict['t'], v_ref_norm, label='v_ref_norm', color=cs_rgb[3], linestyle='dashed')
     ax3.set_title('Velocity')
     ax3.set_xlabel('Time [s]')
     ax3.set_ylabel('Velocity [m/s]')
 
-    ax4.plot(data_dict['t'], data_dict['odom'][:,10], label='wx', color='red')
-    ax4.plot(data_dict['t'], data_dict['odom'][:,11], label='wy', color='green')
-    ax4.plot(data_dict['t'], data_dict['odom'][:,12], label='wz', color='blue')
-    ax4.plot(data_dict['t'], data_dict['x_ref'][:,10], label='wx_ref', color='red', linestyle='dashed')
-    ax4.plot(data_dict['t'], data_dict['x_ref'][:,11], label='wy_ref', color='green', linestyle='dashed')
-    ax4.plot(data_dict['t'], data_dict['x_ref'][:,12], label='wz_ref', color='blue', linestyle='dashed')
+    ax4.plot(data_dict['t'], data_dict['odom'][:,10], label='wx', color=cs_rgb[0])
+    ax4.plot(data_dict['t'], data_dict['odom'][:,11], label='wy', color=cs_rgb[1])
+    ax4.plot(data_dict['t'], data_dict['odom'][:,12], label='wz', color=cs_rgb[2])
+    ax4.plot(data_dict['t'], data_dict['x_ref'][:,10], label='wx_ref', color=cs_rgb[0], linestyle='dashed')
+    ax4.plot(data_dict['t'], data_dict['x_ref'][:,11], label='wy_ref', color=cs_rgb[1], linestyle='dashed')
+    ax4.plot(data_dict['t'], data_dict['x_ref'][:,12], label='wz_ref', color=cs_rgb[2], linestyle='dashed')
     ax4.set_title('Angular Velocity')
     ax4.set_xlabel('Time [s]')
     ax4.set_ylabel('Angular Velocity [rad/s]')
 
 
-    ax5.plot(data_dict['t'], rms_pos_ref, label='rms_pos_ref')
+    ax5.plot(data_dict['t'], rms_pos_ref, label='rms_pos_ref', color=cs_rgb[0])
     ax5.set_title('RMS Position Error')
+    ax5.set_xlabel('Time [s]')
+    ax5.set_ylabel('RMS Position Error [m]')
 
-    ax9 = plt.subplot(gs[0, 0])
-    ax9 = plt.subplot(gs[0, 1])
-    ax9 = plt.subplot(gs[1, 0])
-    ax9 = plt.subplot(gs[1, 1])
-    ax9.plot(data_dict['t'], data_dict['w'][:,0], label='u1', color='red')
-    ax9.plot(data_dict['t'], data_dict['w'][:,1], label='u2', color='green')
-    ax9.plot(data_dict['t'], data_dict['w'][:,2], label='u3', color='blue')
-    ax9.plot(data_dict['t'], data_dict['w'][:,3], label='u4', color='orange')
+    ax6.plot(data_dict['t'], rms_quat_ref, label='rms_quat_ref', color=cs_rgb[0])
+    ax6.set_title('RMS Quaternion Error')
+    ax6.set_xlabel('Time [s]')
+    ax6.set_ylabel('RMS Quaternion Error [m/s]')
+
+    ax7.plot(data_dict['t'], rms_vel_ref, label='rms_vel_ref', color=cs_rgb[0])
+    ax7.set_title('RMS Velocity Error')
+    ax7.set_xlabel('Time [s]')
+    ax7.set_ylabel('RMS Velocity Error [m/s]')
+
+    ax8.plot(data_dict['t'], rms_rate_ref, label='rms_rate_ref', color=cs_rgb[0])
+    ax8.set_title('RMS Angular Velocity Error')
+    ax8.set_xlabel('Time [s]')
+    ax8.set_ylabel('RMS Angular Velocity Error [rad/s]')
+
+
+    ax9.plot(data_dict['t'], data_dict['w'][:,0], label='u1', color=cs_u[0])
+    ax9.plot(data_dict['t'], data_dict['w'][:,1], label='u2', color=cs_u[1])
+    ax9.plot(data_dict['t'], data_dict['w'][:,2], label='u3', color=cs_u[2])
+    ax9.plot(data_dict['t'], data_dict['w'][:,3], label='u4', color=cs_u[3])
     ax9.set_xlabel('Time [s]')
     ax9.set_ylabel('Control Input')
     ax9.set_title('Control Input')
+
+
+    ax10.plot(data_dict['t'], data_dict['t_cpu'][:]*1e3, label='t_cpu', color=cs_rgb[0])
+    ax10.set_xlabel('Time [s]')
+    ax10.set_ylabel('CPU Time [ms]')
+    ax10.set_title('MPC CPU Time')
+
+    ax11.plot(data_dict['t'], data_dict['cost_solution'][:], label='solution_cost', color=cs_rgb[0])
+    ax11.set_xlabel('Time [s]')
+    ax11.set_ylabel('Solution Cost')
+    ax11.set_title('Solution Cost')
+
     
     
 
+    plt.tight_layout()
 
     plt.show()
 
-    plt.tight_layout()
+
 
     plot_filename = "outputs/trajectory_tracking.pdf"
     plt.savefig(plot_filename, format="pdf", bbox_inches="tight")

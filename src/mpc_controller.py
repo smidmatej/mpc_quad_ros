@@ -279,15 +279,22 @@ class MPC_controller:
                     #self.request_new_trajectory("random", \
                     #    start_point=np.array([x[0], x[1], x[2]]), end_point=np.array([x[0], x[1], x[2]]), \
                     #        v_max=self.v_max, a_max=self.a_max)
-                    #self.request_new_trajectory("random", \
-                    #    start_point=np.array([x[0], x[1], x[2]]), end_point=None, \
-                    #        v_max=self.v_max, a_max=self.a_max)
+
+
+                    self.request_new_trajectory("random", \
+                        start_point=np.array([x[0], x[1], x[2]]), end_point=None, \
+                            v_max=self.v_max, a_max=self.a_max)
+
+                    """
 
                     radius = 10.0
                     end_point = np.array([x[0]+radius, x[1], x[2]]) # Circle trajectory radius is calculated as the distance between start and end
                     self.request_new_trajectory("circle", \
                         start_point=np.array([x[0], x[1], x[2]]), end_point=end_point, \
                             v_max=self.v_max, a_max=self.a_max)
+
+                    
+                    """
 
 
         elapsed_during_cb = time.time() - time_at_cb_start
