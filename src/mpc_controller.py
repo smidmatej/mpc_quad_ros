@@ -37,16 +37,21 @@ class MPC_controller:
         
     def __init__(self):
 
-        rospy.init_node("Hummingbird_Controller")
-
         quad_name = 'hummingbird'
+        rospy.init_node('controller')
+
+        
+
+        # Topics
+        reference_trajectory_topic = "reference/trajectory"
+        self.new_trajectory_request_topic = "reference/new_trajectory_request"
+
         pose_topic = "/" + quad_name + "/ground_truth/odometry"
         control_topic = "/" + quad_name + "/autopilot/control_command_input"
 
-        marker_topic = quad_name + "/rviz/marker"
-        reference_trajectory_topic = quad_name + "/reference/trajectory"
-        reference_path_chunk_topic = quad_name + "/rviz/reference_chunk"
-        optimal_path_topic = quad_name + "/rviz/optimal_path"
+        marker_topic = "rviz/marker"
+        reference_path_chunk_topic = "rviz/reference_chunk"
+        optimal_path_topic = "rviz/optimal_path"
 
         # If logging is enabled
         # TODO: Add condition for logging
@@ -65,16 +70,18 @@ class MPC_controller:
         self.v_max = 20.0
         self.a_max = 5.0
          
+
+        # Publishers
         self.optimal_path_pub = rospy.Publisher(optimal_path_topic, Path, queue_size=1) # Path from current quad position onto the path
         self.reference_path_chunk_pub = rospy.Publisher(reference_path_chunk_topic, Path, queue_size=1) # Chunk of the reference path that is used for MPC
-        self.markerPub = rospy.Publisher(marker_topic, Marker, queue_size=10)
-
-        
-        self.new_trajectory_request_topic = quad_name + "/reference/new_trajectory_request"
+        self.markerPub = rospy.Publisher(marker_topic, Marker, queue_size=10)      
         self.new_trajectory_request_pub = rospy.Publisher(self.new_trajectory_request_topic, Trajectory_request, queue_size=1)
 
-        self.trajectory_sub = rospy.Subscriber(reference_trajectory_topic, Trajectory, self.trajectory_received_cb)
-     
+        # Subscribers
+        self.trajectory_sub = rospy.Subscriber(reference_trajectory_topic, Trajectory, self.trajectory_received_cb) # Reference trajectory
+
+        # At controller start, the quad requests a new trajectory from current pos to hover_pos.
+        # This flag signals for the trajectory request in the odometry callback
         self.need_trajectory_to_hover = True
 
         # Wait a while for the subscribers to connect

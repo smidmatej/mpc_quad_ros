@@ -35,9 +35,11 @@ class TrajectoryBuilder:
         
     def __init__(self):
 
-        rospy.init_node("TrajectoryBuilder", anonymous=False)
-
         quad_name = 'hummingbird'
+
+        rospy.init_node("trajectory_builder")
+
+        
 
 
         # Odometry is published with a average frequency of 100 Hz
@@ -55,12 +57,15 @@ class TrajectoryBuilder:
         # The final trajectory is sampled and saved here
         self.output_trajectory_filename = execution_path + '/source/trajectory_generation/trajectories/trajectory_sampled.csv'
 
+        # Topics
+        self.trajectory_topic = "reference/trajectory"
+        self.new_trajectory_request_topic = "reference/new_trajectory_request"
 
-        self.marker_topic = quad_name + "/rviz/marker"
-        self.path_rviz_topic = quad_name + "/rviz/path" 
-        self.trajectory_topic = quad_name + "/reference/trajectory"
+        self.marker_topic = "rviz/marker"
+        self.path_rviz_topic = "rviz/path" 
+        
 
-        self.new_trajectory_request_topic = quad_name + "/reference/new_trajectory_request"
+        
         self.new_trajectory_request_sub = rospy.Subscriber(self.new_trajectory_request_topic, Trajectory_request, self.new_trajectory_request_cb)
 
         self.markerPub = rospy.Publisher(self.marker_topic, Marker, queue_size=10)
