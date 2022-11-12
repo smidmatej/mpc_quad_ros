@@ -75,6 +75,38 @@ class TrajectoryBuilder:
 
         print("Trajectory publisher initialized")
 
+ 
+
+
+
+    def new_trajectory_request_cb(self, msg):
+        type = msg.type.data
+        start_point = np.array([msg.start_point.x, msg.start_point.y, msg.start_point.z])
+        # Complicated way to pass a None object through ROS
+        if msg.end_point_enabled.data == True:
+            end_point = np.array([msg.end_point.x, msg.end_point.y, msg.end_point.z])
+        else:
+            end_point = None
+
+        v_max = msg.v_max.data
+        a_max = msg.a_max.data
+
+
+        print("New trajectory requested")
+        print(f'Type: {type}')
+        print(f'Start point: \n\r {start_point}')
+        print(f'End point: \n\r {end_point}')
+        print(f'end_point_enabled: {msg.end_point_enabled.data}')
+        print(f'v_max: {v_max}')
+        print(f'a_max: {a_max}')
+
+        self.set_new_trajectory(type, start_point, end_point, v_max, a_max)
+        self.publish_trajectory()
+        self.publish_trajectory_to_rviz()
+
+        print(f"Published trajectory to {self.path_rviz_topic} and to {self.trajectory_topic}")
+
+
     def set_new_trajectory(self, type='circle', start_point=np.array([0,0,0]), end_point=np.array([0,0,0]), v_max=1.0, a_max=1.0):
         """
         Generates a new trajectory and saves it to self.x_trajectory and self.t_trajectory based on the type of trajectory
@@ -115,35 +147,17 @@ class TrajectoryBuilder:
 
         if type == 'circle':
             # Circle trajectory
-            radius = 50
-            t_max = 30
-            if end_point is not None:
-                warnings.warn("End point should be None for circle trajectory, because we dont know the end")
+            t_max = 10
+
+            # Circle trajectory has no endpoint, but we pass the endpoint in to message because we compute the 
+            # radius as dist(start_point, end_point)
+            assert start_point is not None and end_point is not None, "start_point and end_point should not be None for circle trajectory"
+            radius = np.linalg.norm(start_point - end_point)
+
             #assert end_point is None, "End point should be None for circle trajectory, because we dont know the end"
             generate_circle_trajectory_accelerating(self.output_trajectory_filename, radius, v_max, t_max=t_max, dt=self.trajectory_dt, start_point=start_point)
             # trajectory has a specific time step that I do not respect here
             self.x_trajectory, self.t_trajectory = load_trajectory(self.output_trajectory_filename)
-
-
-
-    def new_trajectory_request_cb(self, msg):
-        type = msg.type.data
-        start_point = np.array([msg.start_point.x, msg.start_point.y, msg.start_point.z])
-        end_point = np.array([msg.end_point.x, msg.end_point.y, msg.end_point.z])
-        v_max = msg.v_max.data
-        a_max = msg.a_max.data
-        print("New trajectory requested")
-        print(f'Type: {type}')
-        print(f'Start point: \n\r {start_point}')
-        print(f'End point: \n\r {end_point}')
-        print(f'v_max: {v_max}')
-        print(f'a_max: {a_max}')
-
-        self.set_new_trajectory(type, start_point, end_point, v_max, a_max)
-        self.publish_trajectory()
-        self.publish_trajectory_to_rviz()
-
-        print(f"Published trajectory to {self.path_rviz_topic} and to {self.trajectory_topic}")
 
     def publish_trajectory(self):
         """

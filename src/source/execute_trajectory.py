@@ -165,7 +165,7 @@ def main():
     # IDEA : create a 3D array of Nopt, stateidx, n_node ## How to visualize?
     simulation_time = 0
     for i in tqdm(range(Nopt)):
-        #print(f'rmse_pos={rmse_pos[-1]}')
+        
         # Set the part of trajectory relevant for current time as the MPC reference
         x_ref = utils.get_reference_chunk(x_trajectory, i, quad_opt.n_nodes)
         yref, yref_N = quad_opt.set_reference_trajectory(x_ref)
@@ -189,21 +189,21 @@ def main():
         control_time = 0
         # Simulate the quad plant with the optimal control until the next MPC optimization step is reached
         while control_time < quad_opt.optimization_dt: 
+            # ----------- Simulate ----------------
             # Uses the optimization model to predict one step ahead, used for gp fitting
             x_pred = quad_opt.discrete_dynamics(x, u, simulation_dt, body_frame=True)
-
             # Control the quad with the most recent u for the whole control period (multiple simulation steps for one optimization)
             quad.update(u, simulation_dt)
+
+
+            # ----------- Save simulation results ----------------
             x = np.array(quad.get_state(quaternion=True, stacked=True)) # state at the next optim step
-
-
 
             # Save model aerodrag for GP validation, useful only when payload=False
             x_body_for_drag = quad.get_state(quaternion=True, stacked=False, body_frame=False) # in world frame because get_aero_drag takes world frame velocity
             a_drag_body = quad.get_aero_drag(x_body_for_drag, body_frame=True)
             
-            
-
+            # Save simulation results
             x_world = np.array(quad.get_state(quaternion=True, stacked=True, body_frame=False)) # World frame referential
             x_body = np.array(quad.get_state(quaternion=True, stacked=True, body_frame=True)) # Body frame referential
 
@@ -219,14 +219,9 @@ def main():
             yref_sim = np.append(yref_sim, yref_now.reshape((1, yref_now.shape[0])), axis=0)
             aero_drag_sim = np.append(aero_drag_sim, a_drag_body.reshape((1, a_drag_body.shape[0])), axis=0)
 
-            #print(f' x={x}')
-            #print(f'yref_now={yref_now}')
             rmse_pos_now = np.sqrt(np.mean((yref_now[:3] - x[:3])**2))
-            #print(f'rmse_pos_now={rmse_pos_now}')
-            #break
-            
-
             rmse_pos = np.append(rmse_pos, rmse_pos_now)
+
             # Counts until the next MPC optimization step is reached
             control_time += simulation_dt
         # Counts until simulation is finished

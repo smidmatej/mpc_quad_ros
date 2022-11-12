@@ -908,22 +908,30 @@ def square_trajectory(n=10, dt=0.1, v=3):
     return x_target
 
 
-def get_reference_chunk(reference_trajectory, current_idx, control_nodes):
+def get_reference_chunk(reference_trajectory, current_idx, control_nodes, skip=1):
+    """
+    Takes a sampled reference trajectory and extracts the reference from current_idx to current_idx + control_nodes. 
+    If the trajectory is shorter than the required length, the endpoint is repeated. 
+    If skip > 1, the trajectory is downsampled by the given factor.
+    """
+    assert skip % 1 == 0, "Skip must be an integer"
     sample_idx = current_idx
     samples_left_in_trajectory = reference_trajectory.shape[0] - sample_idx
     #breakpoint()
-    if samples_left_in_trajectory > control_nodes:
+    if samples_left_in_trajectory > control_nodes*skip:
         # Not at the end of the trajectory, just pass the next chunk
-        reference_chunk = reference_trajectory[sample_idx:sample_idx+control_nodes, :]
+        reference_chunk = reference_trajectory[sample_idx:sample_idx+control_nodes*skip:skip, :]
         #print(f'reference_chunk.shape: {reference_chunk.shape}')
         #print(f'slice :{sample_idx:sample_idx+control_nodes:undersample]}')
-    elif samples_left_in_trajectory > 0:
+    elif samples_left_in_trajectory > skip-1:
         # I have less trajectory nodes than control_nodes
-        last_pos = reference_trajectory[-1, :].reshape((1,-1))
-        last_pos_repeat = np.repeat(last_pos, repeats=control_nodes-samples_left_in_trajectory, axis=0)
- 
+
         # Chunk whats left of the trajectory
-        reference_left = reference_trajectory[sample_idx:sample_idx+samples_left_in_trajectory, :]
+        reference_left = reference_trajectory[sample_idx:sample_idx+samples_left_in_trajectory*skip:skip, :]
+
+        last_pos = reference_trajectory[-1, :].reshape((1,-1))
+        last_pos_repeat = np.repeat(last_pos, repeats=control_nodes-reference_left.shape[0], axis=0)
+ 
         # and add the last pos of the trajectory at the end
         reference_chunk = np.concatenate((reference_left, last_pos_repeat))
 

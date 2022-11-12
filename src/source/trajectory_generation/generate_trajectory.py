@@ -62,9 +62,10 @@ def generate_circle_trajectory(filename, radius, v_max, t_max=10, dt=0.01):
         for t in np.arange(0, t_max, dt):
             f.write("{},{},{},{},{}\n".format(t, radius * np.cos(v_max * t), radius * np.sin(v_max * t), 0))
 
-def generate_random_waypoints(waypoint_filename, hsize=10, num_waypoints=10, hover_first=True, start_point=np.array([0.0, 0.0, 0.0]), end_point=np.array([0.0, 0.0, 0.0])):
+def generate_random_waypoints(waypoint_filename, hsize=10, num_waypoints=10, hover_first=False, start_point=np.array([0.0, 0.0, 0.0]), end_point=np.array([0.0, 0.0, 0.0])):
     # generate random waypoints in a cube centered around center_of_cube
-    print(f'Generating {num_waypoints} random waypoints in a {hsize}x{hsize} random walk and saving them to {waypoint_filename}')
+    
+    #print(f'Generating {num_waypoints} random waypoints saving them to {waypoint_filename}')
     waypoints = list()
     center_of_cube = np.array([0,0,1.5*hsize]) # Moved the center of the cube up so that the generated trajectories are above the ground plane
     waypoints.append(start_point)
@@ -74,8 +75,11 @@ def generate_random_waypoints(waypoint_filename, hsize=10, num_waypoints=10, hov
         newWaypoint = np.random.uniform(-hsize, hsize, 3) + center_of_cube 
         waypoints.append(newWaypoint)
 
-    waypoints.append(np.array([0.0, 0.0, hsize])) # return above the ground plane
-    waypoints.append(end_point) 
+    #waypoints.append(np.array([0.0, 0.0, hsize])) # return above the ground plane
+    #if end_point is not None:
+        # If end_point is not None, then add it to the list of waypoints
+        # Otherwise end on the last random waypoint
+        # waypoints.append(end_point) 
     #waypoints.append(np.array([0.0, 0.0, 0.0]))
     write_waypoints_to_file(waypoints, waypoint_filename)
     
@@ -100,22 +104,22 @@ def create_trajectory_from_waypoints(waypoint_filename, output_trajectory_filena
     polynom_filename = execution_path + '/trajectories/polynomial_representation.csv'
 
 
-    print("Loading waypoints from file: {}".format(waypoint_filename))
-    print("Saving polynomial representation of trajectory to file: {}".format(polynom_filename))
+    #print("Loading waypoints from file: {}".format(waypoint_filename))
+    #print("Saving polynomial representation of trajectory to file: {}".format(polynom_filename))
     #print("Maximum velocity: {}".format(v_max))
     #print("Maximum acceleration: {}".format(a_max))
     
 
-    print(f"Executing: {execution_path +  '/genTrajectory -i '+ waypoint_filename + ' -o ' + polynom_filename + ' --v_max ' + str(v_max) + ' --a_max ' + str(a_max)}")
+    #print(f"Executing: {execution_path +  '/genTrajectory -i '+ waypoint_filename + ' -o ' + polynom_filename + ' --v_max ' + str(v_max) + ' --a_max ' + str(a_max)}")
     os.system(execution_path +  '/genTrajectory -i '+ waypoint_filename + ' -o ' + polynom_filename + ' --v_max ' + str(v_max) + ' --a_max ' + str(a_max))
     #os.system(execution_path +  '/genTrajectory -i '+ waypoint_filename + ' -o ' + polynom_filename)
 
     traj = uav_trajectory.Trajectory()
-    print("Loading polynomial representation of trajectory from file: {}".format(polynom_filename))
+    #print("Loading polynomial representation of trajectory from file: {}".format(polynom_filename))
     traj.loadcsv(polynom_filename)
 
     
-    print(f'Saving sampled trajectory to file: {output_trajectory_filename} with dt={dt}')
+    #print(f'Saving sampled trajectory to file: {output_trajectory_filename} with dt={dt}')
 
     save_evals_csv(traj,output_trajectory_filename, dt=dt)
     
