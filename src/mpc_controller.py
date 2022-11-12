@@ -232,7 +232,7 @@ class MPC_controller:
                 
                 print("Trajectory finished")
                 # Give me a new random trajectory from my position and back
-                self.request_new_trajectory("circle", \
+                self.request_new_trajectory("random", \
                     start_point=np.array([x[0], x[1], x[2]]), end_point=np.array([x[0], x[1], x[2]]), \
                         v_max=self.v_max, a_max=self.a_max)
 

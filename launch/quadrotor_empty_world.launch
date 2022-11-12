@@ -20,6 +20,8 @@
   <arg name="verbose" default="false"/>
   <arg name="debug" default="false"/>
 
+
+
   <!-- Basic simulation environment !-->
   <include file="$(find rpg_rotors_interface)/launch/basics/base_quad_simulation.launch">
     <arg name="quad_name" value="$(arg quad_name)"/>
