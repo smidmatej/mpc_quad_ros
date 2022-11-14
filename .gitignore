@@ -5,3 +5,4 @@ img/
 **/.ipynb_checkpoints/
 **/__pycache__/
 **/c_generated_code/
+/img
