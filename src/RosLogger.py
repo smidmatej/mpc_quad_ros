@@ -10,9 +10,9 @@ class RosLogger:
         self.dictionary = {}
         dir_path = os.path.dirname(os.path.realpath(__file__))
 
-        self.filename_npy = dir_path + '../outputs/log.npy'
-        self.filename_dict = dir_path + '../outputs/log.pkl'
-        self.filename_csv = dir_path + '../outputs/log.csv'
+        self.filename_npy = os.path.join(dir_path, '..', 'outputs/log.npy')
+        self.filename_dict = os.path.join(dir_path, '..', 'outputs/log.pkl')
+        self.filename_csv = os.path.join(dir_path, '..', 'outputs/log.csv')
 
 
     def log(self, input_dict):

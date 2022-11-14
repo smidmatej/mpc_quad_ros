@@ -31,9 +31,13 @@ from quad_opt import quad_optimizer
 from utils.utils import load_trajectory, get_reference_chunk, v_dot_q, get_reference_chunk
 from trajectory_generation.generate_trajectory import write_waypoints_to_file, generate_random_waypoints, create_trajectory_from_waypoints, generate_circle_trajectory_accelerating
 
+from trajectory_generation.TrajectoryGenerator import TrajectoryGenerator
+
 class TrajectoryBuilder:
         
     def __init__(self):
+        
+        self.trajectory_generator = TrajectoryGenerator()
 
         quad_name = 'hummingbird'
 
@@ -125,18 +129,15 @@ class TrajectoryBuilder:
             print('Generating line trajectory')
             assert start_point is not None and end_point is not None, "start_point and end_point should not be None for line between two points"
             
-            write_waypoints_to_file([start_point, end_point], self.line_waypoint_filename)
+            
+            self.trajectory_generator.write_waypoints_to_file([start_point, end_point])
             # Create trajectory from waypoints with the same dt as the MPC control frequency    
-            create_trajectory_from_waypoints(self.line_waypoint_filename, self.output_trajectory_filename, v_max, a_max, self.trajectory_dt)
-            # trajectory has a specific time step that I do not respect here
-            self.x_trajectory, self.t_trajectory = load_trajectory(self.output_trajectory_filename)
+            self.trajectory_generator.sample_trajectory(type, v_max, a_max, self.trajectory_dt)
 
         if type == 'static':
             assert start_point is None and end_point is None, "start_point and end_point should be None for static trajectory"
             # Create trajectory from waypoints with the same dt as the MPC control frequency    
-            create_trajectory_from_waypoints(self.static_waypoint_filename, self.output_trajectory_filename, v_max, a_max, self.trajectory_dt)
-            # trajectory has a specific time step that I do not respect here
-            self.x_trajectory, self.t_trajectory = load_trajectory(self.output_trajectory_filename)
+            self.trajectory_generator.sample_trajectory(type, v_max, a_max, self.trajectory_dt)
 
         
         if type == 'random':
@@ -145,12 +146,11 @@ class TrajectoryBuilder:
             hsize = 10
             num_waypoints = 3
             # First generate random waypoints
-            generate_random_waypoints(self.random_waypoint_filename, hsize=hsize, num_waypoints=num_waypoints, start_point=start_point, end_point=end_point)
+            self.trajectory_generator.generate_random_waypoints(hsize=hsize, num_waypoints=num_waypoints, start_point=start_point, end_point=end_point)
             # Then interpolate the waypoints to create a trajectory
-            create_trajectory_from_waypoints(self.random_waypoint_filename, self.output_trajectory_filename, v_max, a_max, self.trajectory_dt)
+            self.trajectory_generator.sample_trajectory(type, v_max, a_max, self.trajectory_dt)
 
-            # trajectory has a specific time step that I do not respect here
-            self.x_trajectory, self.t_trajectory = load_trajectory(self.output_trajectory_filename)
+
 
         if type == 'circle':
             # Circle trajectory
@@ -162,9 +162,11 @@ class TrajectoryBuilder:
             radius = np.linalg.norm(start_point - end_point)
 
             #assert end_point is None, "End point should be None for circle trajectory, because we dont know the end"
-            generate_circle_trajectory_accelerating(self.output_trajectory_filename, radius, v_max, t_max=t_max, dt=self.trajectory_dt, start_point=start_point)
-            # trajectory has a specific time step that I do not respect here
-            self.x_trajectory, self.t_trajectory = load_trajectory(self.output_trajectory_filename)
+            self.trajectory_generator.generate_circle_trajectory_accelerating(radius, v_max, t_max=t_max, dt=self.trajectory_dt, start_point=start_point)
+            
+
+        # Loads the sampled trajectory from file to self.x_trajectory and self.t_trajectory
+        self.x_trajectory, self.t_trajectory = self.trajectory_generator.load_trajectory()
 
     def publish_trajectory(self):
         """
