@@ -28,10 +28,10 @@ import os
 
 from MPCROSWrapper import MPCROSWrapper
 from RosLogger import RosLogger
-from source.quad import Quadrotor3D
-from source.quad_opt import quad_optimizer
-from source.utils.utils import load_trajectory, get_reference_chunk, v_dot_q, get_reference_chunk
-from source.trajectory_generation.generate_trajectory import generate_random_waypoints, create_trajectory_from_waypoints, generate_circle_trajectory_accelerating
+from quad import Quadrotor3D
+from quad_opt import quad_optimizer
+from utils.utils import load_trajectory, get_reference_chunk, v_dot_q, get_reference_chunk
+from trajectory_generation.generate_trajectory import generate_random_waypoints, create_trajectory_from_waypoints, generate_circle_trajectory_accelerating
 
 class MPC_controller:
         

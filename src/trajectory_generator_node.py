@@ -26,10 +26,10 @@ import os
 
 
 from MPCROSWrapper import MPCROSWrapper
-from source.quad import Quadrotor3D
-from source.quad_opt import quad_optimizer
-from source.utils.utils import load_trajectory, get_reference_chunk, v_dot_q, get_reference_chunk
-from source.trajectory_generation.generate_trajectory import write_waypoints_to_file, generate_random_waypoints, create_trajectory_from_waypoints, generate_circle_trajectory_accelerating
+from quad import Quadrotor3D
+from quad_opt import quad_optimizer
+from utils.utils import load_trajectory, get_reference_chunk, v_dot_q, get_reference_chunk
+from trajectory_generation.generate_trajectory import write_waypoints_to_file, generate_random_waypoints, create_trajectory_from_waypoints, generate_circle_trajectory_accelerating
 
 class TrajectoryBuilder:
         
@@ -47,15 +47,17 @@ class TrajectoryBuilder:
         self.trajectory_dt = 1/100
 
 
-        execution_path = os.path.dirname(os.path.realpath(__file__))
+        #execution_path = os.path.dirname(os.path.realpath(__file__))
+        this_path = os.path.dirname(os.path.realpath(__file__))
+        rospy.loginfo(f'this_path: {this_path}')
         # For user defined waypoints
-        self.static_waypoint_filename = execution_path + '/source/trajectory_generation/waypoints/static_waypoints.csv'
+        self.static_waypoint_filename = 'trajectory_generation/waypoints/static_waypoints.csv'
         # For generating trajectory between two points
-        self.line_waypoint_filename = execution_path + '/source/trajectory_generation/waypoints/static_waypoints.csv'
+        self.line_waypoint_filename = 'trajectory_generation/waypoints/static_waypoints.csv'
         # For generating random waypoints for a trajectory
-        self.random_waypoint_filename = execution_path + '/source/trajectory_generation/waypoints/random_waypoints.csv'
+        self.random_waypoint_filename = 'trajectory_generation/waypoints/random_waypoints.csv'
         # The final trajectory is sampled and saved here
-        self.output_trajectory_filename = execution_path + '/source/trajectory_generation/trajectories/trajectory_sampled.csv'
+        self.output_trajectory_filename = 'trajectory_generation/trajectories/trajectory_sampled.csv'
 
         # Topics
         self.trajectory_topic = "reference/trajectory"

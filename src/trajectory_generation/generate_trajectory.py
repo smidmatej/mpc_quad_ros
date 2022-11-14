@@ -4,7 +4,7 @@ import sys
 
 try:
     # Methods of this script are called from elsewhere
-    import source.trajectory_generation.uav_trajectory as uav_trajectory
+    import trajectory_generation.uav_trajectory as uav_trajectory
 except ImportError:
     # This file is executed as main 
     import uav_trajectory as uav_trajectory

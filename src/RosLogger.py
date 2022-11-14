@@ -1,7 +1,7 @@
 import numpy as np
 
 import os 
-from source.utils.save_dataset import save_dict
+from utils.save_dataset import save_dict
 
 
 class RosLogger:
@@ -10,9 +10,9 @@ class RosLogger:
         self.dictionary = {}
         dir_path = os.path.dirname(os.path.realpath(__file__))
 
-        self.filename_npy = dir_path + '/outputs/log.npy'
-        self.filename_dict = dir_path + '/outputs/log.pkl'
-        self.filename_csv = dir_path + '/outputs/log.csv'
+        self.filename_npy = dir_path + '../outputs/log.npy'
+        self.filename_dict = dir_path + '../outputs/log.pkl'
+        self.filename_csv = dir_path + '../outputs/log.csv'
 
 
     def log(self, input_dict):

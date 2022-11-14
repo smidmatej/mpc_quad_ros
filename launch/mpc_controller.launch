@@ -1,0 +1,10 @@
+<?xml version="1.0"?>
+<launch>
+
+
+  <group ns="mpcros">
+      <node name="mpc_controller" pkg="mpcros" type="mpc_controller_node.py"/>
+      <node name="trajectory_generator" pkg="mpcros" type="trajectory_generator_node.py"/>
+  </group>
+
+</launch>

@@ -13,9 +13,9 @@ dir_path = os.path.dirname(os.path.realpath(__file__))
 
 
 
-from source.quad import Quadrotor3D
-from source.quad_opt import quad_optimizer
-from source.utils.utils import load_trajectory, get_reference_chunk, parse_xacro_file
+from quad import Quadrotor3D
+from quad_opt import quad_optimizer
+from utils.utils import load_trajectory, get_reference_chunk, parse_xacro_file
 
 
 class MPCROSWrapper:
@@ -46,6 +46,9 @@ def set_quad_parameters_from_file(quad, quad_name):
     print(f'this_path: {this_path}')
     params_filename = os.path.join(this_path, '..' , 'config', quad_name + '.xacro')
     print(f'params_filename: {params_filename}')
+
+    #params_filename = os.path.join('..' , 'config', quad_name + '.xacro')
+
 
     # Get parameters for drone
     attrib = parse_xacro_file(params_filename)

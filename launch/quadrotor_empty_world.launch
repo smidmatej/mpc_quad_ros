@@ -44,4 +44,7 @@
     <arg name="y_init" value="$(arg y_init)"/>
   </include>
 
+  <!-- rviz with relevant config file !-->
+  <node type="rviz" name="rviz" pkg="rviz" args="-d $(find mpcros)/config/rviz/config.rviz" />
+
 </launch>

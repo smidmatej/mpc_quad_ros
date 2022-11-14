@@ -7,6 +7,7 @@ Panels:
         - /Global Options1
         - /Status1
         - /TF1
+        - /TF1/Frames1
         - /TF1/Tree1
         - /Marker1
         - /Path1
@@ -14,6 +15,7 @@ Panels:
         - /Path2
         - /Path3
         - /Odometry1
+        - /Odometry1/Shape1
       Splitter Ratio: 0.5
     Tree Height: 719
   - Class: rviz/Selection
@@ -76,7 +78,7 @@ Visualization Manager:
       Value: false
     - Class: rviz/Marker
       Enabled: true
-      Marker Topic: /hummingbird/rviz/marker
+      Marker Topic: /mpcros/rviz/marker
       Name: Marker
       Namespaces:
         hummingbird: true
@@ -103,7 +105,7 @@ Visualization Manager:
       Radius: 0.029999999329447746
       Shaft Diameter: 0.10000000149011612
       Shaft Length: 0.10000000149011612
-      Topic: /hummingbird/rviz/path
+      Topic: /mpcros/rviz/path
       Unreliable: false
       Value: true
     - Alpha: 1
@@ -127,11 +129,11 @@ Visualization Manager:
       Radius: 0.029999999329447746
       Shaft Diameter: 0.10000000149011612
       Shaft Length: 0.10000000149011612
-      Topic: /hummingbird/rviz/optimal_path
+      Topic: /mpcros/rviz/optimal_path
       Unreliable: false
       Value: true
     - Alpha: 1
-      Buffer Length: 10
+      Buffer Length: 1
       Class: rviz/Path
       Color: 239; 41; 41
       Enabled: true
@@ -151,7 +153,7 @@ Visualization Manager:
       Radius: 0.029999999329447746
       Shaft Diameter: 0.10000000149011612
       Shaft Length: 0.10000000149011612
-      Topic: /hummingbird/rviz/reference_chunk
+      Topic: /mpcros/rviz/reference_chunk
       Unreliable: false
       Value: true
     - Angle Tolerance: 0.10000000149011612
@@ -178,8 +180,8 @@ Visualization Manager:
       Queue Size: 10
       Shape:
         Alpha: 1
-        Axes Length: 1
-        Axes Radius: 0.10000000149011612
+        Axes Length: 0.20000000298023224
+        Axes Radius: 0.019999999552965164
         Color: 255; 25; 0
         Head Length: 0.30000001192092896
         Head Radius: 0.10000000149011612
@@ -189,6 +191,22 @@ Visualization Manager:
       Topic: /hummingbird/ground_truth/odometry
       Unreliable: false
       Value: true
+    - Alpha: 1
+      Class: rviz/RobotModel
+      Collision Enabled: false
+      Enabled: false
+      Links:
+        All Links Enabled: true
+        Expand Joint Details: false
+        Expand Link Details: false
+        Expand Tree: false
+        Link Tree Style: ""
+      Name: RobotModel
+      Robot Description: robot_description
+      TF Prefix: ""
+      Update Interval: 0
+      Value: false
+      Visual Enabled: true
   Enabled: true
   Global Options:
     Background Color: 48; 48; 48
@@ -217,7 +235,7 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz/Orbit
-      Distance: 72.76014709472656
+      Distance: 12.05546760559082
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
@@ -225,17 +243,17 @@ Visualization Manager:
         Value: false
       Field of View: 0.7853981852531433
       Focal Point:
-        X: 0.18057478964328766
-        Y: 0.3714296519756317
-        Z: 0.016931476071476936
-      Focal Shape Fixed Size: true
+        X: 0
+        Y: 0
+        Z: 0
+      Focal Shape Fixed Size: false
       Focal Shape Size: 0.05000000074505806
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 0.03479893133044243
+      Pitch: 0.21479709446430206
       Target Frame: hummingbird/base_link
-      Yaw: 5.652717113494873
+      Yaw: 0.6335873603820801
     Saved: ~
 Window Geometry:
   Displays:
@@ -253,5 +271,5 @@ Window Geometry:
   Views:
     collapsed: false
   Width: 1848
-  X: -436
-  Y: 68
+  X: 72
+  Y: 27
