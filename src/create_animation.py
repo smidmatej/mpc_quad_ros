@@ -11,6 +11,7 @@ from tqdm import tqdm
 from matplotlib.collections import LineCollection
 from matplotlib.colors import ListedColormap, BoundaryNorm
 import seaborn as sns
+import os
 
 def update(i):
     #particle.set_data(x[i],y[i])
@@ -50,7 +51,11 @@ def update(i):
 plt.style.use('fast')
 sns.set_style("whitegrid")
 
-trajectory_filename = 'data/sim_1_trajectory2_v_max20_a_max10.pkl'
+dir_path = os.path.dirname(os.path.realpath(__file__))
+trajectory_filename = os.path.join(dir_path, '..', 'outputs', 'python_simulation', 'data', 'sim_1_trajectory2_v_max20_a_max10.pkl')
+result_animation_filename = os.path.join(dir_path, '..', 'outputs', 'python_simulation', 'animations', 'my_animation.mp4')
+
+
 frames = 100
 
 dloader = data_loader(trajectory_filename, sample_to_amount=True, amount_of_samples=frames)
@@ -157,7 +162,8 @@ pbar = tqdm(total=frames)
 ani = animation.FuncAnimation(fig, update, frames=number_of_frames, interval=interval)           
 #pbar.close()
 
-ani.save('animations/my_animation.mp4')
+
+ani.save(result_animation_filename)
 #ani.save('docs/drone_flight.gif')
 
 plt.show()

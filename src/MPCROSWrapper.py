@@ -43,9 +43,9 @@ class MPCROSWrapper:
 def set_quad_parameters_from_file(quad, quad_name):
 
     this_path = os.path.dirname(os.path.realpath(__file__))
-    print(f'this_path: {this_path}')
+    rospy.loginfo(f'this_path: {this_path}')
     params_filename = os.path.join(this_path, '..' , 'config', quad_name + '.xacro')
-    print(f'params_filename: {params_filename}')
+    rospy.loginfo(f'params_filename: {params_filename}')
 
     #params_filename = os.path.join('..' , 'config', quad_name + '.xacro')
 
@@ -83,7 +83,7 @@ def set_quad_parameters_from_file(quad, quad_name):
 
 def main():    
     mpc_ros_wrapper = MPCROSWrapper()
-    print("controller initialized")
+    rospy.loginfo("controller initialized")
     rospy.spin()   
 if __name__ == '__main__':
     main()

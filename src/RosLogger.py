@@ -10,9 +10,9 @@ class RosLogger:
         self.dictionary = {}
         dir_path = os.path.dirname(os.path.realpath(__file__))
 
-        self.filename_npy = os.path.join(dir_path, '..', 'outputs/log.npy')
-        self.filename_dict = os.path.join(dir_path, '..', 'outputs/log.pkl')
-        self.filename_csv = os.path.join(dir_path, '..', 'outputs/log.csv')
+        self.filename_npy = os.path.join(dir_path, '..', 'outputs', 'gazebo_simulation', 'data', 'simulated_trajectory.npy')
+        self.filename_dict = os.path.join(dir_path, '..', 'outputs', 'gazebo_simulation', 'data', 'simulated_trajectory.pkl')
+        self.filename_csv = os.path.join(dir_path, '..', 'outputs', 'gazebo_simulation', 'data', 'simulated_trajectory.csv')
 
 
     def log(self, input_dict):
@@ -21,7 +21,7 @@ class RosLogger:
                 self.dictionary[key] = list()
                 self.dictionary[key].append(input_dict[key])
             else:
-                #print(type(self.dictionary[key]))
+                #rospy.loginfo(type(self.dictionary[key]))
                 self.dictionary[key].append(input_dict[key])
 
 

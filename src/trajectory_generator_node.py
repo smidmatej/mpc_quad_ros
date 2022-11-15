@@ -43,7 +43,7 @@ class TrajectoryBuilder:
 
         rospy.init_node("trajectory_builder")
 
-        # TODO: switch all the print statements to rospy.loginfo
+        # TODO: switch all the rospy.loginfo statements to rospy.loginfo
         # Also find out some best practices for logging in ROS
 
 
@@ -85,7 +85,7 @@ class TrajectoryBuilder:
 
         #self.set_new_trajectory(type='static')
 
-        print("Trajectory publisher initialized")
+        rospy.loginfo("Trajectory publisher initialized")
 
  
 
@@ -103,20 +103,24 @@ class TrajectoryBuilder:
         v_max = msg.v_max.data
         a_max = msg.a_max.data
 
+        '''
+        rospy.loginfo("New trajectory requested")
+        rospy.loginfo(f'Type: {type}')
+        rospy.loginfo(f'Start point: \n\r {start_point}')
+        rospy.loginfo(f'End point: \n\r {end_point}')
+        rospy.loginfo(f'end_point_enabled: {msg.end_point_enabled.data}')
+        rospy.loginfo(f'v_max: {v_max}')
+        rospy.loginfo(f'a_max: {a_max}')
+        '''
 
-        print("New trajectory requested")
-        print(f'Type: {type}')
-        print(f'Start point: \n\r {start_point}')
-        print(f'End point: \n\r {end_point}')
-        print(f'end_point_enabled: {msg.end_point_enabled.data}')
-        print(f'v_max: {v_max}')
-        print(f'a_max: {a_max}')
+        rospy.loginfo(f"Received trajectory request: \n\r type: {type} \n\r  {start_point} --> {end_point} \n\r v_max={v_max}, a_max={a_max} \n\r at topic {self.new_trajectory_request_topic}")
+        
 
         self.set_new_trajectory(type, start_point, end_point, v_max, a_max)
         self.publish_trajectory()
         self.publish_trajectory_to_rviz()
 
-        print(f"Published trajectory to {self.path_rviz_topic} and to {self.trajectory_topic}")
+        rospy.loginfo(f"Published trajectory to {self.path_rviz_topic} and to {self.trajectory_topic}")
 
 
     def set_new_trajectory(self, type='circle', start_point=np.array([0,0,0]), end_point=np.array([0,0,0]), v_max=1.0, a_max=1.0):
@@ -127,7 +131,7 @@ class TrajectoryBuilder:
 
 
         if type == 'line':
-            print('Generating line trajectory')
+            rospy.loginfo('Generating line trajectory')
             assert start_point is not None and end_point is not None, "start_point and end_point should not be None for line between two points"
             
             
@@ -186,7 +190,7 @@ class TrajectoryBuilder:
 
 
         traj.header.frame_id = "world"
-        #print(f'len(path.poses): {len(path.poses)}')
+        #rospy.loginfo(f'len(path.poses): {len(path.poses)}')
         for i in range(self.t_trajectory.shape[0]):
             
 
@@ -209,7 +213,7 @@ class TrajectoryBuilder:
             # Convert seconds to the required stamp format
             seconds = int(self.t_trajectory[i])
             nanoseconds = int(int(self.t_trajectory[i] * 1e9) - seconds * 1e9) # Integer arithmetic is strange
-            #print(f'seconds: {seconds}, nanoseconds: {nanoseconds}')
+            #rospy.loginfo(f'seconds: {seconds}, nanoseconds: {nanoseconds}')
             traj.timeStamps[i].stamp.secs = seconds
             traj.timeStamps[i].stamp.nsecs = nanoseconds
 
@@ -222,7 +226,7 @@ class TrajectoryBuilder:
         path = Path()
         path.poses = [PoseStamped()]*len(self.t_trajectory)
         path.header.frame_id = "world"
-        #print(f'len(path.poses): {len(path.poses)}')
+        #rospy.loginfo(f'len(path.poses): {len(path.poses)}')
         for i in range(self.t_trajectory.shape[0]):
             pose_stamped = PoseStamped()
 
@@ -239,7 +243,7 @@ class TrajectoryBuilder:
             # Convert seconds to the required stamp format
             seconds = int(self.t_trajectory[i])
             nanoseconds = int(int(self.t_trajectory[i] * 1e9) - seconds * 1e9) # Integer arithmetic is strange
-            #print(f'seconds: {seconds}, nanoseconds: {nanoseconds}')
+            #rospy.loginfo(f'seconds: {seconds}, nanoseconds: {nanoseconds}')
             pose_stamped.header.stamp.secs = seconds
             pose_stamped.header.stamp.nsecs = nanoseconds
             

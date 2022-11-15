@@ -170,7 +170,7 @@ class MPC_controller:
         self.trajectory_ready = True
         self.wait_for_trajectory = False
         self.pbar = tqdm(total=self.t_trajectory.shape[0]) 
-        rospy.loginfo("Received new trajectory with duration {}".format(self.t_trajectory[-1] - self.t_trajectory[0]))
+        rospy.loginfo("Received new trajectory with duration {}s".format(self.t_trajectory[-1] - self.t_trajectory[0]))
         
         
 
@@ -249,7 +249,8 @@ class MPC_controller:
                 w = w_opt[0, :]
 
                 if self.logger is not None:
-                    dict_to_log = {"odom": x, "x_ref": x_ref[0,:], "t": timestamp_odometry, 'w': w, 't_cpu': t_cpu, 'cost_solution': cost_solution}
+                    dict_to_log = {"x_odom": x, "x_ref": x_ref[0,:], "t_odom": timestamp_odometry, 'w_odom': w, 't_cpu': t_cpu, 'cost_solution': cost_solution}
+                    
                     self.logger.log(dict_to_log)
 
                 # Control input command to the autopilot

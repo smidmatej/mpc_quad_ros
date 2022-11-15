@@ -1,4 +1,4 @@
-from source.utils.save_dataset import load_dict
+from utils.save_dataset import load_dict
 import matplotlib.pyplot as plt
 import numpy as np
 
@@ -7,8 +7,11 @@ import json
 
 def main():
 
+    dir_path = os.path.dirname(os.path.realpath(__file__))
+    save_dir_path = os.path.join(dir_path, '..', 'outputs/python_simulation')
 
-    compare_config_file = 'comparisson_config.json'
+    
+    compare_config_file = os.path.join(dir_path, '..', 'config/comparisson_config.json')
     with open(compare_config_file) as json_file:
         config = json.load(json_file)
 
@@ -23,8 +26,11 @@ def main():
 
     for n, run in zip(range(len(config['runs'])), config['runs']):
         print(run)
-        simulation_result_fname = 'data/sim_' + str(run['gpe']) + '_trajectory' + str(run['trajectory']) + \
+        # File name
+        simulation_result_fname = 'sim_' + str(run['gpe']) + '_trajectory' + str(run['trajectory']) + \
                                     '_v_max' + str(run['v_max']) + '_a_max' + str(run['a_max']) + '.pkl'
+        # File path
+        simulation_result_fname = os.path.join(save_dir_path, simulation_result_fname)
 
         os.system('python execute_trajectory.py -o ' + simulation_result_fname + ' --gpe ' + str(run['gpe']) + \
                     ' --trajectory ' + str(run['trajectory']) + ' --v_max ' + str(run['v_max']) \
