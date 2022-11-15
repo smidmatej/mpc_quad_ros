@@ -1,34 +1,24 @@
 #!/usr/bin/env python3
 import rospy
 
+# For sending and receiving trajectory messages
+from geometry_msgs.msg import Point, Vector3, Quaternion
+from mpcros.msg import Trajectory, Trajectory_request
+from std_msgs.msg import Header
 
-from geometry_msgs.msg import Pose, Point, Vector3, Quaternion
-from std_msgs.msg import Header, String
-from mav_msgs.msg import Actuators
-from quadrotor_msgs.msg import ControlCommand
-
-from nav_msgs.msg import Odometry
-
-from visualization_msgs.msg import Marker
 
 # for path visualization
 from nav_msgs.msg import Path
 from geometry_msgs.msg import PoseStamped 
+from visualization_msgs.msg import Marker
 
-from mpcros.msg import Trajectory, Trajectory_request
 import warnings
 
 
-import std_msgs
 import numpy as np
 import os 
 
-
-
-from MPCROSWrapper import MPCROSWrapper
-from quad import Quadrotor3D
-from quad_opt import quad_optimizer
-from utils.utils import load_trajectory, get_reference_chunk, v_dot_q, get_reference_chunk
+from utils.utils import get_reference_chunk, v_dot_q, get_reference_chunk
 from trajectory_generation.generate_trajectory import write_waypoints_to_file, generate_random_waypoints, create_trajectory_from_waypoints, generate_circle_trajectory_accelerating
 
 from trajectory_generation.TrajectoryGenerator import TrajectoryGenerator

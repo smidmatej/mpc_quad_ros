@@ -1,21 +1,11 @@
 #!/usr/bin/env python3
 import rospy
-
-
-from geometry_msgs.msg import Pose
-from mav_msgs.msg import Actuators
-from quadrotor_msgs.msg import ControlCommand
-from nav_msgs.msg import Odometry
-import std_msgs
 import numpy as np
 import os 
-dir_path = os.path.dirname(os.path.realpath(__file__))
-
-
 
 from quad import Quadrotor3D
 from quad_opt import quad_optimizer
-from utils.utils import load_trajectory, get_reference_chunk, parse_xacro_file
+from utils.utils import parse_xacro_file
 
 
 class MPCROSWrapper:

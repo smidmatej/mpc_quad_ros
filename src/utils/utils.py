@@ -841,28 +841,7 @@ def separate_variables(traj):
     r_traj = traj[:, 10:]
     return [p_traj, a_traj, v_traj, r_traj]
 
-def load_trajectory(filename):
-    """
-    Loads a trajectory from a .csv file.
 
-    :param filename: path to the .csv file
-    :return: a numpy array with the trajectory
-    """
-    #breakpoint()
-    data = np.genfromtxt(filename, delimiter=',')
-    traj_t = data[:, 0]
-    traj_pos = data[:, 1:4]
-    traj_vel = data[:, 4:7]
-
-    # csv does not contain orientation data
-    traj_q = np.repeat(np.array([1,0,0,0]).reshape(1,-1), len(traj_t), axis=0).reshape(len(traj_t), 4)
-    traj_r = np.repeat(np.array([0,0,0]).reshape(1,-1), len(traj_t), axis=0).reshape(len(traj_t), 3)
-
-    # Acceleration data is redundant
-    traj_a = data[:, 7:10]
-
-    traj_x = np.concatenate((traj_pos, traj_q, traj_vel, traj_r), axis=1)
-    return traj_x, traj_t
 
 def square_trajectory(n=10, dt=0.1, v=3):
     # Calculate a square trajectory, static method

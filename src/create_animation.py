@@ -12,6 +12,7 @@ from matplotlib.collections import LineCollection
 from matplotlib.colors import ListedColormap, BoundaryNorm
 import seaborn as sns
 import os
+from utils.save_dataset import load_dict
 
 def update(i):
     #particle.set_data(x[i],y[i])
@@ -30,11 +31,10 @@ def update(i):
     # Norm of veloctity to plot to a different ax
     v_traj.set_data(t[:i+1], speed[:i+1])
 
-    if i < frames:
+    if i < number_of_frames-1:
         # dp_norm is a diff, missing the last value
         dp_traj.set_data(t[:i+1], dp_norm[:i+1])
-    #v_traj.x = t[:i+1]
-    #v_traj.y = speed[:i+1]
+
 
     for j in range(control.shape[1]):
         control_traj[j].set_data(t[:i+1], control[:i+1,j])
@@ -52,18 +52,24 @@ plt.style.use('fast')
 sns.set_style("whitegrid")
 
 dir_path = os.path.dirname(os.path.realpath(__file__))
-trajectory_filename = os.path.join(dir_path, '..', 'outputs', 'python_simulation', 'data', 'sim_1_trajectory2_v_max20_a_max10.pkl')
+trajectory_filename = os.path.join(dir_path, '..', 'outputs', 'gazebo_simulation', 'data', 'simulated_trajectory.pkl')
 result_animation_filename = os.path.join(dir_path, '..', 'outputs', 'python_simulation', 'animations', 'my_animation.mp4')
 
+# an estimate 
+desired_number_of_frames = 100
 
-frames = 100
+data_dict = load_dict(trajectory_filename)
 
-dloader = data_loader(trajectory_filename, sample_to_amount=True, amount_of_samples=frames)
+# Calculates how many datapoints to skip to get the desired number of frames
+skip = int(data_dict['x_odom'].shape[0]/desired_number_of_frames)
 
+# Load data 
+position = data_dict['x_odom'][::skip,:3]
+orientation = data_dict['x_odom'][::skip, 3:7]
+velocity = data_dict['x_odom'][::skip,7:10]
+control = data_dict['w_odom'][::skip,:]
+t = data_dict['t_odom'][::skip]
 
-position = dloader.p
-orientation = dloader.q
-control = dloader.u
 
 # Limits of the plot for xlim, ylim, zlim
 # xlim=ylim=zlim
@@ -71,18 +77,17 @@ min_lim = min(min(position[:,0]), min(position[:,1]), min(position[:,2]))
 max_lim = max(max(position[:,0]), max(position[:,1]), max(position[:,2]))
 
 
-speed = np.linalg.norm(dloader.v, axis=1)
+speed = np.linalg.norm(velocity, axis=1)
 
-dp = np.diff(position, axis=0)/np.diff(dloader.t)[:,None]
-#dp = np.diff(position, axis=0)/dloader.dictionary['dt'] # Does not work beccause of compute reduction
+dp = np.diff(position, axis=0)/np.diff(t)[:,None]
 dp_norm = np.linalg.norm(dp, axis=1)
 
 # Up arrow us just for visualization, dont want it to be too big/small
 up_arrow_length = (max_lim - min_lim)/5
 body_up = np.array([v_dot_q(np.array([0,0,up_arrow_length]), orientation[i,:]) for i in range(orientation.shape[0])])
 
-t = dloader.t
-number_of_frames = position.shape[0]
+
+
 
     
 animation.writer = animation.writers['ffmpeg']
@@ -133,7 +138,7 @@ control_traj = [None]*4
 for i in range(control.shape[1]):
     control_traj[i], = ax_control.plot([], [], label='u'+str(i), c=cs[i])
 
-ax_control.set_xlim((0, max(t)))
+ax_control.set_xlim((min(t), max(t)))
 ax_control.set_ylim((0, 1))
 ax_control.set_xlabel('Time [s]')
 ax_control.set_ylabel('Control u ')
@@ -143,7 +148,7 @@ ax_control.legend(('u0', 'u1', 'u2', 'u3'), loc='upper right')
 ax_speed = fig.add_subplot(gs[1,1])
 v_traj, = plt.plot([],[], color=cs[0])
 dp_traj, = plt.plot([],[], color=cs[0])
-ax_speed.set_xlim((0, max(t)))
+ax_speed.set_xlim((min(t), max(t)))
 ax_speed.set_ylim((0, max(speed)))
 ax_speed.set_xlabel('Time [s]')
 ax_speed.set_ylabel('Speed [m/s]')
@@ -153,11 +158,13 @@ ax_speed.set_title('Velocity magnitude')
 
 fig.tight_layout()
 
-interval = 20
+
+interval = 20 # 50 fps    
+number_of_frames = position.shape[0]
 print('Creating animation...')
 print(f'Number of frames: {number_of_frames}, fps: {1000/interval}, duration: {number_of_frames*interval/1000} s')
 
-pbar = tqdm(total=frames)
+pbar = tqdm(total=number_of_frames)
     #pbar.update()
 ani = animation.FuncAnimation(fig, update, frames=number_of_frames, interval=interval)           
 #pbar.close()

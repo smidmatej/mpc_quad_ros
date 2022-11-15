@@ -13,6 +13,8 @@ import os
 def main ():
 
     dir_path = os.path.dirname(os.path.realpath(__file__))
+    # TODO : change the path to the file you want to plot
+    # That means reworking this into a callable functions
     trajectory_filename = os.path.join(dir_path, '..', 'outputs', 'gazebo_simulation', 'data', 'simulated_trajectory.pkl')
     result_plot_filename = os.path.join(dir_path, '..', 'outputs', 'gazebo_simulation', 'img', 'executed_trajectory.pdf')
 
@@ -167,7 +169,7 @@ def main ():
     plt.show()
 
 
-
+    # TODO: THis does not work correctly
     plt.savefig(result_plot_filename, format="pdf", bbox_inches="tight")
 
 
