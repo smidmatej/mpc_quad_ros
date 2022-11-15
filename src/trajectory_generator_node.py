@@ -43,7 +43,8 @@ class TrajectoryBuilder:
 
         rospy.init_node("trajectory_builder")
 
-        
+        # TODO: switch all the print statements to rospy.loginfo
+        # Also find out some best practices for logging in ROS
 
 
         # Odometry is published with a average frequency of 100 Hz

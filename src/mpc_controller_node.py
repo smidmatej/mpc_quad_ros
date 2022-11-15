@@ -98,7 +98,7 @@ class MPC_controller:
         # Trajectory steps at odometry rate
         # MPC takes trajectory steps as input -> I need to correct these steps to the MPC rate
         self.control_freq_factor = int(self.mpc_ros_wrapper.quad_opt.optimization_dt / self.odometry_dt)
-        print(f"Control frequency factor: {self.control_freq_factor}")
+        rospy.loginfo(f"Control frequency factor: {self.control_freq_factor}")
 
 
 
@@ -132,7 +132,7 @@ class MPC_controller:
 
         self.new_trajectory_request_pub.publish(msg)
         
-        print(f"Requested new trajectory: \n\r type: {type} \n\r  {start_point} --> {end_point} \n\r v_max={v_max}, a_max={a_max} \n\r at topic {self.new_trajectory_request_topic}")
+        rospy.loginfo(f"Requested new trajectory: \n\r type: {type} \n\r  {start_point} --> {end_point} \n\r v_max={v_max}, a_max={a_max} \n\r at topic {self.new_trajectory_request_topic}")
         
         
 
@@ -170,7 +170,7 @@ class MPC_controller:
         self.trajectory_ready = True
         self.wait_for_trajectory = False
         self.pbar = tqdm(total=self.t_trajectory.shape[0]) 
-        print("Received new trajectory with duration {}".format(self.t_trajectory[-1] - self.t_trajectory[0]))
+        rospy.loginfo("Received new trajectory with duration {}".format(self.t_trajectory[-1] - self.t_trajectory[0]))
         
         
 
@@ -216,7 +216,7 @@ class MPC_controller:
 
 
 
-                #print(f'x_ref.shape: {x_ref.shape}')
+                #rospy.loginfo(f'x_ref.shape: {x_ref.shape}')
 
 
 
@@ -227,9 +227,9 @@ class MPC_controller:
                 time_before_mpc =time.time()
                 x_opt, w_opt, t_cpu, cost_solution = self.mpc_ros_wrapper.quad_opt.run_optimization(x)
                 elapsed_during_mpc = time.time() - time_before_mpc
-                #print(f"Elapsed time during MPC: \n\r {elapsed_during_mpc*1000:.3f} ms")
+                #rospy.loginfo(f"Elapsed time during MPC: \n\r {elapsed_during_mpc*1000:.3f} ms")
 
-                #print(f'w_opt: {w_opt}')
+                #rospy.loginfo(f'w_opt: {w_opt}')
                 # Part of the current trajectory that is used for the optimization for control
                 reference_chunk_path = self.trajectory_chunk_to_path(x_ref, t_ref)
                 self.reference_path_chunk_pub.publish(reference_chunk_path)
@@ -238,8 +238,8 @@ class MPC_controller:
                 # The path found by the optimization for control
                 # Add one more dt to the end of t_ref because the MPC is solving for n=0, ..., N and t_ref is for n=0, ..., N-1
                 optimal_path = self.trajectory_chunk_to_path(x_opt[:,:], np.concatenate((t_ref[-1] + t_ref[-1]-t_ref[-2], t_ref.reshape(-1))))
-                #print(f'x_opt.shape: {x_opt.shape}')
-                #print(f't_ref.shape: {t_ref.shape}')
+                #rospy.loginfo(f'x_opt.shape: {x_opt.shape}')
+                #rospy.loginfo(f't_ref.shape: {t_ref.shape}')
                 #optimal_path = self.trajectory_chunk_to_path(x_opt, t_ref)
 
 
@@ -269,7 +269,7 @@ class MPC_controller:
                 self.control_msg.collective_thrust = np.sum(w) * self.mpc_ros_wrapper.quad.max_thrust 
                 
                 
-                #print("control: {}".format(self.control_msg.collective_thrust))
+                #rospy.loginfo("control: {}".format(self.control_msg.collective_thrust))
                 
                 self.actuator_publisher.publish(self.control_msg)
                 self.idx_traj += 1
@@ -279,7 +279,7 @@ class MPC_controller:
 
                 if self.idx_traj == self.x_trajectory.shape[0]:
                     
-                    print("Trajectory finished")
+                    rospy.loginfo("Trajectory finished")
                     self.logger.save_log() # Saves the log to a file
 
                     # Give me a new random trajectory from my position and back
@@ -305,7 +305,7 @@ class MPC_controller:
 
 
         elapsed_during_cb = time.time() - time_at_cb_start
-        #print(f"Elapsed time during callback: \n\r {elapsed_during_cb*1000:.3f} ms")
+        #rospy.loginfo(f"Elapsed time during callback: \n\r {elapsed_during_cb*1000:.3f} ms")
 
 
 
@@ -317,7 +317,7 @@ class MPC_controller:
         path = Path()
         path.poses = [PoseStamped()]*len(t_ref)
         path.header.frame_id = "world"
-        #print(f'len(path.poses): {len(path.poses)}')
+        #rospy.loginfo(f'len(path.poses): {len(path.poses)}')
         for i in range(t_ref.shape[0]):
             pose_stamped = PoseStamped()
 
@@ -334,7 +334,7 @@ class MPC_controller:
             # Convert seconds to the required stamp format
             seconds = int(t_ref[i])
             nanoseconds = int(int(t_ref[i] * 1e9) - seconds * 1e9) # Integer arithmetic is strange
-            #print(f'seconds: {seconds}, nanoseconds: {nanoseconds}')
+            #rospy.loginfo(f'seconds: {seconds}, nanoseconds: {nanoseconds}')
             pose_stamped.header.stamp.secs = seconds
             pose_stamped.header.stamp.nsecs = nanoseconds
             
@@ -400,5 +400,5 @@ class MPC_controller:
 if __name__ == '__main__':
     np.set_printoptions(precision=2)
     controller = MPC_controller()
-    print("controller initialized")
+    rospy.loginfo("controller initialized")
     rospy.spin()
