@@ -38,7 +38,7 @@ class TrajectoryGenerator:
         
 
 
-    def generate_circle_trajectory_accelerating(self, radius, v_max, t_max=10, dt=0.01, start_point=np.array([0.0, 0.0, 0.0])):
+    def sample_circle_trajectory_accelerating(self, radius, v_max, t_max=10, dt=0.01, start_point=np.array([0.0, 0.0, 0.0])):
         ts = np.arange(0, t_max, dt)
         p = np.empty((len(ts), 3))
         v = np.empty((len(ts), 3))
@@ -60,7 +60,7 @@ class TrajectoryGenerator:
                 
 
 
-    def generate_circle_trajectory(self, radius, v_max, t_max=10, dt=0.01):
+    def sample_circle_trajectory(self, radius, v_max, t_max=10, dt=0.01):
         with open(self.sampled_trajectory_filename, "w") as f:
             f.write("t,x,y,z\n")
 

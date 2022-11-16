@@ -201,81 +201,55 @@ class MPC_controller:
 
         if not self.need_trajectory_to_hover and self.trajectory_ready:
                
-                    
+                # Get current state from gazebo
                 x, timestamp_odometry = self.pose_to_state_world(msg)
-
-
-                self.mpc_ros_wrapper.quad_opt.set_quad_state(x)
+                self.mpc_ros_wrapper.quad_opt.set_quad_state(x) # This line is superfluous I think.
 
                 # Reference is sampled with 100 Hz, but mpc step is 1s/10 = 0.1s
                 # That means I need to take only every 10th reference point # control freq factor
                 x_ref = get_reference_chunk(self.x_trajectory, self.idx_traj, self.mpc_ros_wrapper.quad_opt.n_nodes, self.control_freq_factor)
                 t_ref = get_reference_chunk(self.t_trajectory, self.idx_traj, self.mpc_ros_wrapper.quad_opt.n_nodes, self.control_freq_factor)
 
-
-
-                #rospy.loginfo(f'x_ref.shape: {x_ref.shape}')
-
-
-
-                self.publish_marker_to_rviz(x_ref[0,0:3])
                 self.mpc_ros_wrapper.quad_opt.set_reference_trajectory(x_ref)
                 
-                
+                # -------------- Solve the optimization problem --------------
                 time_before_mpc =time.time()
                 x_opt, w_opt, t_cpu, cost_solution = self.mpc_ros_wrapper.quad_opt.run_optimization(x)
                 elapsed_during_mpc = time.time() - time_before_mpc
                 #rospy.loginfo(f"Elapsed time during MPC: \n\r {elapsed_during_mpc*1000:.3f} ms")
+                
+                # MPC uses only the first control command
+                w = w_opt[0, :]
+                self.send_control_command(w, x_opt[1,-3:-1])
 
-                #rospy.loginfo(f'w_opt: {w_opt}')
+                self.idx_traj += 1
+
+                # ------- Publish visualisations to rviz -------
+
                 # Part of the current trajectory that is used for the optimization for control
                 reference_chunk_path = self.trajectory_chunk_to_path(x_ref, t_ref)
                 self.reference_path_chunk_pub.publish(reference_chunk_path)
-
-                
                 # The path found by the optimization for control
                 # Add one more dt to the end of t_ref because the MPC is solving for n=0, ..., N and t_ref is for n=0, ..., N-1
                 optimal_path = self.trajectory_chunk_to_path(x_opt[:,:], np.concatenate((t_ref[-1] + t_ref[-1]-t_ref[-2], t_ref.reshape(-1))))
-                #rospy.loginfo(f'x_opt.shape: {x_opt.shape}')
-                #rospy.loginfo(f't_ref.shape: {t_ref.shape}')
-                #optimal_path = self.trajectory_chunk_to_path(x_opt, t_ref)
 
-
+                self.publish_marker_to_rviz(x_ref[0,0:3])
                 self.optimal_path_pub.publish(optimal_path)
 
-
-                w = w_opt[0, :]
-
+                # ------- Log data -------
                 if self.logger is not None:
-                    dict_to_log = {"x_odom": x, "x_ref": x_ref[0,:], "t_odom": timestamp_odometry, 'w_odom': w, 't_cpu': t_cpu, 'cost_solution': cost_solution}
+                    dict_to_log = {"x_odom": x, "x_opt": x_opt, "x_ref": x_ref[0,:], "t_odom": timestamp_odometry, \
+                        'w_odom': w, 't_cpu': t_cpu, 'elapsed_during_mpc': elapsed_during_mpc, 'cost_solution': cost_solution}
                     
                     self.logger.log(dict_to_log)
 
-                # Control input command to the autopilot
-                self.control_msg = ControlCommand()
-                self.control_msg.header = std_msgs.msg.Header()
-                self.control_msg.header.stamp = rospy.Time.now()
-                self.control_msg.control_mode = 2
-                self.control_msg.armed = True
-
-                # Autopilot needs desired body rates to set rotor speeds
-                self.control_msg.bodyrates.x = x_opt[1, -3]
-                self.control_msg.bodyrates.y = x_opt[1, -2]
-                self.control_msg.bodyrates.z = x_opt[1, -1]
-
-                # Autopilot needs desired thrust to set rotor speeds
-                self.control_msg.rotor_thrusts = w * self.mpc_ros_wrapper.quad.max_thrust
-                self.control_msg.collective_thrust = np.sum(w) * self.mpc_ros_wrapper.quad.max_thrust 
                 
-                
-                #rospy.loginfo("control: {}".format(self.control_msg.collective_thrust))
-                
-                self.actuator_publisher.publish(self.control_msg)
-                self.idx_traj += 1
 
+                # tqdm progress bar update. Only displays when this script is ran as main. Not while using roslaunch
                 if self.pbar is not None and self.idx_traj < self.t_trajectory.shape[0]:
                     self.pbar.update(1)
 
+                # -------------- Check if the trajectory is finished --------------
                 if self.idx_traj == self.x_trajectory.shape[0]:
                     
                     rospy.loginfo("Trajectory finished")
@@ -309,7 +283,27 @@ class MPC_controller:
 
 
 
+    def send_control_command(self, thrust, body_rates):
+        """
+        Creates a ControlCommand with the control inputs [0-1] and predicted body_rates and publishes it to the quadrotor
+        """            
+        # Control input command to the autopilot
+        control_msg = ControlCommand()
+        control_msg.header = std_msgs.msg.Header()
+        control_msg.header.stamp = rospy.Time.now()
+        control_msg.control_mode = 2
+        control_msg.armed = True
 
+        # Autopilot needs desired body rates to set rotor speeds
+        control_msg.bodyrates.x = body_rates[0]
+        control_msg.bodyrates.y = body_rates[1]
+        control_msg.bodyrates.z = body_rates[2]
+
+        # Autopilot needs desired thrust to set rotor speeds
+        control_msg.rotor_thrusts = thrust * self.mpc_ros_wrapper.quad.max_thrust
+        control_msg.collective_thrust = np.sum(thrust) * self.mpc_ros_wrapper.quad.max_thrust
+
+        self.actuator_publisher.publish(control_msg)
 
     def trajectory_chunk_to_path(self, x_ref, t_ref):
 

@@ -6,11 +6,11 @@ import os
 from quad import Quadrotor3D
 from quad_opt import quad_optimizer
 from utils.utils import parse_xacro_file
-
+from gp.gp_ensemble import GPEnsemble
 
 class MPCROSWrapper:
         
-    def __init__(self, quad_name='hummingbird'):
+    def __init__(self, quad_name='hummingbird', use_gpe=True):
 
 
         self.quad_name = quad_name
@@ -23,8 +23,17 @@ class MPCROSWrapper:
         self.quad = Quadrotor3D(payload=False, drag=True) # Controlled plant s
         # Loads parameters of  a quad from a xarco file into quad object
         self.quad = set_quad_parameters_from_file(self.quad, self.quad_name)
+
+        if use_gpe:
+            dir_path = os.path.dirname(os.path.realpath(__file__))
+            ensemble_path = os.path.join(dir_path, "gp/models/ensemble")
+            gpe = GPEnsemble(3)
+            gpe.load(ensemble_path)
+        else:
+            gpe = None
+
         # Creates an optimizer object for the quad
-        self.quad_opt = quad_optimizer(self.quad, t_horizon=t_lookahead, n_nodes=n_nodes, gpe=None) # computing optimal control over model of plant
+        self.quad_opt = quad_optimizer(self.quad, t_horizon=t_lookahead, n_nodes=n_nodes, gpe=gpe) # computing optimal control over model of plant
         
 
         

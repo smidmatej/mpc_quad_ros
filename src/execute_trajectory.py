@@ -20,6 +20,7 @@ from quad_opt import quad_optimizer
 from utils.save_dataset import *
 from trajectory_generation.generate_trajectory import generate_random_waypoints, create_trajectory_from_waypoints, generate_circle_trajectory_accelerating
 
+from trajectory_generation.TrajectoryGenerator import TrajectoryGenerator
 import pickle
     
 import argparse
@@ -63,7 +64,7 @@ def main():
 
 
 
-
+    trajectory_generator = TrajectoryGenerator()
 
     # This musnt be faster than the quad is capable of
     # Max velocity and acceleration along the trajectory
@@ -72,7 +73,7 @@ def main():
 
 
 
-    output_trajectory_filename = 'trajectory_generation/trajectories/trajectory_sampled.csv'
+    #output_trajectory_filename = 'trajectory_generation/trajectories/trajectory_sampled.csv'
 
 
  
@@ -92,11 +93,16 @@ def main():
 
     if args.trajectory == 0:
         # static trajectory
+        trajectory_generator.sample_trajectory('static', v_max, a_max, quad_opt.optimization_dt)
+        
+        '''
         waypoint_filename = 'trajectory_generation/waypoints/static_waypoints.csv'
         # Create trajectory from waypoints with the same dt as the MPC control frequency    
         create_trajectory_from_waypoints(waypoint_filename, output_trajectory_filename, v_max, a_max, quad_opt.optimization_dt)
         # trajectory has a specific time step that I do not respect here
         x_trajectory, t_trajectory = utils.load_trajectory(output_trajectory_filename)
+        '''
+
     
 
 
@@ -105,24 +111,38 @@ def main():
         # new trajectory
         hsize = 10
         num_waypoints = 10
+        trajectory_generator.generate_random_waypoints(hsize, num_waypoints)
+        trajectory_generator.sample_trajectory('random', v_max, a_max, quad_opt.optimization_dt)
+
+        '''
         waypoint_filename = 'trajectory_generation/waypoints/random_waypoints.csv'
         generate_random_waypoints(waypoint_filename, hsize=hsize, num_waypoints=num_waypoints)
         create_trajectory_from_waypoints(waypoint_filename, output_trajectory_filename, v_max, a_max, quad_opt.optimization_dt)
 
         # trajectory has a specific time step that I do not respect here
         x_trajectory, t_trajectory = utils.load_trajectory(output_trajectory_filename)
+        '''
+       
+
 
     if args.trajectory == 2:
         # Circle trajectory
         radius = 50
         t_max = 30
 
+        trajectory_generator.sample_circle_trajectory_accelerating(radius, v_max, t_max, quad_opt.optimization_dt)
+        
+        '''
+        #trajectory_generator.sample_trajectory('random', v_max, a_max, quad_opt.optimization_dt)
+
         circle_trajectory_filename = 'trajectory_generation/trajectories/circle_trajectory.csv'
         generate_circle_trajectory_accelerating(circle_trajectory_filename, radius, v_max, t_max=t_max, dt=quad_opt.optimization_dt)
         # trajectory has a specific time step that I do not respect here
         x_trajectory, t_trajectory = utils.load_trajectory(circle_trajectory_filename)
+        '''
 
 
+    x_trajectory, t_trajectory = trajectory_generator.load_trajectory()
 
 
     t_simulation = max(t_trajectory) # Simulation duration for this script
@@ -187,8 +207,8 @@ def main():
         u = w_opt_acados[0,:] # control to be applied to quad
 
         # Save nlp solution diagnostics
-        solution_times = np.append(solution_times, t_cpu, axis=0)
-        cost_solutions = np.append(cost_solutions, t_cpu, axis=0)
+        solution_times.append(t_cpu)
+        cost_solutions.append(cost_solution)
 
         # Odometry every MPC timestep (100ms)    
         x_odom.append(x)
@@ -255,8 +275,8 @@ def main():
 
     data = dict()
 
-    rmse_pos_now = np.sqrt(np.mean((yref_now[:3] - x[:3])**2))
-    rmse_pos = np.append(rmse_pos, rmse_pos_now)
+    rmse_pos = np.sqrt(np.mean((yref_now[:3] - x[:3])**2))
+    #rmse_pos = np.append(rmse_pos, rmse_pos_now)
 
     # measured state
     data['p'] = x_sim[:,0:3]

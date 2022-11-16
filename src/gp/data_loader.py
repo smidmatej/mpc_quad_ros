@@ -20,7 +20,7 @@ def load_dict(filename_):
 
 
 class data_loader:
-    def __init__(self, filename, compute_reduction=1, number_of_training_samples=10,sample_to_amount=False, amount_of_samples=0, body_frame=False):
+    def __init__(self, filename, compute_reduction=1, number_of_training_samples=10, sample_to_amount=False, amount_of_samples=0, body_frame=False):
         
 
         # takes every *compute_reduction* index along first axis 

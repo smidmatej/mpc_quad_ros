@@ -300,14 +300,12 @@ class Visualiser:
         ax9.set_ylabel('Control Input')
         ax9.set_title('Control Input')
 
-
-        print(type(self.data_dict['t_cpu'][:]))
-        ax10.plot(self.data_dict['t_cpu'][:]*1e3, label='t_cpu', color=cs_rgb[0])
+        ax10.plot(self.data_dict['t_odom'], self.data_dict['t_cpu'][:]*1e3, label='t_cpu', color=cs_rgb[0])
         ax10.set_xlabel('Time [s]')
         ax10.set_ylabel('CPU Time [ms]')
         ax10.set_title('MPC CPU Time')
 
-        ax11.plot(self.data_dict['cost_solution'][:], label='solution_cost', color=cs_rgb[0])
+        ax11.plot(self.data_dict['t_odom'], self.data_dict['cost_solution'][:], label='solution_cost', color=cs_rgb[0])
         ax11.set_xlabel('Time [s]')
         ax11.set_ylabel('Solution Cost')
         ax11.set_title('Solution Cost')
@@ -324,9 +322,12 @@ class Visualiser:
 
 if __name__ == '__main__':
     dir_path = os.path.dirname(os.path.realpath(__file__))
-    trajectory_filename = os.path.join(dir_path, '..', 'outputs', 'gazebo_simulation', 'data', 'simulated_trajectory.pkl')
-    result_animation_filename = os.path.join(dir_path, '..', 'outputs', 'gazebo_simulation', 'animations', 'my_animation.mp4')
-    result_plot_filename = os.path.join(dir_path, '..', 'outputs', 'gazebo_simulation', 'img', 'trajectory.pdf')
+    simulation = 'python_simulation'
+    simulation = 'gazebo_simulation'
+    
+    trajectory_filename = os.path.join(dir_path, '..', 'outputs', simulation, 'data', 'simulated_trajectory.pkl')
+    result_animation_filename = os.path.join(dir_path, '..', 'outputs', simulation, 'animations', 'my_animation.mp4')
+    result_plot_filename = os.path.join(dir_path, '..', 'outputs', simulation, 'img', 'trajectory.pdf')
     visualiser = Visualiser(trajectory_filename)
-    #animator.create_animation(result_animation_filename, 100, True)
+    #visualiser.create_animation(result_animation_filename, 100, True)
     visualiser.plot_data(result_plot_filename)
