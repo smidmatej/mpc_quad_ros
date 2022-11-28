@@ -18,6 +18,7 @@ from functools import partial
 class Visualiser:
     def __init__(self, trajectory_filename):
         self.trajectory_filename = trajectory_filename
+        print(f'Visualising data in {self.trajectory_filename}')
         self.data_dict = load_dict(self.trajectory_filename)
         
 
@@ -178,8 +179,8 @@ class Visualiser:
 
 
     def plot_data(self, filepath):
+        
 
-        print(f'Data dict keys: {self.data_dict.keys()}')
         v_norm = np.linalg.norm(self.data_dict['x_odom'][:,7:10], axis=1)
         v_ref_norm = np.linalg.norm(self.data_dict['x_ref'][:,7:10], axis=1)
 
@@ -322,12 +323,13 @@ class Visualiser:
 
 if __name__ == '__main__':
     dir_path = os.path.dirname(os.path.realpath(__file__))
-    simulation = 'python_simulation'
     simulation = 'gazebo_simulation'
+    simulation = 'python_simulation'
+    
     
     trajectory_filename = os.path.join(dir_path, '..', 'outputs', simulation, 'data', 'simulated_trajectory.pkl')
     result_animation_filename = os.path.join(dir_path, '..', 'outputs', simulation, 'animations', 'my_animation.mp4')
     result_plot_filename = os.path.join(dir_path, '..', 'outputs', simulation, 'img', 'trajectory.pdf')
     visualiser = Visualiser(trajectory_filename)
-    #visualiser.create_animation(result_animation_filename, 100, True)
-    visualiser.plot_data(result_plot_filename)
+    visualiser.create_animation(result_animation_filename, 100, True)
+    #visualiser.plot_data(result_plot_filename)

@@ -65,7 +65,7 @@ class MPC_controller:
         # TODO: Gazebo runs with a variable rate, this changes the odometry dt, but the trajectories are still sampled the same. This is clearly wrong.
 
         self.trajectory_ready = False
-        self.v_max = 20.0
+        self.v_max = 5.0
         self.a_max = 5.0
          
 
@@ -220,7 +220,8 @@ class MPC_controller:
                 
                 # MPC uses only the first control command
                 w = w_opt[0, :]
-                self.send_control_command(w, x_opt[1,-3:-1])
+                # Last three elements of x_opt are the body rates
+                self.send_control_command(w, x_opt[1,10:13])
 
                 self.idx_traj += 1
 
@@ -236,9 +237,13 @@ class MPC_controller:
                 self.publish_marker_to_rviz(x_ref[0,0:3])
                 self.optimal_path_pub.publish(optimal_path)
 
+                # Predict the state at the next odometry message for logging purposes
+                x_pred = self.mpc_ros_wrapper.quad_opt.discrete_dynamics(x, w, self.odometry_dt)
+
+                x_pred = x_opt[1,:]
                 # ------- Log data -------
                 if self.logger is not None:
-                    dict_to_log = {"x_odom": x, "x_opt": x_opt, "x_ref": x_ref[0,:], "t_odom": timestamp_odometry, \
+                    dict_to_log = {"x_odom": x, "x_pred_odom": x_pred, "x_ref": x_ref[0,:], "t_odom": timestamp_odometry, \
                         'w_odom': w, 't_cpu': t_cpu, 'elapsed_during_mpc': elapsed_during_mpc, 'cost_solution': cost_solution}
                     
                     self.logger.log(dict_to_log)
@@ -260,12 +265,14 @@ class MPC_controller:
                     #    start_point=np.array([x[0], x[1], x[2]]), end_point=np.array([x[0], x[1], x[2]]), \
                     #        v_max=self.v_max, a_max=self.a_max)
 
-
+                    '''
                     self.request_new_trajectory("random", \
                         start_point=np.array([x[0], x[1], x[2]]), end_point=None, \
                             v_max=self.v_max, a_max=self.a_max)
 
-                    """
+                    '''
+                    
+                    
 
                     radius = 10.0
                     end_point = np.array([x[0]+radius, x[1], x[2]]) # Circle trajectory radius is calculated as the distance between start and end
@@ -274,7 +281,7 @@ class MPC_controller:
                             v_max=self.v_max, a_max=self.a_max)
 
                     
-                    """
+                    
 
 
         elapsed_during_cb = time.time() - time_at_cb_start
@@ -343,7 +350,7 @@ class MPC_controller:
         q = msg.pose.pose.orientation # quaternion # 4 x float64
         v = msg.twist.twist.linear # linear velocity # 3 x float64
         r = msg.twist.twist.angular # angular velocity # 3 x float64
-        timestamp = msg.header.stamp.secs + msg.header.stamp.nsecs * 1e-9 # time stamp # float64
+        timestamp = (msg.header.stamp.secs * 1e9 + msg.header.stamp.nsecs) * 1e-9 # time stamp # float64
         state = np.array([p.x, p.y, p.z, q.w, q.x, q.y, q.z, v.x, v.y, v.z, r.x, r.y, r.z])
         return state, timestamp
         

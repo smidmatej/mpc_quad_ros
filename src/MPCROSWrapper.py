@@ -10,7 +10,7 @@ from gp.gp_ensemble import GPEnsemble
 
 class MPCROSWrapper:
         
-    def __init__(self, quad_name='hummingbird', use_gpe=True):
+    def __init__(self, quad_name='hummingbird', use_gpe=False):
 
 
         self.quad_name = quad_name

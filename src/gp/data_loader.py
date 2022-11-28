@@ -8,7 +8,7 @@ from sklearn.mixture import GaussianMixture
 import scipy.stats
 
 from warnings import warn
-
+import matplotlib.pyplot as plt
 
 
 
@@ -42,6 +42,9 @@ class data_loader:
         else:
             # Not for training GPs
             self.v = self.dictionary['v'][1::self.compute_reduction,:]
+
+        
+
         self.w = self.dictionary['w'][1::self.compute_reduction,:]
         self.u = self.dictionary['u'][1::self.compute_reduction,:]
 
@@ -53,12 +56,21 @@ class data_loader:
         assert self.p.shape[0] > number_of_training_samples , f"Not enough samples for requested number of training samples, \
             self.p.shape = {self.p.shape}, number_of_training_samples = {number_of_training_samples}"
         # error in acceleration between measured and predicted is the regressed variable we are trying to estimate
+
+        self.v = self.dictionary['x_odom'][1::self.compute_reduction,7:10]
+        self.v_pred = self.dictionary['x_pred_odom'][1::self.compute_reduction,7:10]
+
         self.calculate_errors()
         
-        self.z = np.concatenate((self.p, self.q, self.v, self.w, self.u),axis=1)
         
-
-        self.representatives = self.cluster_data_dimensions_concatenate([7,8,9], [0,1,2])
+        
+        #plt.plot(self.v, self.y)
+        plt.plot(self.v[:,0])
+        plt.plot(self.v_pred[:,0])
+        plt.plot(self.y[:,0],'--')
+        plt.show()
+        #self.representatives = self.cluster_data_dimensions_concatenate([7,8,9], [0,1,2])
+        self.z = np.concatenate((self.p, self.q, self.v, self.w, self.u),axis=1)
         
         
     def shuffle(self):

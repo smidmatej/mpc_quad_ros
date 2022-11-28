@@ -82,7 +82,7 @@ def main():
 
     # MPC prediction horizon
     t_lookahead = 1 # Prediction horizon duration
-    n_nodes = 10 # Prediction horizon number of timesteps in t_lookahead
+    n_nodes = 30 # Prediction horizon number of timesteps in t_lookahead
 
 
     # initial condition
@@ -182,6 +182,7 @@ def main():
     w_odom = list()
     t_odom = list()
     t_odom = list()
+    x_pred_odom = list()
 
     solution_times = list()
     cost_solutions = list()
@@ -192,7 +193,6 @@ def main():
     quad.set_state(x)
 
     print(f'Duration of simulation={t_simulation}, Number of simulation steps={Nopt}')
-    # IDEA : create a 3D array of Nopt, stateidx, n_node ## How to visualize?
     simulation_time = 0
     for i in tqdm(range(Nopt)):
         
@@ -206,6 +206,8 @@ def main():
         x_opt_acados, w_opt_acados, t_cpu, cost_solution = quad_opt.run_optimization(x)
         u = w_opt_acados[0,:] # control to be applied to quad
 
+        x_pred = quad_opt.discrete_dynamics(x, u, simulation_dt)
+        x_pred = x_opt_acados[1,:]
         # Save nlp solution diagnostics
         solution_times.append(t_cpu)
         cost_solutions.append(cost_solution)
@@ -215,6 +217,7 @@ def main():
         x_ref_odom.append(yref[0,:13])
         w_odom.append(u)
         t_odom.append(simulation_time)
+        x_pred_odom.append(x_pred)
 
         control_time = 0
         # Simulate the quad plant with the optimal control until the next MPC optimization step is reached
@@ -259,18 +262,19 @@ def main():
     t = np.linspace(0, t_simulation, len(x_sim))
 
     # Convert lists to numpy arrays
-    x_sim = np.array(x_sim)
-    x_sim_body = np.array(x_sim_body)
-    u_sim = np.array(u_sim)
-    aero_drag_sim = np.array(aero_drag_sim)
-    x_pred_sim = np.array(x_pred_sim)
+    x_sim = np.squeeze(np.array(x_sim))
+    x_sim_body = np.squeeze(np.array(x_sim_body))
+    u_sim = np.squeeze(np.array(u_sim))
+    aero_drag_sim = np.squeeze(np.array(aero_drag_sim))
+    x_pred_sim = np.squeeze(np.array(x_pred_sim))
 
-    x_odom = np.array(x_odom)
-    x_ref_odom = np.array(x_ref_odom)  
-    w_odom = np.array(w_odom)
-    solution_times = np.array(solution_times)
-    cost_solutions = np.array(cost_solutions)
-    t_odom = np.array(t_odom)
+    x_odom = np.squeeze(np.array(x_odom))
+    x_ref_odom = np.squeeze(np.array(x_ref_odom))  
+    w_odom = np.squeeze(np.array(w_odom))
+    solution_times = np.squeeze(np.array(solution_times))
+    cost_solutions = np.squeeze(np.array(cost_solutions))
+    t_odom = np.squeeze(np.array(t_odom))
+    x_pred_odom = np.squeeze(np.array(x_pred_odom))
 
 
     data = dict()
@@ -283,6 +287,8 @@ def main():
     data['q'] = x_sim[:,3:7]
     data['v'] = x_sim[:,7:10]
     data['w'] = x_sim[:,10:13]
+
+    data['x'] = x_sim
     
     # body frame velocity
     data['v_body'] = x_sim_body[:,7:10]
@@ -298,17 +304,20 @@ def main():
     data['q_pred'] = x_pred_sim[:,3:7]
     data['v_pred'] = x_pred_sim[:,7:10]
     data['w_pred'] = x_pred_sim[:,10:13]
+    data['x_pred'] = x_pred_sim
 
     # need the dt to calculate a_error
     data['dt'] = simulation_dt
     data['t'] = t
 
+    # ----- These are identical to the gazebo dataset logger -----
     data['x_odom'] = x_odom
     data['x_ref'] = x_ref_odom
     data['w_odom'] = w_odom
     data['t_cpu'] = solution_times
     data['cost_solution'] = cost_solutions
     data['t_odom'] = t_odom
+    data['x_pred_odom'] = x_pred_odom
 
     
     save_dict(data, args.output)

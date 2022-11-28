@@ -47,7 +47,7 @@ class TrajectoryGenerator:
         for i, t in zip(range(len(ts)), ts):
 
             # I have no idea why the 2 is needed here
-            w[i] = (i+1)/float(len(ts)) * v_max/radius/2
+            w[i] = (i+1)/float(len(ts)) * v_max/radius
 
             p[i, :] = np.array([radius * np.cos(w[i] * t), radius * np.sin(w[i] * t), 0]) + np.array([-radius, 0.0, 0.0]) + start_point
             v[i, :] = np.array([-radius*w[i] * np.sin(w[i] * t), radius*w[i] * np.cos(w[i] * t), 0])*2 # and also here

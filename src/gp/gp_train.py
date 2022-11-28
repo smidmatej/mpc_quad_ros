@@ -6,15 +6,17 @@ from data_loader import data_loader
 import time
 import casadi as cs
 import seaborn as sns
+import os
 
 
 def main():
 
-    training_dataset = '../data/training_dataset.pkl'
+    dir_path = os.path.dirname(os.path.realpath(__file__))
+    training_dataset_filepath = os.path.join(dir_path, '../..', 'outputs/python_simulation/data/simulated_trajectory.pkl')
     compute_reduction = 1
     n_training_samples = 20
 
-    d_loader = data_loader(training_dataset, compute_reduction=compute_reduction, number_of_training_samples=n_training_samples, body_frame=True)               
+    d_loader = data_loader(training_dataset_filepath, compute_reduction=compute_reduction, number_of_training_samples=n_training_samples, body_frame=True)               
 
     z = d_loader.get_z(training=False)
     y = d_loader.get_y(training=False)

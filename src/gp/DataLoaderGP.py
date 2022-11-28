@@ -11,6 +11,7 @@ sys.path.append('../')
 from utils.save_dataset import load_dict
 from utils.utils import v_dot_q, quaternion_inverse
 
+import matplotlib.pyplot as plt
 
 
 class DataLoaderGP:
@@ -27,14 +28,28 @@ class DataLoaderGP:
         print(f"self.data_dict['x_pred_odom'][:,7:10].shape {self.data_dict['x_pred_odom'][:,7:10].shape}")
         print(f"self.data_dict['x_pred_odom'][:,3:7].shape {self.data_dict['x_pred_odom'][:,3:7].shape}")
 
-        self.v_body = np.empty((self.data_dict['t_odom'].shape[0], 3))*np.NaN
-        self.v_body_pred = np.empty((self.data_dict['t_odom'].shape[0], 3))*np.NaN
-        for i in range(len(self.data_dict['x_odom'])):
-            self.v_body[i,:] = v_dot_q(self.data_dict['x_odom'][i,7:10].reshape((-1,)), quaternion_inverse(self.data_dict['x_odom'][i,3:7].reshape((-1,))))
-            self.v_body_pred[i,:] = v_dot_q(self.data_dict['x_pred_odom'][i,7:10].reshape((-1,)), quaternion_inverse(self.data_dict['x_pred_odom'][i,3:7].reshape((-1,))))
+        v_world = self.data_dict['x_odom'][:,7:10]
+        v_world_pred = self.data_dict['x_pred_odom'][:,7:10]
 
+        q = self.data_dict['x_odom'][:,3:7]
+        q_pred = self.data_dict['x_pred_odom'][:,3:7]
+
+        self.v_body = np.empty(v_world.shape)
+        self.v_body_pred = np.empty(v_world_pred.shape)
+        for i in range(v_world.shape[0]):
+            self.v_body[i,:] = v_dot_q(v_world[i,:].reshape((-1,)), quaternion_inverse(q[i,:].reshape((-1,))))
+            self.v_body_pred[i,:] = v_dot_q(v_world_pred[i,:].reshape((-1,)), quaternion_inverse(q_pred[i,:].reshape((-1,))))
+
+
+
+        #self.v_body = self.data_dict['x_odom'][:,7:10]
+        #self.v_body_pred = self.data_dict['x_pred_odom'][:,7:10]
         # First differences of t to get the dt between samples. Odom is sampled on average with 100Hz.
         dt = np.diff(self.data_dict['t_odom'])
+        #dt = 0.01
+
+        print(f'v_body.shape {self.v_body.shape}')
+        print(f'v_body_pred.shape {self.v_body_pred.shape}')
         # dt is one sample shorter than the other data
         self.y = np.array([(self.v_body[:-1,dim] - self.v_body_pred[:-1,dim])/dt for dim in range(3)]).T # error in velocity between measured and predicted is the regressed variable we are trying to estimate
         print(f'self.y {self.y.shape}')
@@ -42,7 +57,17 @@ class DataLoaderGP:
 
         # USING STANDART X,y notations     
         self.X_train, self.y_train = self.cluster_data3D(self.X, self.y)
-        
+
+        plt.plot(self.data_dict['x_odom'][:,0],'--')
+        plt.plot(self.v_body[:,0])
+        plt.plot(self.v_body_pred[:,0])
+        plt.plot(self.y[:,0],'+-')
+        plt.show()
+
+        print(f'self.X_train {self.X_train.shape}')
+        plt.plot(self.X_train[:,0], self.y_train[:,0], 'o')
+        plt.plot(self.X[:,0], self.y[:,0])
+        plt.show()
 
 
     def cluster_data1D(self, X, y):
