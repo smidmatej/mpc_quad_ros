@@ -1,0 +1,15 @@
+<?xml version="1.0"?>
+<launch>
+
+<arg name="trajectory_type" default="static"/>
+
+  <group ns="mpcros">
+      <node name="mpc_controller" pkg="mpcros" type="mpc_controller_node.py">
+        <param name="trajectory_type" value="$(arg trajectory_type)" />
+      </node> 
+      <node name="trajectory_generator" pkg="mpcros" type="trajectory_generator_node.py">
+        
+      </node>
+  </group>
+
+</launch>

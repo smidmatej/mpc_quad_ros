@@ -38,6 +38,8 @@ class MPC_controller:
         quad_name = 'hummingbird'
         rospy.init_node('controller')
 
+        self.trajectory_type = rospy.get_param('/mpcros/mpc_controller/trajectory_type') # node_name/argsname
+        #print(trajectory_type)
         
 
         # Topics
@@ -54,7 +56,16 @@ class MPC_controller:
         # If logging is enabled
         # TODO: Add condition for logging
         if True:
-            self.logger = RosLogger()
+            if self.trajectory_type == "static":
+                log_filename = "static_trajectory"
+            elif self.trajectory_type == "random":
+                log_filename = "random_trajectory"
+            elif self.trajectory_type == "circle":
+                log_filename = "circle_trajectory"
+            else:
+                log_filename = "trajectory"
+
+            self.logger = RosLogger(log_filename)
         else:
             self.logger = None
 
@@ -115,7 +126,16 @@ class MPC_controller:
 
         msg = Trajectory_request()
         msg.type = String(type)
-        msg.start_point = Point(start_point[0], start_point[1], start_point[2])
+        
+
+        if start_point is None:
+            # If no end point is given, send that information in the message. end_point has to be instantiated in the message. 
+            # Dont want to look up if I can maybe fill with NaNs
+            msg.start_point_enabled = Bool(False)
+            msg.start_point = Point(0.0, 0.0, 0.0)
+        else:
+            msg.start_point_enabled = Bool(True)
+            msg.start_point = Point(start_point[0], start_point[1], start_point[2])
         
         if end_point is None:
             # If no end point is given, send that information in the message. end_point has to be instantiated in the message. 
@@ -260,25 +280,30 @@ class MPC_controller:
                     rospy.loginfo("Trajectory finished")
                     self.logger.save_log() # Saves the log to a file
 
+
                     # Give me a new random trajectory from my position and back
                     #self.request_new_trajectory("random", \
                     #    start_point=np.array([x[0], x[1], x[2]]), end_point=np.array([x[0], x[1], x[2]]), \
                     #        v_max=self.v_max, a_max=self.a_max)
 
-                    '''
-                    self.request_new_trajectory("random", \
-                        start_point=np.array([x[0], x[1], x[2]]), end_point=None, \
-                            v_max=self.v_max, a_max=self.a_max)
 
-                    '''
+                    if self.trajectory_type == "static":
+                        self.request_new_trajectory("static", \
+                            start_point=None, end_point=None, \
+                                v_max=self.v_max, a_max=self.a_max)
                     
-                    
+                    if self.trajectory_type == "random":
+                        self.request_new_trajectory("random", \
+                            start_point=np.array([x[0], x[1], x[2]]), end_point=None, \
+                                v_max=self.v_max, a_max=self.a_max)
 
-                    radius = 10.0
-                    end_point = np.array([x[0]+radius, x[1], x[2]]) # Circle trajectory radius is calculated as the distance between start and end
-                    self.request_new_trajectory("circle", \
-                        start_point=np.array([x[0], x[1], x[2]]), end_point=end_point, \
-                            v_max=self.v_max, a_max=self.a_max)
+                    
+                    if self.trajectory_type == "circle":
+                        radius = 10.0
+                        end_point = np.array([x[0]+radius, x[1], x[2]]) # Circle trajectory radius is calculated as the distance between start and end
+                        self.request_new_trajectory("circle", \
+                            start_point=np.array([x[0], x[1], x[2]]), end_point=end_point, \
+                                v_max=self.v_max, a_max=self.a_max)
 
                     
                     
@@ -398,6 +423,9 @@ class MPC_controller:
 
 
 if __name__ == '__main__':
+
+    
+
     np.set_printoptions(precision=2)
     controller = MPC_controller()
     rospy.loginfo("controller initialized")

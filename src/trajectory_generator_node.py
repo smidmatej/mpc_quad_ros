@@ -82,8 +82,14 @@ class TrajectoryBuilder:
 
 
     def new_trajectory_request_cb(self, msg):
+
         type = msg.type.data
-        start_point = np.array([msg.start_point.x, msg.start_point.y, msg.start_point.z])
+        
+        if msg.start_point_enabled.data == True:
+            start_point = np.array([msg.start_point.x, msg.start_point.y, msg.start_point.z])
+        else:
+            start_point = None
+        
         # Complicated way to pass a None object through ROS
         if msg.end_point_enabled.data == True:
             end_point = np.array([msg.end_point.x, msg.end_point.y, msg.end_point.z])

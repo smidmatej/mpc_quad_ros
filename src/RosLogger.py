@@ -5,14 +5,14 @@ from utils.save_dataset import save_dict
 
 
 class RosLogger:
-    def __init__(self) -> None:
+    def __init__(self, filename) -> None:
         
         self.dictionary = {}
         dir_path = os.path.dirname(os.path.realpath(__file__))
 
-        self.filename_npy = os.path.join(dir_path, '..', 'outputs', 'gazebo_simulation', 'data', 'simulated_trajectory.npy')
-        self.filename_dict = os.path.join(dir_path, '..', 'outputs', 'gazebo_simulation', 'data', 'simulated_trajectory.pkl')
-        self.filename_csv = os.path.join(dir_path, '..', 'outputs', 'gazebo_simulation', 'data', 'simulated_trajectory.csv')
+        self.filename_npy = os.path.join(dir_path, '..', 'outputs', 'gazebo_simulation', 'data', filename + '.npy')
+        self.filename_dict = os.path.join(dir_path, '..', 'outputs', 'gazebo_simulation', 'data', filename + '.pkl')
+        self.filename_csv = os.path.join(dir_path, '..', 'outputs', 'gazebo_simulation', 'data', filename + '.csv')
 
 
     def log(self, input_dict):
