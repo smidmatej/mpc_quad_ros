@@ -4,7 +4,7 @@ dir_path = os.path.dirname(os.path.realpath(__file__))
 simulation = 'python_simulation'
 
 
-trajectory_filename = os.path.join(dir_path, '..', 'outputs', simulation, 'data', 'static_dataset.pkl')
+trajectory_filename = os.path.join(dir_path, '..', 'outputs', simulation, 'data', 'simulated_trajectory.pkl')
 result_animation_filename = os.path.join(dir_path, '..', 'outputs', simulation, 'animations', 'animation.mp4')
 result_plot_filename = os.path.join(dir_path, '..', 'outputs', simulation, 'img', 'trajectory.pdf')
 

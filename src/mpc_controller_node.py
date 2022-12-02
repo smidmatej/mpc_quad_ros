@@ -40,7 +40,8 @@ class MPC_controller:
 
         self.trajectory_type = rospy.get_param('/mpcros/mpc_controller/trajectory_type') # node_name/argsname
         #print(trajectory_type)
-        
+        self.v_max = rospy.get_param('/mpcros/mpc_controller/v_max')
+        self.a_max = rospy.get_param('/mpcros/mpc_controller/a_max')
 
         # Topics
         reference_trajectory_topic = "reference/trajectory"
@@ -57,11 +58,11 @@ class MPC_controller:
         # TODO: Add condition for logging
         if True:
             if self.trajectory_type == "static":
-                log_filename = "static_trajectory"
+                log_filename = "static_dataset"
             elif self.trajectory_type == "random":
-                log_filename = "random_trajectory"
+                log_filename = "random_dataset"
             elif self.trajectory_type == "circle":
-                log_filename = "circle_trajectory"
+                log_filename = "circle_dataset"
             else:
                 log_filename = "trajectory"
 
@@ -76,8 +77,7 @@ class MPC_controller:
         # TODO: Gazebo runs with a variable rate, this changes the odometry dt, but the trajectories are still sampled the same. This is clearly wrong.
 
         self.trajectory_ready = False
-        self.v_max = 5.0
-        self.a_max = 5.0
+
          
 
         # Publishers
@@ -101,7 +101,8 @@ class MPC_controller:
         self.hover_pos = np.array([0, 0, 3])
         # Rise to hover height
 
-        self.mpc_ros_wrapper = MPCROSWrapper(quad_name=quad_name)
+        use_gp = rospy.get_param('/mpcros/mpc_controller/use_gp')
+        self.mpc_ros_wrapper = MPCROSWrapper(quad_name=quad_name, use_gp=use_gp)
 
         # MPC steps at a different rate than the odometry
         # Trajectory steps at odometry rate
@@ -233,7 +234,7 @@ class MPC_controller:
                 self.mpc_ros_wrapper.quad_opt.set_reference_trajectory(x_ref)
                 
                 # -------------- Solve the optimization problem --------------
-                time_before_mpc =time.time()
+                time_before_mpc = time.time()
                 x_opt, w_opt, t_cpu, cost_solution = self.mpc_ros_wrapper.quad_opt.run_optimization(x)
                 elapsed_during_mpc = time.time() - time_before_mpc
                 #rospy.loginfo(f"Elapsed time during MPC: \n\r {elapsed_during_mpc*1000:.3f} ms")

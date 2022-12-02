@@ -13,7 +13,7 @@ def main():
 
     training_dataset_filepath = '../data/training_dataset.pkl'
     dir_path = os.path.dirname(os.path.realpath(__file__))
-    training_dataset_filepath = os.path.join(dir_path, '../..', 'outputs/python_simulation/data/simulated_trajectory.pkl')
+    training_dataset_filepath = os.path.join(dir_path, '../..', 'outputs/gazebo_simulation/data/static_dataset.pkl')
 
     n_training_samples = 20
 

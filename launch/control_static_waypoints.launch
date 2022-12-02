@@ -2,11 +2,17 @@
 <launch>
 
 <arg name="trajectory_type" default="static"/>
+<arg name="v_max" default="5.0"/>
+<arg name="a_max" default="5.0"/>
+<arg name="use_gp" default="0"/>
 
   <group ns="mpcros">
       <node name="mpc_controller" pkg="mpcros" type="mpc_controller_node.py">
-        <param name="trajectory_type" value="$(arg trajectory_type)" />
-      </node> 
+        <param name="trajectory_type" value="$(arg trajectory_type)"/>
+        <param name="v_max" value="$(arg v_max)"/>
+        <param name="a_max" value="$(arg a_max)"/>
+        <param name="use_gp" value="$(arg use_gp)"/>
+      </node>
       <node name="trajectory_generator" pkg="mpcros" type="trajectory_generator_node.py">
         
       </node>

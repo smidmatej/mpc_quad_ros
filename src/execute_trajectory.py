@@ -206,7 +206,7 @@ def main():
         x_opt_acados, w_opt_acados, t_cpu, cost_solution = quad_opt.run_optimization(x)
         u = w_opt_acados[0,:] # control to be applied to quad
 
-        x_pred = quad_opt.discrete_dynamics(x, u, simulation_dt)
+        #x_pred = quad_opt.discrete_dynamics(x, u, simulation_dt)
         x_pred = x_opt_acados[1,:]
         # Save nlp solution diagnostics
         solution_times.append(t_cpu)
@@ -283,15 +283,15 @@ def main():
     #rmse_pos = np.append(rmse_pos, rmse_pos_now)
 
     # measured state
-    data['p'] = x_sim[:,0:3]
-    data['q'] = x_sim[:,3:7]
-    data['v'] = x_sim[:,7:10]
-    data['w'] = x_sim[:,10:13]
+    #data['p'] = x_sim[:,0:3]
+    #data['q'] = x_sim[:,3:7]
+    #data['v'] = x_sim[:,7:10]
+    #data['w'] = x_sim[:,10:13]
 
-    data['x'] = x_sim
+    data['x_sim'] = x_sim
     
     # body frame velocity
-    data['v_body'] = x_sim_body[:,7:10]
+    #data['v_body'] = x_sim_body[:,7:10]
 
     data['gpe'] = args.gpe
     data['rmse_pos'] = rmse_pos
@@ -300,11 +300,11 @@ def main():
     data['aero_drag'] = aero_drag_sim
 
     # predicted state
-    data['p_pred'] = x_pred_sim[:,0:3]
-    data['q_pred'] = x_pred_sim[:,3:7]
-    data['v_pred'] = x_pred_sim[:,7:10]
-    data['w_pred'] = x_pred_sim[:,10:13]
-    data['x_pred'] = x_pred_sim
+    #data['p_pred'] = x_pred_sim[:,0:3]
+    #data['q_pred'] = x_pred_sim[:,3:7]
+    #data['v_pred'] = x_pred_sim[:,7:10]
+    #data['w_pred'] = x_pred_sim[:,10:13]
+    data['x_pred_sim'] = x_pred_sim
 
     # need the dt to calculate a_error
     data['dt'] = simulation_dt

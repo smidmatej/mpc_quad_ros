@@ -69,8 +69,12 @@ class data_loader:
         plt.plot(self.v_pred[:,0])
         plt.plot(self.y[:,0],'--')
         plt.show()
+       
+        self.z = self.v
+        self.random_representatives()
         #self.representatives = self.cluster_data_dimensions_concatenate([7,8,9], [0,1,2])
-        self.z = np.concatenate((self.p, self.q, self.v, self.w, self.u),axis=1)
+        #self.z = np.concatenate((self.p, self.q, self.v, self.w, self.u),axis=1)
+        
         
         
     def shuffle(self):
@@ -122,7 +126,12 @@ class data_loader:
         #return self.data[:, self.z.shape[1]+self.y.shape[1]:]
         return self.a_validation
     
-    
+    def random_representatives(self):
+        """
+        Randomly selects representatives from the data
+        """
+        idx = np.random.choice(self.z.shape[0], size=self.number_of_training_samples, replace=False)
+        self.representatives = {'z':self.z[idx,:], 'y':self.y[idx,:]}
     
     def cluster_data(self):
         """

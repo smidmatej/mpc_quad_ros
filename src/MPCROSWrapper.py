@@ -84,5 +84,7 @@ def main():
     mpc_ros_wrapper = MPCROSWrapper()
     rospy.loginfo("controller initialized")
     rospy.spin()   
+
+    
 if __name__ == '__main__':
     main()
