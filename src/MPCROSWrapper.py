@@ -10,7 +10,7 @@ from gp.gp_ensemble import GPEnsemble
 
 class MPCROSWrapper:
         
-    def __init__(self, quad_name='hummingbird', use_gpe=False):
+    def __init__(self, quad_name='hummingbird', use_gp=False):
 
 
         self.quad_name = quad_name
@@ -24,7 +24,7 @@ class MPCROSWrapper:
         # Loads parameters of  a quad from a xarco file into quad object
         self.quad = set_quad_parameters_from_file(self.quad, self.quad_name)
 
-        if use_gpe:
+        if use_gp:
             dir_path = os.path.dirname(os.path.realpath(__file__))
             ensemble_path = os.path.join(dir_path, "gp/models/ensemble")
             gpe = GPEnsemble(3)
@@ -53,6 +53,11 @@ def set_quad_parameters_from_file(quad, quad_name):
     attrib = parse_xacro_file(params_filename)
 
     quad.mass = float(attrib['mass']) + float(attrib['mass_rotor']) * 4
+
+    # TEST FOR DOUBLE MASS, REMOVE LATER
+    quad.mass = quad.mass
+    # END TEST !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
     quad.J = np.array([float(attrib['body_inertia'][0]['ixx']),
                     float(attrib['body_inertia'][0]['iyy']),
                     float(attrib['body_inertia'][0]['izz'])])

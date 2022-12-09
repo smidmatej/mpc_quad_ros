@@ -21,6 +21,7 @@ class DataLoaderGP:
 
         self.number_of_training_samples = number_of_training_samples
         self.data_dict = load_dict(filename)
+        print(f'Loaded data from {filename}')
 
         # Data dict stores only the world frame velocities
         print(f"self.data_dict['x_odom'][:,7:10].shape {self.data_dict['x_odom'][:,7:10].shape}")
@@ -37,24 +38,30 @@ class DataLoaderGP:
         q_pred = self.data_dict['x_pred_odom'][:,3:7]
 
         '''
-        fig = plt.figure()
+                fig = plt.figure()
         for k in range(3):
             ax = fig.add_subplot(3,1,k+1)
-            ax.plot(v_world[:,k])
-            ax.plot(v_world_pred[:,k])
+            ax.plot(v_world[:,k], label='v_world')
+            ax.plot(v_world_pred[:,k], label='v_world_pred')
+            ax.legend()
         plt.title('v_world')
-        #plt.show()
-        '''
+        plt.show()
+        '''    
+
+        
 
         '''
         fig = plt.figure()
         for k in range(4):
             ax = fig.add_subplot(4,1,k+1)
-            ax.plot(q[:,k])
-            ax.plot(q_pred[:,k])
+            ax.plot(q[:,k], label='q')
+            ax.plot(q_pred[:,k], label='q_pred')
+            ax.legend()
         plt.title('q')
-        #plt.show()
+        plt.show()
         '''
+
+        
         
         self.v_body = np.empty(v_world.shape)
         self.v_body_pred = np.empty(v_world_pred.shape)
@@ -69,8 +76,10 @@ class DataLoaderGP:
             ax.plot(self.v_body[:,k])
             ax.plot(self.v_body_pred[:,k])
         plt.title('v_body')
-        #plt.show()
+        plt.show()
         '''
+
+        
 
         #self.v_body = self.data_dict['x_odom'][:,7:10]
         #self.v_body_pred = self.data_dict['x_pred_odom'][:,7:10]
@@ -81,8 +90,12 @@ class DataLoaderGP:
         fig = plt.figure()
         plt.plot(dt)
         plt.title('dt')
-        #plt.show()
+        plt.show()
         '''
+
+        
+       
+        
         print(f'v_body.shape {self.v_body.shape}')
         print(f'v_body_pred.shape {self.v_body_pred.shape}')
         # dt is one sample shorter than the other data
@@ -94,21 +107,23 @@ class DataLoaderGP:
         fig = plt.figure()
         for k in range(3):
             ax = fig.add_subplot(3,1,k+1)
-            ax.plot(self.y[:,k])
-            ax.plot(self.v_body[:,k], '--')
+            ax.plot(self.y[:,k], label='y')
+            ax.plot(self.v_body[:,k], '--', label='v_body')
             #ax.plot(self.data_dict['aero_drag'][:,k])
         plt.title('acc')
-        #plt.show()
-        '''
-        '''
-        fig = plt.figure()
-        for k in range(3):
-            ax = fig.add_subplot(3,1,k+1)
-            ax.scatter(self.v_body[:-1,k], self.y[:,k])
-            #ax.plot(self.data_dict['aero_drag'][:,k])
-        plt.title('acc')
+        plt.legend()
         plt.show()
         '''
+
+        
+        
+        fig = plt.figure('a_error(v_body)')
+        for k in range(3):
+            ax = fig.add_subplot(3,1,k+1)
+            ax.scatter(self.v_body[:-1,k], self.y[:,k], s=0.1, label='y')
+            #ax.plot(self.data_dict['aero_drag'][:,k])
+        plt.show()
+        
 
         #self.y = np.array([(self.v_body[:-1,dim] - self.v_body_pred[:-1,dim])/dt for dim in range(3)]).T # error in velocity between measured and predicted is the regressed variable we are trying to estimate
         print(f'self.y {self.y.shape}')

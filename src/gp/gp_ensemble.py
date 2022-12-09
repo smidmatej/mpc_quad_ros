@@ -6,7 +6,7 @@ except ImportError:
     from gp import GPR
 import numpy as np
 import casadi as cs
-
+import os
 
 class GPEnsemble:
 
@@ -74,12 +74,19 @@ class GPEnsemble:
         return f_jacobs
 
     def save(self, path, xyz=True):
+
+        if os.path.exists(path):
+            print("Folder already exists, saving models inside")
+        else:
+            os.makedirs(path)
+            print("Folder created, saving models inside")
+
         if xyz: 
-            xyz_name = ['_x','_y','_z']
+            xyz_name = ['model_x','model_y','model_z']
             # GPE contains 3 GPs, one for each dimension
 
             for gpr_index in range(len(self.gp)):
-                path_with_name = path + xyz_name[gpr_index]
+                path_with_name = os.path.join(path, xyz_name[gpr_index])
                 self.gp[gpr_index].save(path_with_name)
         
         else:
@@ -88,13 +95,13 @@ class GPEnsemble:
     def load(self, path, xyz=True):
         print("Loading GPEnsemble from path: ", path)
         if xyz: 
-            xyz_name = ['_x','_y','_z']
+            xyz_name = ['model_x','model_y','model_z']
             # GPE contains 3 GPs, one for each dimension
 
             # Discard the old GPE contents
             #self.gp = list()
             for gpr_index in range(len(xyz_name)):
-                path_with_name = path + xyz_name[gpr_index] 
+                path_with_name = os.path.join(path, xyz_name[gpr_index])
                 # Create a new empty GPR and add it to GPE
                 self.add_gp(GPR(None,None,None,None), gpr_index)
                 

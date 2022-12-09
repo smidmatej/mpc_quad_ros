@@ -13,7 +13,10 @@ def main():
 
     training_dataset_filepath = '../data/training_dataset.pkl'
     dir_path = os.path.dirname(os.path.realpath(__file__))
-    training_dataset_filepath = os.path.join(dir_path, '../..', 'outputs/gazebo_simulation/data/static_dataset.pkl')
+    source_simulator = 'gazebo_simulation'
+    
+    training_dataset_filepath = os.path.join(dir_path, '../..', 'outputs', source_simulator, 'data/static_dataset.pkl')
+    model_save_filepath = os.path.join(dir_path, '../..', 'outputs', source_simulator, 'gp_models/')
 
     n_training_samples = 20
 
@@ -50,13 +53,13 @@ def main():
     y_query, std_query = gpe.predict(z_query, std=True)
 
 
-    model_save_fname = "models/ensemble"
+    
 
-    gpe.save(model_save_fname)
+    gpe.save(model_save_filepath)
 
     gpe_loaded = GPEnsemble(3)
     #print(model_loaded.theta)
-    gpe_loaded.load(model_save_fname)
+    gpe_loaded.load(model_save_filepath)
 
     print(gpe_loaded)
 

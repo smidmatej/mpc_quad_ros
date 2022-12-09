@@ -259,9 +259,9 @@ class MPC_controller:
                 self.optimal_path_pub.publish(optimal_path)
 
                 # Predict the state at the next odometry message for logging purposes
-                x_pred = self.mpc_ros_wrapper.quad_opt.discrete_dynamics(x, w, self.odometry_dt)
-
-                x_pred = x_opt[1,:]
+                x_pred = np.array(self.mpc_ros_wrapper.quad_opt.discrete_dynamics(x, w, self.odometry_dt)).ravel()
+                rospy.loginfo(f"Predicted state: \n\r {x_pred.shape}")
+                #x_pred = x_opt[1,:]
                 # ------- Log data -------
                 if self.logger is not None:
                     dict_to_log = {"x_odom": x, "x_pred_odom": x_pred, "x_ref": x_ref[0,:], "t_odom": timestamp_odometry, \

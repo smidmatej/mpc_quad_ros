@@ -2,7 +2,7 @@ import numpy as np
 
 import os 
 from utils.save_dataset import save_dict
-
+import rospy
 
 class RosLogger:
     def __init__(self, filename) -> None:
@@ -35,5 +35,6 @@ class RosLogger:
         for key in self.dictionary:
             output_dict[key] = np.array(self.dictionary[key])
 
+        rospy.loginfo(f"Saving trajectory to {self.filename_dict}")
         save_dict(output_dict, self.filename_dict)
         #np.save(self.filename_npy, self.dictionary['odom'])
