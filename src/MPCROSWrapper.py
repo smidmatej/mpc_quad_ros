@@ -26,7 +26,8 @@ class MPCROSWrapper:
 
         if use_gp:
             dir_path = os.path.dirname(os.path.realpath(__file__))
-            ensemble_path = os.path.join(dir_path, "gp/models/ensemble")
+            gp_path = rospy.get_param('/mpcros/mpc_controller/gp_path')
+            ensemble_path = os.path.join(dir_path, gp_path)
             gpe = GPEnsemble(3)
             gpe.load(ensemble_path)
         else:
@@ -40,7 +41,12 @@ class MPCROSWrapper:
 
 
 def set_quad_parameters_from_file(quad, quad_name):
-
+    """
+    Loads parameters of a quad from a xarco file into quad object
+    :param quad: Quadrotor3D object to load parameters into
+    :param quad_name: name of quadrotor to load parameters for (e.g. 'hummingbird'). Concatenate with '.xacro' to get filename
+    """
+    
     this_path = os.path.dirname(os.path.realpath(__file__))
     rospy.loginfo(f'this_path: {this_path}')
     params_filename = os.path.join(this_path, '..' , 'config', quad_name + '.xacro')

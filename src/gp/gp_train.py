@@ -2,29 +2,40 @@ import numpy as np
 import matplotlib.pyplot as plt
 from gp import *
 from gp_ensemble import GPEnsemble
-from data_loader import data_loader
+from DataLoaderGP import DataLoaderGP
 import time
 import casadi as cs
 import seaborn as sns
 import os
-
+import argparse
 
 def main():
 
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-s", "--save", type=int, required=False, default=1, help="Save the model? 1: yes, 0: no")
+    args = parser.parse_args()
+    
+
+    training_dataset_filepath = '../data/training_dataset.pkl'
     dir_path = os.path.dirname(os.path.realpath(__file__))
-    training_dataset_filepath = os.path.join(dir_path, '../..', 'outputs/python_simulation/data/simulated_trajectory.pkl')
-    compute_reduction = 1
+    source_simulator = 'gazebo_simulation'
+    
+    training_dataset_filepath = os.path.join(dir_path, '../..', 'outputs', source_simulator, 'data/random_trajectory_nogp.pkl')
+    model_save_filepath = os.path.join(dir_path, '../..', 'outputs', source_simulator, 'gp_models/')
+
     n_training_samples = 20
 
-    d_loader = data_loader(training_dataset_filepath, compute_reduction=compute_reduction, number_of_training_samples=n_training_samples, body_frame=True)               
+    data_loader_gp = DataLoaderGP(training_dataset_filepath, number_of_training_samples=n_training_samples)
 
-    z = d_loader.get_z(training=False)
-    y = d_loader.get_y(training=False)
+    z = data_loader_gp.X
+    y = data_loader_gp.y
 
 
-    z_train = d_loader.get_z(training=True)
-    y_train = d_loader.get_y(training=True)
+    z_train = data_loader_gp.X_train
+    y_train = data_loader_gp.y_train
 
+    print(f'z_train.shape: {z_train.shape}')
+    print(f'y_train.shape: {y_train.shape}')
 
     ensemble_components = 3 
     gpe = GPEnsemble(ensemble_components)
@@ -47,13 +58,14 @@ def main():
     y_query, std_query = gpe.predict(z_query, std=True)
 
 
-    model_save_fname = "models/ensemble"
+    
 
-    gpe.save(model_save_fname)
+    if args.save==1:
+        gpe.save(model_save_filepath)
 
     gpe_loaded = GPEnsemble(3)
     #print(model_loaded.theta)
-    gpe_loaded.load(model_save_fname)
+    gpe_loaded.load(model_save_filepath)
 
     print(gpe_loaded)
 

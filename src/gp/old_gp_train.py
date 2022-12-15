@@ -2,7 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from gp import *
 from gp_ensemble import GPEnsemble
-from DataLoaderGP import DataLoaderGP
+from data_loader import data_loader
 import time
 import casadi as cs
 import seaborn as sns
@@ -11,26 +11,20 @@ import os
 
 def main():
 
-    training_dataset_filepath = '../data/training_dataset.pkl'
     dir_path = os.path.dirname(os.path.realpath(__file__))
-    source_simulator = 'gazebo_simulation'
-    
-    training_dataset_filepath = os.path.join(dir_path, '../..', 'outputs', source_simulator, 'data/static_dataset.pkl')
-    model_save_filepath = os.path.join(dir_path, '../..', 'outputs', source_simulator, 'gp_models/')
-
+    training_dataset_filepath = os.path.join(dir_path, '../..', 'outputs/python_simulation/data/simulated_trajectory.pkl')
+    compute_reduction = 1
     n_training_samples = 20
 
-    data_loader_gp = DataLoaderGP(training_dataset_filepath, number_of_training_samples=n_training_samples)
+    d_loader = data_loader(training_dataset_filepath, compute_reduction=compute_reduction, number_of_training_samples=n_training_samples, body_frame=True)               
 
-    z = data_loader_gp.X
-    y = data_loader_gp.y
+    z = d_loader.get_z(training=False)
+    y = d_loader.get_y(training=False)
 
 
-    z_train = data_loader_gp.X_train
-    y_train = data_loader_gp.y_train
+    z_train = d_loader.get_z(training=True)
+    y_train = d_loader.get_y(training=True)
 
-    print(f'z_train.shape: {z_train.shape}')
-    print(f'y_train.shape: {y_train.shape}')
 
     ensemble_components = 3 
     gpe = GPEnsemble(ensemble_components)
@@ -53,13 +47,13 @@ def main():
     y_query, std_query = gpe.predict(z_query, std=True)
 
 
-    
+    model_save_fname = "models/ensemble"
 
-    gpe.save(model_save_filepath)
+    gpe.save(model_save_fname)
 
     gpe_loaded = GPEnsemble(3)
     #print(model_loaded.theta)
-    gpe_loaded.load(model_save_filepath)
+    gpe_loaded.load(model_save_fname)
 
     print(gpe_loaded)
 

@@ -54,6 +54,11 @@ class MPC_controller:
         reference_path_chunk_topic = "rviz/reference_chunk"
         optimal_path_topic = "rviz/optimal_path"
 
+
+        log_filename = rospy.get_param('/mpcros/mpc_controller/log_filename')
+        self.logger = RosLogger(log_filename)
+        
+        '''
         # If logging is enabled
         # TODO: Add condition for logging
         if True:
@@ -69,6 +74,9 @@ class MPC_controller:
             self.logger = RosLogger(log_filename)
         else:
             self.logger = None
+        
+        '''
+
 
 
         # Odometry is published with a average frequency of 100 Hz
@@ -200,6 +208,7 @@ class MPC_controller:
         """
         Callback function for pose subscriber. When new odometry message is received, the controller is used to calculate new inputs.
         Publishes calculated inputs to the autopilot
+        :param msg: Odometry message of type nav_msgs/Odometry
         """
         # I ignore odometry unless I have a trajectory. This is to avoid the controller to start before the trajectory is received
         # Trajectory is received in the trajectory_received_cb function
@@ -318,7 +327,9 @@ class MPC_controller:
 
     def send_control_command(self, thrust, body_rates):
         """
-        Creates a ControlCommand with the control inputs [0-1] and predicted body_rates and publishes it to the quadrotor
+        Creates a ControlCommand message and sends it to the autopilot
+        :param thrust: 4x1 array with the thrust for each rotors in range [0-1]
+        :param body_rates: 3x1 array with the body rates in rad/s. The autopilot needs both thrust and bodyrate
         """            
         # Control input command to the autopilot
         control_msg = ControlCommand()

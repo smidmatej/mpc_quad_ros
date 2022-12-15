@@ -5,6 +5,8 @@
 <arg name="v_max" default="5.0"/>
 <arg name="a_max" default="5.0"/>
 <arg name="use_gp" default="0"/>
+<arg name="gp_path" default="../outputs/gazebo_simulation/gp_models"/>
+<arg name="log_filename" default="random_trajectory_nogp"/>
 
   <group ns="mpcros">
       <node name="mpc_controller" pkg="mpcros" type="mpc_controller_node.py">
@@ -12,6 +14,8 @@
         <param name="v_max" value="$(arg v_max)"/>
         <param name="a_max" value="$(arg a_max)"/>
         <param name="use_gp" value="$(arg use_gp)"/>
+        <param name="gp_path" value="$(arg gp_path)"/>
+        <param name="log_filename" value="$(arg log_filename)"/>
       </node>
       <node name="trajectory_generator" pkg="mpcros" type="trajectory_generator_node.py">
         
