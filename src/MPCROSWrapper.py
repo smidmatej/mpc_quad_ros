@@ -69,6 +69,7 @@ def set_quad_parameters_from_file(quad, quad_name):
                     float(attrib['body_inertia'][0]['izz'])])
     quad.length = float(attrib['arm_length'])
 
+    # Max thrust of 1 rotor
     quad.max_thrust = float(attrib["max_rot_velocity"]) ** 2 * float(attrib["motor_constant"])
     quad.c = float(attrib['moment_constant'])
 

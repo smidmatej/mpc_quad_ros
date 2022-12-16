@@ -344,8 +344,9 @@ class MPC_controller:
         control_msg.bodyrates.z = body_rates[2]
 
         # Autopilot needs desired thrust to set rotor speeds
-        control_msg.rotor_thrusts = thrust * self.mpc_ros_wrapper.quad.max_thrust
-        control_msg.collective_thrust = np.sum(thrust) * self.mpc_ros_wrapper.quad.max_thrust
+        control_msg.rotor_thrusts = thrust * self.mpc_ros_wrapper.quad.max_thrust / self.mpc_ros_wrapper.quad.mass
+        #np.sum(w_opt[:4]) * self.quad.max_thrust / self.quad.mass
+        control_msg.collective_thrust = np.sum(thrust) * self.mpc_ros_wrapper.quad.max_thrust / self.mpc_ros_wrapper.quad.mass
 
         self.actuator_publisher.publish(control_msg)
 
