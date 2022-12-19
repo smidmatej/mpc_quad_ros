@@ -11,7 +11,6 @@ Panels:
         - /TF1/Tree1
         - /Marker1
         - /Path1
-        - /Path1/Status1
         - /Path2
         - /Path3
         - /Odometry1
@@ -81,7 +80,7 @@ Visualization Manager:
       Marker Topic: /mpcros/rviz/marker
       Name: Marker
       Namespaces:
-        hummingbird: true
+        {}
       Queue Size: 100
       Value: true
     - Alpha: 0.5
@@ -235,7 +234,7 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz/Orbit
-      Distance: 12.05546760559082
+      Distance: 13.083854675292969
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
@@ -251,9 +250,9 @@ Visualization Manager:
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 0.21479709446430206
+      Pitch: 0.48479679226875305
       Target Frame: hummingbird/base_link
-      Yaw: 0.6335873603820801
+      Yaw: 1.798586368560791
     Saved: ~
 Window Geometry:
   Displays:

@@ -20,7 +20,7 @@ def main():
     dir_path = os.path.dirname(os.path.realpath(__file__))
     source_simulator = 'gazebo_simulation'
     
-    training_dataset_filepath = os.path.join(dir_path, '../..', 'outputs', source_simulator, 'data/random_trajectory_nogp.pkl')
+    training_dataset_filepath = os.path.join(dir_path, '../..', 'outputs', source_simulator, 'data/training_v10.0_a5.0.pkl')
     model_save_filepath = os.path.join(dir_path, '../..', 'outputs', source_simulator, 'gp_models/')
 
     n_training_samples = 20

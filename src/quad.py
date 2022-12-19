@@ -59,8 +59,11 @@ class Quadrotor3D:
 
 		# Drag coefficients [kg / m]
 		self.rotor_drag_xy = 0.3
+		#self.rotor_drag_xy = 0.0
 		#self.rotor_drag_xy = 30
 		self.rotor_drag_z = 0.0  # No rotor drag in the z dimension
+		#self.rotor_drag_z = 0.0  # No rotor drag in the z dimension
+		
 		self.rotor_drag = np.array([self.rotor_drag_xy, self.rotor_drag_xy, self.rotor_drag_z])[:, np.newaxis]
 		self.aero_drag = 0.08
 		#self.aero_drag = 80

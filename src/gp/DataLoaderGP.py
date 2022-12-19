@@ -116,13 +116,23 @@ class DataLoaderGP:
         '''
 
         
-        
-        fig = plt.figure('a_error(v_body)')
-        for k in range(3):
-            ax = fig.add_subplot(3,1,k+1)
-            ax.scatter(self.v_body[:-1,k], self.y[:,k], s=0.1, label='y')
-            #ax.plot(self.data_dict['aero_drag'][:,k])
+        xyz = ['x','y','z']
+        #plt.style.use('seaborn')
+        #sns.set_theme()
+        plt.figure(figsize=(10, 6), dpi=100)
+
+        for col in range(self.v_body.shape[1]):
+            #print(np.ravel([f_grads[col](z_query[:,col])[d,d].full() for d in range(z_query.shape[0])]))
+            plt.subplot(1,3,col+1)
+            plt.scatter(self.v_body[:-1,col], self.y[:,col], s=0.1, label='y')
+            #plt.scatter(z_train[:,col], y_pred[:,col], marker='+', c='g')
+            plt.xlabel(f'Velocity {xyz[col]} [ms-1]')
+            plt.ylabel(f'Drag acceleration {xyz[col]} [ms-2]')
+            #plt.legend(('m(z) interpolation', "m(z') training"))
+            #plt.fill_between(z_query[:,col], y_query[:,col] - 2*std_query[col], y_query[:,col] + 2*std_query[col], color='gray', alpha=0.2)
+        plt.tight_layout()
         plt.show()
+
         
 
         #self.y = np.array([(self.v_body[:-1,dim] - self.v_body_pred[:-1,dim])/dt for dim in range(3)]).T # error in velocity between measured and predicted is the regressed variable we are trying to estimate

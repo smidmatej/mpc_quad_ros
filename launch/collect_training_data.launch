@@ -6,9 +6,9 @@
 <arg name="a_max" default="5.0"/>
 <arg name="use_gp" default="0"/>
 <arg name="gp_path" default="../outputs/gazebo_simulation/gp_models"/>
-<arg name="training" default="0"/>
-<arg name="training_trajectories_count" default="1"/>
-<arg name="log_filename" default="trajectory"/>
+<arg name="training" default="1"/>
+<arg name="training_trajectories_count" default="3"/>
+<arg name="log_filename" default="no_name_trajectory"/>
 
   <group ns="mpcros">
       <node name="mpc_controller" pkg="mpcros" type="mpc_controller_node.py">

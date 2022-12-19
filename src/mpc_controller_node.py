@@ -22,7 +22,8 @@ from mpcros.msg import Trajectory_request
 
 import std_msgs
 import numpy as np
-import os 
+import os
+import sys
 
 
 
@@ -38,14 +39,26 @@ class MPC_controller:
         quad_name = 'hummingbird'
         rospy.init_node('controller')
 
-        self.trajectory_type = rospy.get_param('/mpcros/mpc_controller/trajectory_type') # node_name/argsname
-        #print(trajectory_type)
         self.v_max = rospy.get_param('/mpcros/mpc_controller/v_max')
         self.a_max = rospy.get_param('/mpcros/mpc_controller/a_max')
+        self.trajectory_type = rospy.get_param('/mpcros/mpc_controller/trajectory_type') # node_name/argsname
+        self.training_run = rospy.get_param('/mpcros/mpc_controller/training') # node_name/argsname
+        self.training_trajectories_count = rospy.get_param('/mpcros/mpc_controller/training_trajectories_count') # node_name/argsname
+        self.use_gp = rospy.get_param('/mpcros/mpc_controller/use_gp')
+
+        rospy.logwarn(f"training_run: {self.training_run}")
+        if not self.training_run:
+            log_filename = rospy.get_param('/mpcros/mpc_controller/log_filename')
+        else:
+            log_filename = f"training_v{self.v_max:.0f}_a{self.a_max:.0f}_{self.use_gp}gp"
+        #print(trajectory_type)
+        rospy.logwarn(f"log_filename: {log_filename}")
+
 
         # Topics
         reference_trajectory_topic = "reference/trajectory"
         self.new_trajectory_request_topic = "reference/new_trajectory_request"
+
 
         pose_topic = "/" + quad_name + "/ground_truth/odometry"
         control_topic = "/" + quad_name + "/autopilot/control_command_input"
@@ -55,7 +68,7 @@ class MPC_controller:
         optimal_path_topic = "rviz/optimal_path"
 
 
-        log_filename = rospy.get_param('/mpcros/mpc_controller/log_filename')
+        
         self.logger = RosLogger(log_filename)
         
         '''
@@ -86,7 +99,8 @@ class MPC_controller:
 
         self.trajectory_ready = False
 
-         
+        # Counts the number of finished trajectories
+        self.number_of_trajectories_finished = 0
 
         # Publishers
         self.optimal_path_pub = rospy.Publisher(optimal_path_topic, Path, queue_size=1) # Path from current quad position onto the path
@@ -109,8 +123,8 @@ class MPC_controller:
         self.hover_pos = np.array([0, 0, 3])
         # Rise to hover height
 
-        use_gp = rospy.get_param('/mpcros/mpc_controller/use_gp')
-        self.mpc_ros_wrapper = MPCROSWrapper(quad_name=quad_name, use_gp=use_gp)
+        
+        self.mpc_ros_wrapper = MPCROSWrapper(quad_name=quad_name, use_gp=self.use_gp)
 
         # MPC steps at a different rate than the odometry
         # Trajectory steps at odometry rate
@@ -223,6 +237,9 @@ class MPC_controller:
             self.trajectory_ready = False
             x, _ = self.pose_to_state_world(msg)
             start_pos = np.array([x[0], x[1], x[2]])
+            
+            # Dont count the initial linear trajectory
+            self.number_of_trajectories_finished -= 1
             # Take me from here to the hover position
             self.request_new_trajectory("line", start_pos, self.hover_pos, v_max=self.v_max, a_max=self.a_max)
             
@@ -269,7 +286,6 @@ class MPC_controller:
 
                 # Predict the state at the next odometry message for logging purposes
                 x_pred = np.array(self.mpc_ros_wrapper.quad_opt.discrete_dynamics(x, w, self.odometry_dt)).ravel()
-                rospy.loginfo(f"Predicted state: \n\r {x_pred.shape}")
                 #x_pred = x_opt[1,:]
                 # ------- Log data -------
                 if self.logger is not None:
@@ -285,35 +301,49 @@ class MPC_controller:
                     self.pbar.update(1)
 
                 # -------------- Check if the trajectory is finished --------------
-                if self.idx_traj == self.x_trajectory.shape[0]:
+                if self.idx_traj+1 == self.x_trajectory.shape[0]:
                     
                     rospy.loginfo("Trajectory finished")
                     self.logger.save_log() # Saves the log to a file
-
+                    self.number_of_trajectories_finished += 1
 
                     # Give me a new random trajectory from my position and back
                     #self.request_new_trajectory("random", \
                     #    start_point=np.array([x[0], x[1], x[2]]), end_point=np.array([x[0], x[1], x[2]]), \
                     #        v_max=self.v_max, a_max=self.a_max)
+                    if self.number_of_trajectories_finished >= self.training_trajectories_count:
+                        # Shutdown the node after making the required number of trajectories
+                        #rospy.on_shutdown(self.shutdown_hook) # Send the signal that this process is about to shutdown
+                        rospy.logwarn("Data collection finished.")
+                        #sys.exit("Number of trajectories finished") # End this python process
+                    else:
 
+                        if self.training_run:
+                            if self.trajectory_type == "random":
+                                self.request_new_trajectory("random", \
+                                    start_point=np.array([x[0], x[1], x[2]]), end_point=None, \
+                                        v_max=self.v_max, a_max=self.a_max)
+                        else:
+                            
+                            self.logger.clear_memory() # Clear memory after every trajectory when not collecting data for training
 
-                    if self.trajectory_type == "static":
-                        self.request_new_trajectory("static", \
-                            start_point=None, end_point=None, \
-                                v_max=self.v_max, a_max=self.a_max)
-                    
-                    if self.trajectory_type == "random":
-                        self.request_new_trajectory("random", \
-                            start_point=np.array([x[0], x[1], x[2]]), end_point=None, \
-                                v_max=self.v_max, a_max=self.a_max)
+                            if self.trajectory_type == "static":
+                                self.request_new_trajectory("static", \
+                                    start_point=None, end_point=None, \
+                                        v_max=self.v_max, a_max=self.a_max)
+                            
+                            if self.trajectory_type == "random":
+                                self.request_new_trajectory("random", \
+                                    start_point=np.array([x[0], x[1], x[2]]), end_point=None, \
+                                        v_max=self.v_max, a_max=self.a_max)
 
-                    
-                    if self.trajectory_type == "circle":
-                        radius = 10.0
-                        end_point = np.array([x[0]+radius, x[1], x[2]]) # Circle trajectory radius is calculated as the distance between start and end
-                        self.request_new_trajectory("circle", \
-                            start_point=np.array([x[0], x[1], x[2]]), end_point=end_point, \
-                                v_max=self.v_max, a_max=self.a_max)
+                            
+                            if self.trajectory_type == "circle":
+                                radius = 10.0
+                                end_point = np.array([x[0]+radius, x[1], x[2]]) # Circle trajectory radius is calculated as the distance between start and end
+                                self.request_new_trajectory("circle", \
+                                    start_point=np.array([x[0], x[1], x[2]]), end_point=end_point, \
+                                        v_max=self.v_max, a_max=self.a_max)
 
                     
                     
@@ -433,7 +463,9 @@ class MPC_controller:
         robotMarker.lifetime = rospy.Duration(0) # forever
         self.markerPub.publish(robotMarker)
 
-
+    
+    def shutdown_hook(self):
+        rospy.loginfo("Shutting down MPC node")
 
 if __name__ == '__main__':
 

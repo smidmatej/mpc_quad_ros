@@ -67,17 +67,26 @@ class TrajectoryGenerator:
             for t in np.arange(0, t_max, dt):
                 f.write("{},{},{},{},{}\n".format(t, radius * np.cos(v_max * t), radius * np.sin(v_max * t), 0))
 
-    def generate_random_waypoints(self, hsize=10, num_waypoints=10, hover_first=False, start_point=np.array([0.0, 0.0, 0.0]), end_point=np.array([0.0, 0.0, 0.0])):
+    def generate_random_waypoints(self, hsize=[10,10,10], num_waypoints=10, hover_first=False, start_point=np.array([0.0, 0.0, 0.0]), end_point=np.array([0.0, 0.0, 0.0])):
         # generate random waypoints in a cube centered around center_of_cube
         
         #print(f'Generating {num_waypoints} random waypoints saving them to {waypoints_filename}')
+        if type(hsize) is not list:
+            # If hsize is not a list, then it is a scalar and we assume that the shape is a cubes
+            hsize = [hsize, hsize, hsize]
+
+        center_of_cube = np.array([0,0,1.5*hsize[2]]) # Moved the center of the cube up so that the generated trajectories are above the ground plane
+        
         waypoints = list()
-        center_of_cube = np.array([0,0,1.5*hsize]) # Moved the center of the cube up so that the generated trajectories are above the ground plane
         waypoints.append(start_point)
+        
         if hover_first:
-            waypoints.append(np.array([0.0, 0.0, hsize])) # first rise up from the ground plane
+            waypoints.append(np.array([0.0, 0.0, hsize[2]])) # first rise up from the ground plane
         for i in range(num_waypoints):
-            newWaypoint = np.random.uniform(-hsize, hsize, 3) + center_of_cube 
+            x = np.random.uniform(-hsize[0], hsize[0])
+            y = np.random.uniform(-hsize[1], hsize[1])
+            z = np.random.uniform(-hsize[2], hsize[2])
+            newWaypoint = np.array([x, y, z]) + center_of_cube 
             waypoints.append(newWaypoint)
 
         #waypoints.append(np.array([0.0, 0.0, hsize])) # return above the ground plane

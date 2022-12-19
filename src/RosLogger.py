@@ -14,6 +14,8 @@ class RosLogger:
         self.filename_dict = os.path.join(dir_path, '..', 'outputs', 'gazebo_simulation', 'data', filename + '.pkl')
         self.filename_csv = os.path.join(dir_path, '..', 'outputs', 'gazebo_simulation', 'data', filename + '.csv')
 
+    def clear_memory(self):
+        self.dictionary = {}
 
     def log(self, input_dict):
         for key in input_dict:
