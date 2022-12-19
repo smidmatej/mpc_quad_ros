@@ -46,13 +46,15 @@ class MPC_controller:
         self.training_trajectories_count = rospy.get_param('/mpcros/mpc_controller/training_trajectories_count') # node_name/argsname
         self.use_gp = rospy.get_param('/mpcros/mpc_controller/use_gp')
 
-        rospy.logwarn(f"training_run: {self.training_run}")
+        #rospy.logwarn(f"training_run: {self.training_run}")
         if not self.training_run:
-            log_filename = rospy.get_param('/mpcros/mpc_controller/log_filename')
+            #log_filename_base = rospy.get_param('/mpcros/mpc_controller/log_filename_base')
+            log_filename = f"test_{self.trajectory_type}_v{self.v_max:.0f}_a{self.a_max:.0f}_gp{self.use_gp}"
+            
         else:
-            log_filename = f"training_v{self.v_max:.0f}_a{self.a_max:.0f}_{self.use_gp}gp"
+            log_filename = f"training_v{self.v_max:.0f}_a{self.a_max:.0f}_gp{self.use_gp}"
         #print(trajectory_type)
-        rospy.logwarn(f"log_filename: {log_filename}")
+        #rospy.logwarn(f"log_filename: {log_filename}")
 
 
         # Topics
@@ -120,8 +122,11 @@ class MPC_controller:
         r.sleep()
 
 
-        self.hover_pos = np.array([0, 0, 3])
+        self.hover_height = 3.0
         # Rise to hover height
+
+        # This is a hack to not count the first trajectory into the number of finished trajectories
+        self.doing_a_line = False
 
         
         self.mpc_ros_wrapper = MPCROSWrapper(quad_name=quad_name, use_gp=self.use_gp)
@@ -143,7 +148,161 @@ class MPC_controller:
 
 
 
-    def request_new_trajectory(self, type, start_point=np.array([0, 0, 0]), end_point=np.array([0, 0, 0]), v_max=1.0, a_max=1.0):
+
+
+
+
+    def pose_received_cb(self, msg):
+        """
+        Callback function for pose subscriber. When new odometry message is received, the controller is used to calculate new inputs.
+        Publishes calculated inputs to the autopilot
+        :param msg: Odometry message of type nav_msgs/Odometry
+        """
+        # I ignore odometry unless I have a trajectory. This is to avoid the controller to start before the trajectory is received
+        # Trajectory is received in the trajectory_received_cb function
+        # New trajectory is requested elsewhere
+
+
+        time_at_cb_start = time.time()
+
+        if self.need_trajectory_to_hover:
+            # The controller just started and I am waiting for the first trajectory
+            self.need_trajectory_to_hover = False
+            self.trajectory_ready = False
+            x, _ = self.pose_to_state_world(msg)
+            if abs(x[2] - self.hover_height) > 0.1:
+                # I am not at the hover height, so I need to request a trajectory to the hover height
+                start_pos = np.array([x[0], x[1], x[2]])
+                hover_pos = np.array([start_pos[0], start_pos[1], self.hover_height])
+
+                # Used to skip counting this line trajectory as a finished trajectory, since its only for initial alignment
+                self.doing_a_line = True
+                # Take me from here to the hover position
+                self.publish_trajectory_request("line", start_pos, hover_pos, v_max=self.v_max, a_max=self.a_max)
+            else:
+                # I am at the hover height, so I can request a new trajectory
+                self.request_trajectory(x)
+
+
+
+        if not self.need_trajectory_to_hover and self.trajectory_ready:
+               
+                # Get current state from gazebo
+                x, timestamp_odometry = self.pose_to_state_world(msg)
+                self.mpc_ros_wrapper.quad_opt.set_quad_state(x) # This line is superfluous I think.
+
+                # Reference is sampled with 100 Hz, but mpc step is 1s/10 = 0.1s
+                # That means I need to take only every 10th reference point # control freq factor
+                x_ref = get_reference_chunk(self.x_trajectory, self.idx_traj, self.mpc_ros_wrapper.quad_opt.n_nodes, self.control_freq_factor)
+                t_ref = get_reference_chunk(self.t_trajectory, self.idx_traj, self.mpc_ros_wrapper.quad_opt.n_nodes, self.control_freq_factor)
+
+                self.mpc_ros_wrapper.quad_opt.set_reference_trajectory(x_ref)
+                
+                # -------------- Solve the optimization problem --------------
+                time_before_mpc = time.time()
+                x_opt, w_opt, t_cpu, cost_solution = self.mpc_ros_wrapper.quad_opt.run_optimization(x)
+                elapsed_during_mpc = time.time() - time_before_mpc
+                #rospy.loginfo(f"Elapsed time during MPC: \n\r {elapsed_during_mpc*1000:.3f} ms")
+                
+                # MPC uses only the first control command
+                w = w_opt[0, :]
+                # Last three elements of x_opt are the body rates
+                self.send_control_command(w, x_opt[1,10:13])
+
+                self.idx_traj += 1
+
+                # ------- Publish visualisations to rviz -------
+
+                # Part of the current trajectory that is used for the optimization for control
+                reference_chunk_path = self.trajectory_chunk_to_path(x_ref, t_ref)
+                self.reference_path_chunk_pub.publish(reference_chunk_path)
+                # The path found by the optimization for control
+                # Add one more dt to the end of t_ref because the MPC is solving for n=0, ..., N and t_ref is for n=0, ..., N-1
+                optimal_path = self.trajectory_chunk_to_path(x_opt[:,:], np.concatenate((t_ref[-1] + t_ref[-1]-t_ref[-2], t_ref.reshape(-1))))
+
+                self.publish_marker_to_rviz(x_ref[0,0:3])
+                self.optimal_path_pub.publish(optimal_path)
+
+                # Predict the state at the next odometry message for logging purposes
+                x_pred = np.array(self.mpc_ros_wrapper.quad_opt.discrete_dynamics(x, w, self.odometry_dt)).ravel()
+                #x_pred = x_opt[1,:]
+                # ------- Log data -------
+                if self.logger is not None:
+                    dict_to_log = {"x_odom": x, "x_pred_odom": x_pred, "x_ref": x_ref[0,:], "t_odom": timestamp_odometry, \
+                        'w_odom': w, 't_cpu': t_cpu, 'elapsed_during_mpc': elapsed_during_mpc, 'cost_solution': cost_solution}
+                    
+                    self.logger.log(dict_to_log)
+
+                
+
+                # tqdm progress bar update. Only displays when this script is ran as main. Not while using roslaunch
+                if self.pbar is not None and self.idx_traj < self.t_trajectory.shape[0]:
+                    self.pbar.update(1)
+
+                # -------------- Check if the trajectory is finished --------------
+                if self.idx_traj+1 == self.x_trajectory.shape[0]:
+                    # The trajectory is finished
+                    rospy.loginfo("Trajectory finished")
+
+                    if self.doing_a_line:
+                        # This was a line trajectory, dont count it as a finished trajectory
+                        self.logger.clear_memory()
+                        self.doing_a_line = False
+                    else:
+                        # This was a real trajectory, count it as a finished trajectory
+                        self.number_of_trajectories_finished += 1
+                        self.logger.save_log() # Saves the log to a file
+
+                    
+                        
+
+                    if self.number_of_trajectories_finished >= self.training_trajectories_count:
+                        # Shutdown the node after making the required number of trajectories
+                        #rospy.on_shutdown(self.shutdown_hook) # Send the signal that this process is about to shutdown
+                        rospy.logwarn("Data collection finished.")
+                        #sys.exit("Number of trajectories finished") # End this python process
+                    else:
+                        # Not finished yet, request a new trajectory
+                        self.request_trajectory(x)
+
+                    
+                    
+
+
+        elapsed_during_cb = time.time() - time_at_cb_start
+        #rospy.loginfo(f"Elapsed time during callback: \n\r {elapsed_during_cb*1000:.3f} ms")
+
+
+    def request_trajectory(self, x):
+        if self.training_run:
+            if self.trajectory_type == "random":
+                self.publish_trajectory_request("random", \
+                    start_point=np.array([x[0], x[1], x[2]]), end_point=None, \
+                        v_max=self.v_max, a_max=self.a_max)
+        else:
+            
+            self.logger.clear_memory() # Clear memory after every trajectory when not collecting data for training
+
+            if self.trajectory_type == "static":
+                self.publish_trajectory_request("static", \
+                    start_point=None, end_point=None, \
+                        v_max=self.v_max, a_max=self.a_max)
+            
+            if self.trajectory_type == "random":
+                self.publish_trajectory_request("random", \
+                    start_point=np.array([x[0], x[1], x[2]]), end_point=None, \
+                        v_max=self.v_max, a_max=self.a_max)
+
+            
+            if self.trajectory_type == "circle":
+                radius = 10.0
+                end_point = np.array([x[0]+radius, x[1], x[2]]) # Circle trajectory radius is calculated as the distance between start and end
+                self.publish_trajectory_request("circle", \
+                    start_point=np.array([x[0], x[1], x[2]]), end_point=end_point, \
+                        v_max=self.v_max, a_max=self.a_max)
+
+
+    def publish_trajectory_request(self, type, start_point=np.array([0, 0, 0]), end_point=np.array([0, 0, 0]), v_max=1.0, a_max=1.0):
         r = rospy.Rate(1)
         
 
@@ -214,146 +373,6 @@ class MPC_controller:
         rospy.loginfo("Received new trajectory with duration {}s".format(self.t_trajectory[-1] - self.t_trajectory[0]))
         
         
-
-
-
-
-    def pose_received_cb(self, msg):
-        """
-        Callback function for pose subscriber. When new odometry message is received, the controller is used to calculate new inputs.
-        Publishes calculated inputs to the autopilot
-        :param msg: Odometry message of type nav_msgs/Odometry
-        """
-        # I ignore odometry unless I have a trajectory. This is to avoid the controller to start before the trajectory is received
-        # Trajectory is received in the trajectory_received_cb function
-        # New trajectory is requested elsewhere
-
-
-        time_at_cb_start = time.time()
-
-        if self.need_trajectory_to_hover:
-            # The controller just started and I am waiting for the first trajectory
-            self.need_trajectory_to_hover = False
-            self.trajectory_ready = False
-            x, _ = self.pose_to_state_world(msg)
-            start_pos = np.array([x[0], x[1], x[2]])
-            
-            # Dont count the initial linear trajectory
-            self.number_of_trajectories_finished -= 1
-            # Take me from here to the hover position
-            self.request_new_trajectory("line", start_pos, self.hover_pos, v_max=self.v_max, a_max=self.a_max)
-            
-
-
-
-        if not self.need_trajectory_to_hover and self.trajectory_ready:
-               
-                # Get current state from gazebo
-                x, timestamp_odometry = self.pose_to_state_world(msg)
-                self.mpc_ros_wrapper.quad_opt.set_quad_state(x) # This line is superfluous I think.
-
-                # Reference is sampled with 100 Hz, but mpc step is 1s/10 = 0.1s
-                # That means I need to take only every 10th reference point # control freq factor
-                x_ref = get_reference_chunk(self.x_trajectory, self.idx_traj, self.mpc_ros_wrapper.quad_opt.n_nodes, self.control_freq_factor)
-                t_ref = get_reference_chunk(self.t_trajectory, self.idx_traj, self.mpc_ros_wrapper.quad_opt.n_nodes, self.control_freq_factor)
-
-                self.mpc_ros_wrapper.quad_opt.set_reference_trajectory(x_ref)
-                
-                # -------------- Solve the optimization problem --------------
-                time_before_mpc = time.time()
-                x_opt, w_opt, t_cpu, cost_solution = self.mpc_ros_wrapper.quad_opt.run_optimization(x)
-                elapsed_during_mpc = time.time() - time_before_mpc
-                #rospy.loginfo(f"Elapsed time during MPC: \n\r {elapsed_during_mpc*1000:.3f} ms")
-                
-                # MPC uses only the first control command
-                w = w_opt[0, :]
-                # Last three elements of x_opt are the body rates
-                self.send_control_command(w, x_opt[1,10:13])
-
-                self.idx_traj += 1
-
-                # ------- Publish visualisations to rviz -------
-
-                # Part of the current trajectory that is used for the optimization for control
-                reference_chunk_path = self.trajectory_chunk_to_path(x_ref, t_ref)
-                self.reference_path_chunk_pub.publish(reference_chunk_path)
-                # The path found by the optimization for control
-                # Add one more dt to the end of t_ref because the MPC is solving for n=0, ..., N and t_ref is for n=0, ..., N-1
-                optimal_path = self.trajectory_chunk_to_path(x_opt[:,:], np.concatenate((t_ref[-1] + t_ref[-1]-t_ref[-2], t_ref.reshape(-1))))
-
-                self.publish_marker_to_rviz(x_ref[0,0:3])
-                self.optimal_path_pub.publish(optimal_path)
-
-                # Predict the state at the next odometry message for logging purposes
-                x_pred = np.array(self.mpc_ros_wrapper.quad_opt.discrete_dynamics(x, w, self.odometry_dt)).ravel()
-                #x_pred = x_opt[1,:]
-                # ------- Log data -------
-                if self.logger is not None:
-                    dict_to_log = {"x_odom": x, "x_pred_odom": x_pred, "x_ref": x_ref[0,:], "t_odom": timestamp_odometry, \
-                        'w_odom': w, 't_cpu': t_cpu, 'elapsed_during_mpc': elapsed_during_mpc, 'cost_solution': cost_solution}
-                    
-                    self.logger.log(dict_to_log)
-
-                
-
-                # tqdm progress bar update. Only displays when this script is ran as main. Not while using roslaunch
-                if self.pbar is not None and self.idx_traj < self.t_trajectory.shape[0]:
-                    self.pbar.update(1)
-
-                # -------------- Check if the trajectory is finished --------------
-                if self.idx_traj+1 == self.x_trajectory.shape[0]:
-                    
-                    rospy.loginfo("Trajectory finished")
-                    self.logger.save_log() # Saves the log to a file
-                    self.number_of_trajectories_finished += 1
-
-                    # Give me a new random trajectory from my position and back
-                    #self.request_new_trajectory("random", \
-                    #    start_point=np.array([x[0], x[1], x[2]]), end_point=np.array([x[0], x[1], x[2]]), \
-                    #        v_max=self.v_max, a_max=self.a_max)
-                    if self.number_of_trajectories_finished >= self.training_trajectories_count:
-                        # Shutdown the node after making the required number of trajectories
-                        #rospy.on_shutdown(self.shutdown_hook) # Send the signal that this process is about to shutdown
-                        rospy.logwarn("Data collection finished.")
-                        #sys.exit("Number of trajectories finished") # End this python process
-                    else:
-
-                        if self.training_run:
-                            if self.trajectory_type == "random":
-                                self.request_new_trajectory("random", \
-                                    start_point=np.array([x[0], x[1], x[2]]), end_point=None, \
-                                        v_max=self.v_max, a_max=self.a_max)
-                        else:
-                            
-                            self.logger.clear_memory() # Clear memory after every trajectory when not collecting data for training
-
-                            if self.trajectory_type == "static":
-                                self.request_new_trajectory("static", \
-                                    start_point=None, end_point=None, \
-                                        v_max=self.v_max, a_max=self.a_max)
-                            
-                            if self.trajectory_type == "random":
-                                self.request_new_trajectory("random", \
-                                    start_point=np.array([x[0], x[1], x[2]]), end_point=None, \
-                                        v_max=self.v_max, a_max=self.a_max)
-
-                            
-                            if self.trajectory_type == "circle":
-                                radius = 10.0
-                                end_point = np.array([x[0]+radius, x[1], x[2]]) # Circle trajectory radius is calculated as the distance between start and end
-                                self.request_new_trajectory("circle", \
-                                    start_point=np.array([x[0], x[1], x[2]]), end_point=end_point, \
-                                        v_max=self.v_max, a_max=self.a_max)
-
-                    
-                    
-
-
-        elapsed_during_cb = time.time() - time_at_cb_start
-        #rospy.loginfo(f"Elapsed time during callback: \n\r {elapsed_during_cb*1000:.3f} ms")
-
-
-
 
     def send_control_command(self, thrust, body_rates):
         """

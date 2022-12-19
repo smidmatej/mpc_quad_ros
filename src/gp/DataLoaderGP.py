@@ -12,23 +12,17 @@ from utils.save_dataset import load_dict
 from utils.utils import v_dot_q, quaternion_inverse
 
 import matplotlib.pyplot as plt
-
+import seaborn as sns
 
 class DataLoaderGP:
     def __init__(self, filename, number_of_training_samples=10):
         
-
-
         self.number_of_training_samples = number_of_training_samples
         self.data_dict = load_dict(filename)
+
         print(f'Loaded data from {filename}')
-
-        # Data dict stores only the world frame velocities
-        print(f"self.data_dict['x_odom'][:,7:10].shape {self.data_dict['x_odom'][:,7:10].shape}")
-        print(f"self.data_dict['x_odom'][:,3:7].shape {self.data_dict['x_odom'][:,3:7].shape}")
-        print(f"self.data_dict['x_pred_odom'][:,7:10].shape {self.data_dict['x_pred_odom'][:,7:10].shape}")
-        print(f"self.data_dict['x_pred_odom'][:,3:7].shape {self.data_dict['x_pred_odom'][:,3:7].shape}")
-
+        print(f'Number of samples: {self.data_dict["x_odom"].shape[0]}')
+        print(f'Number of collocation points: {number_of_training_samples}')
 
 
         v_world = self.data_dict['x_odom'][:,7:10]
@@ -37,123 +31,54 @@ class DataLoaderGP:
         q = self.data_dict['x_odom'][:,3:7]
         q_pred = self.data_dict['x_pred_odom'][:,3:7]
 
-        '''
-                fig = plt.figure()
-        for k in range(3):
-            ax = fig.add_subplot(3,1,k+1)
-            ax.plot(v_world[:,k], label='v_world')
-            ax.plot(v_world_pred[:,k], label='v_world_pred')
-            ax.legend()
-        plt.title('v_world')
-        plt.show()
-        '''    
 
-        
 
-        '''
-        fig = plt.figure()
-        for k in range(4):
-            ax = fig.add_subplot(4,1,k+1)
-            ax.plot(q[:,k], label='q')
-            ax.plot(q_pred[:,k], label='q_pred')
-            ax.legend()
-        plt.title('q')
-        plt.show()
-        '''
-
-        
-        
+        # ---------------- Transform to body frame ----------------
         self.v_body = np.empty(v_world.shape)
         self.v_body_pred = np.empty(v_world_pred.shape)
         for i in range(v_world.shape[0]):
             self.v_body[i,:] = v_dot_q(v_world[i,:].reshape((-1,)), quaternion_inverse(q[i,:].reshape((-1,))))
             self.v_body_pred[i,:] = v_dot_q(v_world_pred[i,:].reshape((-1,)), quaternion_inverse(q_pred[i,:].reshape((-1,))))
 
-        '''
-        fig = plt.figure()
-        for k in range(3):
-            ax = fig.add_subplot(3,1,k+1)
-            ax.plot(self.v_body[:,k])
-            ax.plot(self.v_body_pred[:,k])
-        plt.title('v_body')
-        plt.show()
-        '''
 
-        
-
-        #self.v_body = self.data_dict['x_odom'][:,7:10]
-        #self.v_body_pred = self.data_dict['x_pred_odom'][:,7:10]
         # First differences of t to get the dt between samples. Odom is sampled on average with 100Hz.
         dt = np.diff(self.data_dict['t_odom'])
-        #dt = 0.01
-        '''
-        fig = plt.figure()
-        plt.plot(dt)
-        plt.title('dt')
-        plt.show()
-        '''
 
-        
-       
-        
-        print(f'v_body.shape {self.v_body.shape}')
-        print(f'v_body_pred.shape {self.v_body_pred.shape}')
-        # dt is one sample shorter than the other data
+
+        # ---------------- Calculate the acceleration error ----------------
         self.y = np.empty((self.v_body.shape[0]-1, 3))
         for dim in range(3):
+            # dt is one sample shorter than the other data
             self.y[:,dim] = (self.v_body[1:,dim] - self.v_body_pred[:-1,dim]) / dt
         
-        '''
-        fig = plt.figure()
-        for k in range(3):
-            ax = fig.add_subplot(3,1,k+1)
-            ax.plot(self.y[:,k], label='y')
-            ax.plot(self.v_body[:,k], '--', label='v_body')
-            #ax.plot(self.data_dict['aero_drag'][:,k])
-        plt.title('acc')
-        plt.legend()
-        plt.show()
-        '''
+        self.X = self.v_body[:-1,:] # input is the measured velocity
 
-        
+        # ---------------- Select most informative samples ---------------- 
+        self.X_train, self.y_train = self.cluster_data3D(self.X, self.y)
+
+
+        self.plot_samples()
+
+
+    def plot_samples(self):
         xyz = ['x','y','z']
         #plt.style.use('seaborn')
-        #sns.set_theme()
+        sns.set_theme()
         plt.figure(figsize=(10, 6), dpi=100)
 
         for col in range(self.v_body.shape[1]):
             #print(np.ravel([f_grads[col](z_query[:,col])[d,d].full() for d in range(z_query.shape[0])]))
             plt.subplot(1,3,col+1)
-            plt.scatter(self.v_body[:-1,col], self.y[:,col], s=0.1, label='y')
-            #plt.scatter(z_train[:,col], y_pred[:,col], marker='+', c='g')
+            plt.scatter(self.X[:,col], self.y[:,col], s=0.1, label='Samples')
+            plt.scatter(self.X_train[:,col], self.y_train[:,col], marker='+', c='k', label='Collocation points')    
+            #plt.scatter(self.X_train[:,col], self.y_train[:,col], s=100, marker='o', c='k')
             plt.xlabel(f'Velocity {xyz[col]} [ms-1]')
             plt.ylabel(f'Drag acceleration {xyz[col]} [ms-2]')
+            plt.legend()
             #plt.legend(('m(z) interpolation', "m(z') training"))
-            #plt.fill_between(z_query[:,col], y_query[:,col] - 2*std_query[col], y_query[:,col] + 2*std_query[col], color='gray', alpha=0.2)
+
         plt.tight_layout()
         plt.show()
-
-        
-
-        #self.y = np.array([(self.v_body[:-1,dim] - self.v_body_pred[:-1,dim])/dt for dim in range(3)]).T # error in velocity between measured and predicted is the regressed variable we are trying to estimate
-        print(f'self.y {self.y.shape}')
-        self.X = self.v_body[:-1,:] # input is the measured velocity
-
-        # USING STANDARD X,y notations     
-        self.X_train, self.y_train = self.cluster_data3D(self.X, self.y)
-        '''
-        plt.plot(self.data_dict['x_odom'][:,0],'--')
-        plt.plot(self.v_body[:,0])
-        plt.plot(self.v_body_pred[:,0])
-        plt.plot(self.y[:,0],'+-')
-        plt.show()
-        '''
-        '''
-        print(f'self.X_train {self.X_train.shape}')
-        plt.plot(self.X_train[:,0], self.y_train[:,0], 'o')
-        plt.plot(self.X[:,0], self.y[:,0])
-        plt.show()
-        '''
 
     def cluster_data1D(self, X, y):
         """

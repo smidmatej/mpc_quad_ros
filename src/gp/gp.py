@@ -61,7 +61,7 @@ class KernelFunction:
     
     
 class GPR:
-    def __init__(self, z_train, y_train, covariance_function, theta):
+    def __init__(self, z_train, y_train, covariance_function, theta=[1,1,1]):
         """
         The whole contructor is in this method. This method is called when contructing this class and after self.fit()
         
@@ -202,12 +202,12 @@ class GPR:
         Uses the negative log likelyhood function to maximize likelyhood by varying the hyperparameters theta
         """
         
-        print(self.y_train.shape)
+        #print(self.y_train.shape)
         low_bnd = 0.01
         #bnds = tuple([(low_bnd, None) for i in range(self.z_train.shape[1])]) + ((low_bnd, None), (low_bnd, None))
         bnds = ((low_bnd, None), (low_bnd, None), (low_bnd, None))
-        print('Maximizing the likelyhood function for GP')
-        print(f'Hyperparameters before optimization = {self.theta}')
+        #print('Maximizing the likelyhood function for GP')
+        #print(f'Hyperparameters before optimization = {self.theta}')
         
         sol_min = minimize(self.nll, x0=self.theta, method='L-BFGS-B', bounds=bnds)
         theta_star = sol_min.x
@@ -215,8 +215,8 @@ class GPR:
         # Ammounts to recreating all relevant contents of this class
         self.initialize(self.z_train, self.y_train, self.covariance_function, theta_star)
 
-        print('Optimization done')
-        print(f'Hyperparameters after optimization = {self.theta}')
+        #print('Optimization done')
+        #print(f'Hyperparameters after optimization = {self.theta}')
 
     def jacobian(self, z):
         """
@@ -297,7 +297,8 @@ class GPR:
         
 
     def __str__(self):
-        return f"Theta: {self.theta}"
+        theta_string = '[' + ', '.join([f'{theta:.2f}' for theta in self.theta]) +']'
+        return f"Theta: {theta_string}"
 
 
 

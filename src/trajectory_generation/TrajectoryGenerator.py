@@ -44,14 +44,29 @@ class TrajectoryGenerator:
         v = np.empty((len(ts), 3))
         a = np.empty((len(ts), 3))
         w = np.empty((len(ts)))
+        phi = np.empty((len(ts)))
+        #alpha = np.empty((len(ts)))
+
+        w_max = v_max/radius # Maximum angular velocity
+        phi = 0.0 # Initial angle
         for i, t in zip(range(len(ts)), ts):
 
-            # I have no idea why the 2 is needed here
-            w[i] = (i+1)/float(len(ts)) * v_max/radius
+            # 0 -> w_max
+            freq = 1.0 # Number of cycles velocity cycles from 0 to w_max
+            k = ((i+1)/float(len(ts))*2)-1 # <-1,1>
+            dw = (np.sin((k*2*np.pi+np.pi*3/2)*freq)+1)/2 # 0 -> 1 -> 0
+            w[i] = dw * w_max
+            phi = phi + w[i]*dt
 
-            p[i, :] = np.array([radius * np.cos(w[i] * t), radius * np.sin(w[i] * t), 0]) + np.array([-radius, 0.0, 0.0]) + start_point
+            p[i, :] = np.array([radius * np.cos(phi), radius * np.sin(phi), 0]) + np.array([-radius, 0.0, 0.0]) + start_point
+            v[i, :] = np.array([-radius*w[i] * np.sin(phi), radius*w[i] * np.cos(phi), 0]) # and also here
+            a[i, :] = np.array([-radius*w[i]*w[i] * np.cos(phi), -radius*w[i]*w[i] * np.sin(phi), 0])
+            '''
+            p[i, :] = np.array([radius * np.cos(alpha[i] * t), radius * np.sin(w[i] * t), 0]) + np.array([-radius, 0.0, 0.0]) + start_point
             v[i, :] = np.array([-radius*w[i] * np.sin(w[i] * t), radius*w[i] * np.cos(w[i] * t), 0])*2 # and also here
             a[i, :] = np.array([-radius*w[i]*w[i] * np.cos(w[i] * t), -radius*w[i]*w[i] * np.sin(w[i] * t), 0])*2*2
+            '''
+
 
         #print(f'w = {w}')
         data = np.concatenate((ts.reshape(-1,1), p, v, a), axis=1)

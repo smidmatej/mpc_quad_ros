@@ -155,7 +155,7 @@ class TrajectoryBuilder:
 
         if type == 'circle':
             # Circle trajectory
-            t_max = 10
+            t_max = 30.0
 
             # Circle trajectory has no endpoint, but we pass the endpoint in to message because we compute the 
             # radius as dist(start_point, end_point)

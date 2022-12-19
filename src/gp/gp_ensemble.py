@@ -1,4 +1,6 @@
-
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
 
 try:
     from gp.gp import GPR
@@ -7,6 +9,7 @@ except ImportError:
 import numpy as np
 import casadi as cs
 import os
+import time
 
 class GPEnsemble:
 
@@ -56,8 +59,11 @@ class GPEnsemble:
     
 
     def fit(self):
+        print("Fitting GPEnsemble")
+        start_time = time.time()
         for gpr in self.gp:
             gpr.fit()
+        print(f"Fitted GPEnsemble in {(time.time() - start_time):.2f} seconds")
 
     def jacobian(self, z):
         """
@@ -112,5 +118,29 @@ class GPEnsemble:
         else:
             raise NotImplementedError
 
+    def plot_gpe(self, z_train=None, y_train=None):
+
+        z_query = np.concatenate([np.arange(-20,20,0.5).reshape(-1,1) for i in range(3)], axis=1)
+        y_query, std_query = self.predict(z_query, std=True)
+
+        xyz = ['x','y','z']
+        #plt.style.use('seaborn')
+        sns.set_theme()
+        plt.figure(figsize=(10, 6), dpi=100)
+
+        for col in range(y_query.shape[1]):
+            #print(np.ravel([f_grads[col](z_query[:,col])[d,d].full() for d in range(z_query.shape[0])]))
+            plt.subplot(1,3,col+1)
+            plt.plot(z_query[:,col], y_query[:,col])
+            if z_train is not None and y_train is not None:
+                plt.scatter(z_train[:,col], y_train[:,col], marker='+', c='k')
+            plt.xlabel(f'Velocity {xyz[col]} [ms-1]')
+            plt.ylabel(f'Drag acceleration {xyz[col]} [ms-2]')
+            plt.legend(('m(z) interpolation', "m(z') training"))
+            plt.fill_between(z_query[:,col], y_query[:,col] - 2*std_query[col], y_query[:,col] + 2*std_query[col], color='gray', alpha=0.2)
+        plt.tight_layout()
+        plt.show()
+
+
     def __str__(self):
-        return ' '.join([self.gp[i].__str__() for i in range(len(self.gp))])
+        return '\n\r'.join([f'GP{i}: ' + self.gp[i].__str__() for i in range(len(self.gp))])

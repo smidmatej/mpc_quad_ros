@@ -1,12 +1,13 @@
 import os
 from Visualiser import Visualiser
+
 dir_path = os.path.dirname(os.path.realpath(__file__))
-simulation = 'gazebo_simulation'
+environment = 'gazebo_simulation'
+data_filename = 'test_circle_v20_a5_gp1'
+data_filename = 'test_circle_v20_a5_gp0'
 
-
-trajectory_filename = os.path.join(dir_path, '..', 'outputs', simulation, 'data', 'trajectory.pkl')
-result_plot_filename = os.path.join(dir_path, '..', 'outputs', simulation, 'img', 'trajectory.pdf')
+trajectory_filename = os.path.join(dir_path, '..', 'outputs', environment, 'data', data_filename + '.pkl')
+result_plot_filename = os.path.join(dir_path, '..', 'outputs', 'graphics', environment,  'plot_' + data_filename + '.pdf')
 
 visualiser = Visualiser(trajectory_filename)
-
 visualiser.plot_data(result_plot_filename)

@@ -2,8 +2,8 @@
 <launch>
 
 <arg name="trajectory_type" default="random"/>
-<arg name="v_max" default="10.0"/>
-<arg name="a_max" default="5.0"/>
+<arg name="v_max" default="20.0"/>
+<arg name="a_max" default="10.0"/>
 <arg name="use_gp" default="0"/>
 <arg name="gp_path" default="../outputs/gazebo_simulation/gp_models"/>
 <arg name="training" default="1"/>

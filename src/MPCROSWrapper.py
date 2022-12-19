@@ -60,9 +60,8 @@ def set_quad_parameters_from_file(quad, quad_name):
 
     quad.mass = float(attrib['mass']) + float(attrib['mass_rotor']) * 4
 
-    # TEST FOR DOUBLE MASS, REMOVE LATER
-    quad.mass = quad.mass
-    # END TEST !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+
 
     quad.J = np.array([float(attrib['body_inertia'][0]['ixx']),
                     float(attrib['body_inertia'][0]['iyy']),
