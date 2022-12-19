@@ -2,7 +2,7 @@ from mpl_toolkits.mplot3d import Axes3D
 from matplotlib import animation
 import matplotlib.pyplot as plt
 import numpy as np
-from gp.data_loader import data_loader
+
 from utils.utils import v_dot_q
 import matplotlib as style
 from matplotlib import gridspec
@@ -178,7 +178,7 @@ class Visualiser:
         self.fig.tight_layout()
 
 
-    def plot_data(self, filepath):
+    def plot_data(self, filepath, save=True):
         
 
         v_norm = np.linalg.norm(self.data_dict['x_odom'][:,7:10], axis=1)
@@ -341,7 +341,8 @@ class Visualiser:
         
         plt.tight_layout()
 
-        plt.savefig(filepath, format="pdf", bbox_inches="tight")
+        if save:
+            plt.savefig(filepath, format="pdf", bbox_inches="tight")
 
         # Show needs to come after savefig because it clears the figure
         plt.show()
