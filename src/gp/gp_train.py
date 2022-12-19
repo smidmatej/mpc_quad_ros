@@ -10,22 +10,27 @@ import os
 import argparse
 
 def main():
+    dir_path = os.path.dirname(os.path.realpath(__file__))
 
     parser = argparse.ArgumentParser()
     parser.add_argument("-s", "--save", type=int, required=False, default=1, help="Save the model? 1: yes, 0: no")
     args = parser.parse_args()
     
 
-    training_dataset_filepath = '../data/training_dataset.pkl'
-    dir_path = os.path.dirname(os.path.realpath(__file__))
-    source_simulator = 'gazebo_simulation'
     
-    training_dataset_filepath = os.path.join(dir_path, '../..', 'outputs', source_simulator, 'data/training_v20_a10_gp0.pkl')
-    model_save_filepath = os.path.join(dir_path, '../..', 'outputs', source_simulator, 'gp_models/')
+    environment = 'gazebo_simulation'
+    
+    filename = 'training_v20_a10_gp0'
+    training_dataset_filepath = os.path.join(dir_path, '../..', 'outputs', environment, 'data', filename + '.pkl')
+    model_save_filepath = os.path.join(dir_path, '../..', 'outputs', environment, 'gp_models/')
+
+    gpefit_plot_filepath = os.path.join(dir_path, '../..', 'outputs', 'graphics', 'gpefit_' + filename + '.pdf')
+    gpesamples_plot_filepath = os.path.join(dir_path, '../..', 'outputs', 'graphics', 'gpesamples_' + filename + '.pdf')
 
     n_training_samples = 20
 
     data_loader_gp = DataLoaderGP(training_dataset_filepath, number_of_training_samples=n_training_samples)
+    data_loader_gp.plot_samples(gpesamples_plot_filepath)
 
     z = data_loader_gp.X
     y = data_loader_gp.y
@@ -54,7 +59,9 @@ def main():
     gpe.fit()
     print(gpe)
 
-    gpe.plot_gpe(z_train, y_train)
+
+
+    gpe.plot_gpe(z_train, y_train, gpefit_plot_filepath)
 
     if args.save==1:
         gpe.save(model_save_filepath)

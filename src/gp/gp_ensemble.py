@@ -118,7 +118,7 @@ class GPEnsemble:
         else:
             raise NotImplementedError
 
-    def plot_gpe(self, z_train=None, y_train=None):
+    def plot_gpe(self, z_train=None, y_train=None, filepath=None):
 
         z_query = np.concatenate([np.arange(-20,20,0.5).reshape(-1,1) for i in range(3)], axis=1)
         y_query, std_query = self.predict(z_query, std=True)
@@ -139,6 +139,9 @@ class GPEnsemble:
             plt.legend(('m(z) interpolation', "m(z') training"))
             plt.fill_between(z_query[:,col], y_query[:,col] - 2*std_query[col], y_query[:,col] + 2*std_query[col], color='gray', alpha=0.2)
         plt.tight_layout()
+
+        if filepath is not None:
+            plt.savefig(filepath, format="pdf", bbox_inches="tight")
         plt.show()
 
 

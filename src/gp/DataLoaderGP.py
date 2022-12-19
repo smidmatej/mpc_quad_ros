@@ -57,10 +57,10 @@ class DataLoaderGP:
         self.X_train, self.y_train = self.cluster_data3D(self.X, self.y)
 
 
-        self.plot_samples()
+        
 
 
-    def plot_samples(self):
+    def plot_samples(self, filepath=None):
         xyz = ['x','y','z']
         #plt.style.use('seaborn')
         sns.set_theme()
@@ -78,6 +78,8 @@ class DataLoaderGP:
             #plt.legend(('m(z) interpolation', "m(z') training"))
 
         plt.tight_layout()
+        if filepath is not None:
+            plt.savefig(filepath, format="pdf", bbox_inches="tight")
         plt.show()
 
     def cluster_data1D(self, X, y):
