@@ -1,10 +1,10 @@
 <?xml version="1.0"?>
 <launch>
 
-<arg name="trajectory_type" default="circle"/>
-<arg name="v_max" default="20.0"/>
+<arg name="trajectory_type" default="random"/>
+<arg name="v_max" default="15.0"/>
 <arg name="a_max" default="5.0"/>
-<arg name="use_gp" default="1"/>
+<arg name="use_gp" default="0"/>
 <arg name="gp_path" default="../outputs/gazebo_simulation/gp_models"/>
 <arg name="training" default="0"/>
 <arg name="training_trajectories_count" default="1"/>

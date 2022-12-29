@@ -43,8 +43,8 @@
 <!--  When increasing it, the simulation quality may suffer. -->
       <max_step_size>0.01</max_step_size>
 <!--  this factor actually is computed by multiplying the other two -->
-      <real_time_factor>0.2</real_time_factor>
-      <real_time_update_rate>20</real_time_update_rate>
+      <real_time_factor>1.0</real_time_factor>
+      <real_time_update_rate>100</real_time_update_rate>
 
       <gravity>0 0 -9.81</gravity>
     </physics>

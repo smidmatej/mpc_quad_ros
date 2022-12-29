@@ -15,7 +15,7 @@ class MPCROSWrapper:
 
         self.quad_name = quad_name
         # MPC prediction horizon
-        t_lookahead = 1 # Prediction horizon duration
+        t_lookahead = 1.0 # Prediction horizon duration
         n_nodes = 10 # Prediction horizon number of timesteps in t_lookahead
 
 

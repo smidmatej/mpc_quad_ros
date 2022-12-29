@@ -1,0 +1,37 @@
+
+Learning MPC:
+
+    De = {vx: [0], vy: [0], vz: [0]} # Parametrize D just by velocity inducing points?
+    Dte = {vx: [0, 20], vy: [0, 20], vz: [0, 20]}
+    GP = GP(D)
+    C = MPC
+    while state space to explore is not empty:
+        D_to_explore = (max(De[vx]) + 5, max(De[vy]) + 5, max(De[vz]) + 5) # Here I will probably need to use inducing points
+        Generate a trajectory {s} that explores a D_to_explore using C. # Generate random trajectory with (vx, vy, vz)
+        De = De + {s} # Add explored velocities
+        GP = GP(D) # 
+        C = MPC + GP # Reinitialize controller. Do I need to recompile or just change the model for MPC on the fly?
+        
+        Dte = Dte - De # Reduce state space to explore
+
+
+How to parameterize the safe set of velocities? Using GP uncertainty?
+How to parametrize the state space to explore? vx, vy, vz in [0,20]?
+
+
+
+Safety MPC:
+
+Use RL framework like DQN to control the drone. But also use a MPC safety filter. 
+User commands from a handheld radiocontroller can be also safety-verified using the filter.
+DQN is useful for camera -> control. But the safety filter can check just for the safety of the drone using a basic state space model (R13).
+
+Maybe use MPC imitation learning.
+
+Multi expert network:
+    
+
+PID + Safety MPC:
+    Control the quad just by using PID control every Ts. 
+    But run a safety filter every 10*Ts to ensure safety. 
+    This can allow for PID safety guarantee when there is not enough compute for real time MPC.

@@ -20,7 +20,7 @@ def main():
     
     environment = 'gazebo_simulation'
     
-    filename = 'training_v20_a10_gp0'
+    filename = 'test_circle_v15_a5_gp0'
     training_dataset_filepath = os.path.join(dir_path, '../..', 'outputs', environment, 'data', filename + '.pkl')
     model_save_filepath = os.path.join(dir_path, '../..', 'outputs', environment, 'gp_models/')
 

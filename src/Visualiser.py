@@ -177,21 +177,28 @@ class Visualiser:
 
         self.fig.tight_layout()
 
+    @staticmethod
+    def rms(x, axis=0):
+        return np.sqrt(np.mean(x**2, axis=axis))
 
-    def plot_data(self, filepath, save=True):
+    def plot_data(self, filepath, show=True, save=True):
         
 
         v_norm = np.linalg.norm(self.data_dict['x_odom'][:,7:10], axis=1)
         v_ref_norm = np.linalg.norm(self.data_dict['x_ref'][:,7:10], axis=1)
 
         e_pos_ref = self.data_dict['x_odom'][:,0:3] - self.data_dict['x_ref'][:,0:3]
-        rms_pos_ref = np.sqrt(np.mean((e_pos_ref)**2, axis=1))
+        #rms_pos_ref = np.sqrt(np.mean((e_pos_ref)**2, axis=1))
+        rms_pos_ref = self.rms(e_pos_ref, 1)
         e_quat_ref = self.data_dict['x_odom'][:,3:7] - self.data_dict['x_ref'][:,3:7]
-        rms_quat_ref = np.sqrt(np.mean((e_quat_ref)**2, axis=1))
+        #rms_quat_ref = np.sqrt(np.mean((e_quat_ref)**2, axis=1))
+        rms_quat_ref = self.rms(e_quat_ref, 1)
         e_vel_ref = self.data_dict['x_odom'][:,7:10] - self.data_dict['x_ref'][:,7:10]
-        rms_vel_ref = np.sqrt(np.mean((e_vel_ref)**2, axis=1))
+        #rms_vel_ref = np.sqrt(np.mean((e_vel_ref)**2, axis=1))
+        rms_vel_ref = self.rms(e_vel_ref, 1)
         e_rate_ref = self.data_dict['x_odom'][:,10:13] - self.data_dict['x_ref'][:,10:13]
-        rms_rate_ref = np.sqrt(np.mean((e_rate_ref)**2, axis=1))
+        #rms_rate_ref = np.sqrt(np.mean((e_rate_ref)**2, axis=1))
+        rms_rate_ref = self.rms(e_rate_ref, 1)
 
         rms_total_ref = np.sqrt(np.mean((self.data_dict['x_odom'] - self.data_dict['x_ref'])**2, axis=1))
 
@@ -280,15 +287,15 @@ class Visualiser:
         ax[4].plot(self.data_dict['t_odom'], e_pos_ref[:,0], label='e_x', color=cs_rgb[0])
         ax[4].plot(self.data_dict['t_odom'], e_pos_ref[:,1], label='e_y', color=cs_rgb[1])
         ax[4].plot(self.data_dict['t_odom'], e_pos_ref[:,2], label='e_z', color=cs_rgb[2])
-        ax[4].plot(self.data_dict['t_odom'], rms_pos_ref, label='rms', color=cs_rgb[3])
-        ax[4].set_title('RMS Position Error')
+        ax[4].plot(self.data_dict['t_odom'], rms_pos_ref, label="rms", color=cs_rgb[3])
+        ax[4].set_title(f"RMS Position Error, Total: {self.rms(rms_pos_ref, 0)*1e3:.2f}mm")
         ax[4].set_xlabel('Time [s]')
         ax[4].set_ylabel('RMS Position Error [m]')
         ax[4].legend()
 
 
         ax[5].plot(self.data_dict['t_odom'], rms_quat_ref, label='rms', color=cs_rgb[0])
-        ax[5].set_title('RMS Quaternion Error')
+        ax[5].set_title(f'RMS Quaternion Error')
         ax[5].set_xlabel('Time [s]')
         ax[5].set_ylabel('RMS Quaternion Error [m/s]')
 
@@ -296,7 +303,7 @@ class Visualiser:
         ax[6].plot(self.data_dict['t_odom'], e_vel_ref[:,1], label='e_vy', color=cs_rgb[1])
         ax[6].plot(self.data_dict['t_odom'], e_vel_ref[:,2], label='e_vz', color=cs_rgb[2])
         ax[6].plot(self.data_dict['t_odom'], rms_vel_ref, label='rms', color=cs_rgb[3])
-        ax[6].set_title('RMS Velocity Error')
+        ax[6].set_title(f'RMS Velocity Error, Total: {self.rms(rms_vel_ref, 0)*1000:.2f}mm/s')
         ax[6].set_xlabel('Time [s]')
         ax[6].set_ylabel('RMS Velocity Error [m/s]')
         ax[6].legend()
@@ -305,7 +312,7 @@ class Visualiser:
         ax[7].plot(self.data_dict['t_odom'], e_rate_ref[:,1], label='e_vy', color=cs_rgb[1])
         ax[7].plot(self.data_dict['t_odom'], e_rate_ref[:,2], label='e_vz', color=cs_rgb[2])
         ax[7].plot(self.data_dict['t_odom'], rms_rate_ref, label='rms', color=cs_rgb[3])
-        ax[7].set_title('RMS Angular Velocity Error')
+        ax[7].set_title(f'RMS Angular Velocity Error')
         ax[7].set_xlabel('Time [s]')
         ax[7].set_ylabel('RMS Angular Velocity Error [rad/s]')
         ax[7].legend()
@@ -345,7 +352,8 @@ class Visualiser:
             plt.savefig(filepath, format="pdf", bbox_inches="tight")
 
         # Show needs to come after savefig because it clears the figure
-        plt.show()
+        if show:
+            plt.show()
 
 
 

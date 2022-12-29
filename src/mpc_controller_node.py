@@ -99,6 +99,7 @@ class MPC_controller:
         self.odometry_dt = 1/100
         # TODO: Gazebo runs with a variable rate, this changes the odometry dt, but the trajectories are still sampled the same. This is clearly wrong.
 
+        self.EPSILON_TRAJECTORY_FINISHED = 0.5 # m
         self.trajectory_ready = False
 
         # Counts the number of finished trajectories
@@ -123,6 +124,7 @@ class MPC_controller:
 
 
         self.hover_height = 3.0
+        self.hover_pos = np.array([0, 0, self.hover_height])
         # Rise to hover height
 
         # This is a hack to not count the first trajectory into the number of finished trajectories
@@ -170,15 +172,16 @@ class MPC_controller:
             self.need_trajectory_to_hover = False
             self.trajectory_ready = False
             x, _ = self.pose_to_state_world(msg)
-            if abs(x[2] - self.hover_height) > 0.1:
+            
+            if np.linalg.norm(x[0:3] - self.hover_pos) > self.EPSILON_TRAJECTORY_FINISHED:
                 # I am not at the hover height, so I need to request a trajectory to the hover height
                 start_pos = np.array([x[0], x[1], x[2]])
-                hover_pos = np.array([start_pos[0], start_pos[1], self.hover_height])
+                
 
                 # Used to skip counting this line trajectory as a finished trajectory, since its only for initial alignment
                 self.doing_a_line = True
                 # Take me from here to the hover position
-                self.publish_trajectory_request("line", start_pos, hover_pos, v_max=self.v_max, a_max=self.a_max)
+                self.publish_trajectory_request("line", start_pos, self.hover_pos, v_max=self.v_max, a_max=self.a_max)
             else:
                 # I am at the hover height, so I can request a new trajectory
                 self.request_trajectory(x)
@@ -240,7 +243,9 @@ class MPC_controller:
                     self.pbar.update(1)
 
                 # -------------- Check if the trajectory is finished --------------
-                if self.idx_traj+1 == self.x_trajectory.shape[0]:
+                
+                if self.idx_traj+1 == self.x_trajectory.shape[0] and np.linalg.norm(x[0:3] - x_ref[0,0:3]) < self.EPSILON_TRAJECTORY_FINISHED:
+                    
                     # The trajectory is finished
                     rospy.loginfo("Trajectory finished")
 

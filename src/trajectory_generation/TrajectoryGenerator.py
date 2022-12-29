@@ -52,7 +52,7 @@ class TrajectoryGenerator:
         for i, t in zip(range(len(ts)), ts):
 
             # 0 -> w_max
-            freq = 1.0 # Number of cycles velocity cycles from 0 to w_max
+            freq = 0.5 # Half the number of  velocity cycles from 0 to w_max
             k = ((i+1)/float(len(ts))*2)-1 # <-1,1>
             dw = (np.sin((k*2*np.pi+np.pi*3/2)*freq)+1)/2 # 0 -> 1 -> 0
             w[i] = dw * w_max
