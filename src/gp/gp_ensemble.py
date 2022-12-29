@@ -118,7 +118,7 @@ class GPEnsemble:
         else:
             raise NotImplementedError
 
-    def plot_gpe(self, z_train=None, y_train=None, filepath=None):
+    def plot(self, z_train=None, y_train=None, filepath=None, show=True):
 
         z_query = np.concatenate([np.arange(-20,20,0.5).reshape(-1,1) for i in range(3)], axis=1)
         y_query, std_query = self.predict(z_query, std=True)
@@ -142,7 +142,8 @@ class GPEnsemble:
 
         if filepath is not None:
             plt.savefig(filepath, format="pdf", bbox_inches="tight")
-        plt.show()
+        if show:
+            plt.show()
 
 
     def __str__(self):

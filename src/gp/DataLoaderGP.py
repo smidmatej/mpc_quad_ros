@@ -15,23 +15,43 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 
 class DataLoaderGP:
-    def __init__(self, filename, number_of_training_samples=10):
+    def __init__(self, filepath, number_of_training_samples=10):
+        """
+        Loading and preprocessing for the GP.
+        """
         
         self.number_of_training_samples = number_of_training_samples
-        self.data_dict = load_dict(filename)
+        self.filepath = filepath
 
-        print(f'Loaded data from {filename}')
+        # ---------------- Open filepath and save its contents internally ---------------- 
+        self.load_data()
+
+        print(f'Number of collocation points: {self.number_of_training_samples}')
+        # ---------------- Make the appropriate transformations to extract X, y  ---------------- 
+        self.X, self.y = self.preprocess_data()
+        # ---------------- Select most informative samples ---------------- 
+        self.X_train, self.y_train = self.cluster_data3D(self.X, self.y)
+
+    def load_data(self):
+        '''
+        Loads the dictonary at self.filepath into self.data_dict
+        '''
+        self.data_dict = load_dict(self.filepath)
+        print(f'Loaded data from {self.filepath}')
         print(f'Number of samples: {self.data_dict["x_odom"].shape[0]}')
-        print(f'Number of collocation points: {number_of_training_samples}')
 
 
+
+    def preprocess_data(self):
+        """
+        Selects the v_body as a X feature vector and the acceleration error as y
+        :returns: X, y 
+        """
         v_world = self.data_dict['x_odom'][:,7:10]
         v_world_pred = self.data_dict['x_pred_odom'][:,7:10]
 
         q = self.data_dict['x_odom'][:,3:7]
         q_pred = self.data_dict['x_pred_odom'][:,3:7]
-
-
 
         # ---------------- Transform to body frame ----------------
         self.v_body = np.empty(v_world.shape)
@@ -53,14 +73,13 @@ class DataLoaderGP:
         
         self.X = self.v_body[:-1,:] # input is the measured velocity
 
-        # ---------------- Select most informative samples ---------------- 
-        self.X_train, self.y_train = self.cluster_data3D(self.X, self.y)
+        return self.X, self.y
 
 
         
 
 
-    def plot_samples(self, filepath=None):
+    def plot(self, filepath=None, show=True):
         xyz = ['x','y','z']
         #plt.style.use('seaborn')
         sns.set_theme()
@@ -80,7 +99,8 @@ class DataLoaderGP:
         plt.tight_layout()
         if filepath is not None:
             plt.savefig(filepath, format="pdf", bbox_inches="tight")
-        plt.show()
+        if show:
+            plt.show()
 
     def cluster_data1D(self, X, y):
         """
