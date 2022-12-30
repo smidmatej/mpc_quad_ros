@@ -17,9 +17,10 @@ def main():
     parser.add_argument("-s", "--save", type=int, required=False, default=1, help="Save the model? 1: yes, 0: no")
     args = parser.parse_args()
 
-    environment = 'gazebo_simulation'
+    environment = 'python_simulation'
     
     filename = 'test_circle_v15_a5_gp0'
+    filename = 'training_dataset'
     training_dataset_filepath = os.path.join(dir_path, '../..', 'outputs', environment, 'data', filename + '.pkl')
     model_save_filepath = os.path.join(dir_path, '../..', 'outputs', environment, 'gp_models/')
 
@@ -31,7 +32,7 @@ def main():
     n_training_samples = 20
     theta0 = [1,1,1]*3 # Kernel variables
 
-    train_gp(training_dataset_filepath, model_save_filepath, n_training_samples=n_training_samples, show_plots=True, save_plot=True, gpefit_plot_filepath=gpefit_plot_filepath, gpesamples_plot_filepath=gpesamples_plot_filepath)
+    train_gp(training_dataset_filepath, model_save_filepath, n_training_samples=n_training_samples, show_plots=True, gpefit_plot_filepath=gpefit_plot_filepath, gpesamples_plot_filepath=gpesamples_plot_filepath)
 
 
 def train_gp(training_dataset_filepath, model_save_filepath, n_training_samples=10, theta0=None, show_plots=True, gpefit_plot_filepath=None, gpesamples_plot_filepath=None):
@@ -73,7 +74,7 @@ def train_gp(training_dataset_filepath, model_save_filepath, n_training_samples=
     if gpesamples_plot_filepath is not None:
         data_loader_gp.plot(gpesamples_plot_filepath, show=show_plots)
     if gpefit_plot_filepath is not None:
-        gpe.plot(data_loader_gp.X_train[:,n], data_loader_gp.y_train, gpefit_plot_filepath, show=show_plots)
+        gpe.plot(data_loader_gp.X_train, data_loader_gp.y_train, gpefit_plot_filepath, show=show_plots)
         
 
 

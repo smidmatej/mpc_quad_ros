@@ -120,6 +120,7 @@ class GPEnsemble:
 
     def plot(self, z_train=None, y_train=None, filepath=None, show=True):
 
+        # TODO: Why am I passing the z_train and y_train here? I can just use the data from the GPE
         z_query = np.concatenate([np.arange(-20,20,0.5).reshape(-1,1) for i in range(3)], axis=1)
         y_query, std_query = self.predict(z_query, std=True)
 

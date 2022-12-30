@@ -28,6 +28,8 @@ import argparse
 from gp.gp import *
 from gp.gp_ensemble import GPEnsemble
 
+from Explorer import Explorer
+
 def main():
 
  
@@ -56,7 +58,8 @@ def main():
     # TODO: Implement testing with different air resistance cooefficients/functions together with training GPes
 
     if args.gpe:
-        ensemble_path = "gp/models/ensemble"
+        #ensemble_path = "gp/models/ensemble"
+        ensemble_path = os.path.join(os.path.dirname(__file__), '..', 'outputs', 'python_simulation', 'gp_models')
         gpe = GPEnsemble(3)
         gpe.load(ensemble_path)
     else:
@@ -64,13 +67,27 @@ def main():
 
 
 
+    explorer = Explorer(gpe)
+    #explorer.get_explored_velicities_from_gpe(gpe)
+
     trajectory_generator = TrajectoryGenerator()
+
+    v_max_limit = 30
+    a_max_limit = 30
 
     # This musnt be faster than the quad is capable of
     # Max velocity and acceleration along the trajectory
     v_max = args.v_max
     a_max = args.a_max
 
+    v_max = explorer.velocity_to_explore
+    
+    if v_max > v_max_limit:
+        v_max = v_max_limit
+        print("v_max limited to " + str(v_max_limit))
+    if a_max > a_max_limit:
+        a_max = a_max_limit
+        print("a_max limited to " + str(a_max_limit))
 
 
     #output_trajectory_filename = 'trajectory_generation/trajectories/trajectory_sampled.csv'
