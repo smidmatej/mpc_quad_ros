@@ -6,9 +6,13 @@ class Explorer:
         velocities_to_explore = [0,5,10,15,20]*3 
         self.desired_explored_vmax = 20
         self.exploration_step = 5
+        self.explored_velocities = self.get_explored_velicities_from_gpe(gpe)
 
-        explored_velocities = self.get_explored_velicities_from_gpe(gpe)
-        explored_vmax = self.calculate_explored_vmax(explored_velocities)
+        
+        self.velocity_to_explore = 0 + self.exploration_step
+        
+
+        explored_vmax = self.calculate_explored_vmax(self.explored_velocities)
         self.velocity_to_explore = self.calculate_velocity_to_explore(explored_vmax)
         print(f'Explored vmax: {explored_vmax}')
         print(f'Velocity to explore: {self.velocity_to_explore}')
@@ -27,34 +31,52 @@ class Explorer:
 
     def calculate_explored_vmax(self, explored_velocities):
         # Calculate the max velocity that was explored
-        vmax = 0
-        for v in explored_velocities:
-            if v['max'] > vmax:
-                vmax = v['max']
 
-            if abs(v['min']) > vmax:
-                vmax = abs(v['min'])
+        vabs = [0]*len(explored_velocities)
+        for i in range(len(explored_velocities)):
+            if explored_velocities[i]['max'] > vabs[i]:
+                vabs[i] = explored_velocities[i]['max']
 
-        return vmax
+            if abs(explored_velocities[i]['min']) > vabs[i]:
+                vabs[i] = abs(explored_velocities[i]['min'])
+            
+        # Smallest of the three
+        return min(vabs)
 
     def get_explored_velicities_from_gpe(self, gpe):
         # Initialization
-        explored_velocities = [None]*len(gpe.gp)
+
+        explored_velocities = [None]*3
+
+        if gpe is None:
+            for n in range(3):
+                explored_velocities[n] = dict()
+                explored_velocities[n]['min'] = 0
+                explored_velocities[n]['max'] = 0
+
+        else:
+                
+            # Loop over GPE to find the min and max of each dimension
+            for gp, n in zip(gpe.gp, range(len(gpe.gp))):
+                explored_velocities[n] = dict() 
+                explored_velocities[n]['min'] = gp.z_train.min()
+                explored_velocities[n]['max'] = gp.z_train.max()
+            
+        return explored_velocities
+
+
+
+    def plot(self):
         min_over_all = 1000
         max_over_all = -1000
-
-        # Loop over GPE to find the min and max of each dimension
-        for gp, n in zip(gpe.gp, range(len(gpe.gp))):
-            explored_velocities[n] = dict()
-            explored_velocities[n]['min'] = gp.z_train.min()
-            explored_velocities[n]['max'] = gp.z_train.max()
+        for n in range(len(self.explored_velocities)):
 
             # Remember the min and max over all dimensions for plotting purposes
-            if explored_velocities[n]['min'] < min_over_all:
-                min_over_all = explored_velocities[n]['min']
+            if self.explored_velocities[n]['min'] < min_over_all:
+                min_over_all = self.explored_velocities[n]['min']
 
-            if explored_velocities[n]['max'] > max_over_all:
-                max_over_all = explored_velocities[n]['max']
+            if self.explored_velocities[n]['max'] > max_over_all:
+                max_over_all = self.explored_velocities[n]['max']
 
 
         # -------- Plot the inducing points 1D --------
@@ -62,19 +84,13 @@ class Explorer:
 
         sns.set_theme()
         plt.figure(figsize=(10, 6), dpi=100)
-        for col in range(len(explored_velocities)):
+        for col in range(len(self.explored_velocities)):
 
-            print(f'Velocity {xyz[col]}: {explored_velocities[col]}')
+            print(f'Velocity {xyz[col]}: {self.explored_velocities[col]}')
             plt.subplot(1,3,col+1)
-            plt.plot(np.zeros((2,)), np.array([explored_velocities[col]['min'], explored_velocities[col]['max']]))
+            plt.plot(np.zeros((2,)), np.array([self.explored_velocities[col]['min'], self.explored_velocities[col]['max']]))
             plt.ylabel(f'Velocity {xyz[col]} [ms-1]')
             plt.ylim([min_over_all, max_over_all])
             plt.xticks([])
         plt.tight_layout()
         plt.show()
-        
-        return explored_velocities
-
-        #D_to_explore = (max(De[vx]) + 5, max(De[vy]) + 5, max(De[vz]) + 5) # Here I will probably need to use inducing points
-        
-

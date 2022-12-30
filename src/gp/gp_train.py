@@ -1,14 +1,21 @@
 import numpy as np
 
-from gp import *
-from gp_ensemble import GPEnsemble
-from DataLoaderGP import DataLoaderGP
+#from gp_ensemble import GPEnsemble
 import time
 import casadi as cs
 
 import os
 import argparse
 
+
+try:
+    from gp import GPR
+    from gp_ensemble import GPEnsemble
+    from DataLoaderGP import DataLoaderGP
+except ImportError:
+    from gp.gp import GPR
+    from gp.gp_ensemble import GPEnsemble
+    from gp.DataLoaderGP import DataLoaderGP
 
 def main():
     dir_path = os.path.dirname(os.path.realpath(__file__))
@@ -54,9 +61,9 @@ def train_gp(training_dataset_filepath, model_save_filepath, n_training_samples=
     for n in range(ensemble_components):
         if theta0 is None:
             # I dont have a guess of the theta0 parameters -> Use the default in GPR
-            gpr = GPR(data_loader_gp.X_train[:,n], data_loader_gp.y_train[:,n], covariance_function=KernelFunction)
+            gpr = GPR(data_loader_gp.X_train[:,n], data_loader_gp.y_train[:,n])
         else:
-            gpr = GPR(data_loader_gp.X_train[:,n], data_loader_gp.y_train[:,n], covariance_function=KernelFunction, theta=theta0[n])
+            gpr = GPR(data_loader_gp.X_train[:,n], data_loader_gp.y_train[:,n], theta=theta0[n])
         
         gpe.add_gp(gpr, n)
 

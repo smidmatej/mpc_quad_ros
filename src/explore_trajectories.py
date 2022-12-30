@@ -27,6 +27,7 @@ import argparse
     
 from gp.gp import *
 from gp.gp_ensemble import GPEnsemble
+from gp.gp_train import train_gp
 
 from Explorer import Explorer
 
@@ -40,16 +41,12 @@ def main():
     # Adding optional argument
 
     dir_path = os.path.dirname(os.path.realpath(__file__))
-    simulation_result_fname = os.path.join(dir_path, '..', 'outputs/python_simulation/data/executed_trajectory.pkl')
-    simulation_plot_fname = os.path.join(dir_path, '..', 'outputs/python_simulation/img/executed_trajectory.pdf')
+    simulation_result_fname = os.path.join(dir_path, '..', 'outputs/python_simulation/data/executed_trajectory')
+    simulation_plot_fname = os.path.join(dir_path, '..', 'outputs/python_simulation/img/executed_trajectory')
 
     parser.add_argument("-o", "--output", type=str, required=False, default=simulation_result_fname, help="Output data file")
     parser.add_argument("-p", "--plot_output", type=str, required=False, default=simulation_plot_fname, help="Output plot file")
-    parser.add_argument("--gpe", type=int, required=True, help="Use trained GPE")
     parser.add_argument("--trajectory", type=int, required=True, help = "Trajectory type to use : 0 - From file, 1 - Random Waypoints, 2 - Circle")
-
-    parser.add_argument("--v_max", type=float, required=True, help="Maximum velocity over trajectory") 
-    parser.add_argument("--a_max", type=float, required=True, help="Maximum acceleration over trajectory")
     parser.add_argument("--show", type=int, required=False, default=1, help="plt.show() at the end of the script")
     # Read arguments from command line
     args = parser.parse_args()
@@ -57,83 +54,75 @@ def main():
         
     # TODO: Implement testing with different air resistance cooefficients/functions together with training GPes
 
-    if args.gpe:
-        #ensemble_path = "gp/models/ensemble"
-        ensemble_path = os.path.join(os.path.dirname(__file__), '..', 'outputs', 'python_simulation', 'gp_models')
+    ensemble_path = os.path.join(os.path.dirname(__file__), '..', 'outputs', 'python_simulation', 'gp_models')
+
+    gpe = None
+
+    for i in range(1, 6):
+        explorer = Explorer(gpe)
+        explorer.plot()
+
+        trajectory_generator = TrajectoryGenerator()
+
+        v_max_limit = 30
+        a_max_limit = 30
+
+        v_max = explorer.velocity_to_explore
+        a_max = explorer.velocity_to_explore
+
+        if v_max > v_max_limit:
+            v_max = v_max_limit
+            print("v_max limited to " + str(v_max_limit))
+        if a_max > a_max_limit:
+            a_max = a_max_limit
+            print("a_max limited to " + str(a_max_limit))
+
+        simulation_dt = 5e-3 # Timestep simulation for the physics
+        # 5e-4 is a good value for the acados dt
+
+        # MPC prediction horizon
+        t_lookahead = 1 # Prediction horizon duration
+        n_nodes = 30 # Prediction horizon number of timesteps in t_lookahead
+
+        # initial condition
+        quad = Quadrotor3D(payload=False, drag=True) # Controlled plant 
+        quad_opt = quad_optimizer(quad, t_horizon=t_lookahead, n_nodes=n_nodes, gpe=gpe) # computing optimal control over model of plant
+        
+        if args.trajectory == 0:
+            # static trajectory
+            trajectory_generator.sample_trajectory('static', v_max, a_max, quad_opt.optimization_dt)
+            
+        if args.trajectory == 1:
+            # Generate trajectory as reference for the quadrotor
+            # new trajectory
+            hsize = 10
+            num_waypoints = 10
+            trajectory_generator.generate_random_waypoints(hsize, num_waypoints)
+            trajectory_generator.sample_trajectory('random', v_max, a_max, quad_opt.optimization_dt)
+
+        if args.trajectory == 2:
+            # Circle trajectory
+            radius = 50
+            t_max = 30
+
+            trajectory_generator.sample_circle_trajectory_accelerating(radius, v_max, t_max, quad_opt.optimization_dt)
+            
+
+        x_trajectory, t_trajectory = trajectory_generator.load_trajectory()
+        simulation_length = max(t_trajectory) # Simulation duration for this script
+        # Simulation runs for simulation_length seconds and MPC is calculated every quad_opt.optimization_dt
+        Nopt = round(simulation_length/quad_opt.optimization_dt) # number of times MPC control is calculated steps
+
+        # initial condition
+        x0 = np.array([0,0,0] + [1,0,0,0] + [0,0,0] + [0,0,0])
+        save_filepath = args.output + f'_run_{i}' + '.pkl'
+
+
+        simulate_trajectory(quad, quad_opt, x0, x_trajectory, simulation_length, Nopt, simulation_dt, save_filepath)
+        train_gp(save_filepath, ensemble_path, n_training_samples=10, theta0=None, show_plots=True, gpefit_plot_filepath=None, gpesamples_plot_filepath=None)
+        
         gpe = GPEnsemble(3)
-        gpe.load(ensemble_path)
-    else:
-        gpe = None
-
-
-
-    explorer = Explorer(gpe)
-
-    trajectory_generator = TrajectoryGenerator()
-
-    v_max_limit = 30
-    a_max_limit = 30
-
-    # This musnt be faster than the quad is capable of
-    # Max velocity and acceleration along the trajectory
-    v_max = args.v_max
-    a_max = args.a_max
-
-    v_max = explorer.velocity_to_explore
-
-    if v_max > v_max_limit:
-        v_max = v_max_limit
-        print("v_max limited to " + str(v_max_limit))
-    if a_max > a_max_limit:
-        a_max = a_max_limit
-        print("a_max limited to " + str(a_max_limit))
-
-
-    simulation_dt = 5e-3 # Timestep simulation for the physics
-    # 5e-4 is a good value for the acados dt
-
-    # MPC prediction horizon
-    t_lookahead = 1 # Prediction horizon duration
-    n_nodes = 30 # Prediction horizon number of timesteps in t_lookahead
-
-
-    # initial condition
-    quad = Quadrotor3D(payload=False, drag=True) # Controlled plant 
-    quad_opt = quad_optimizer(quad, t_horizon=t_lookahead, n_nodes=n_nodes, gpe=gpe) # computing optimal control over model of plant
-    
-
-
-    if args.trajectory == 0:
-        # static trajectory
-        trajectory_generator.sample_trajectory('static', v_max, a_max, quad_opt.optimization_dt)
-        
-    if args.trajectory == 1:
-        # Generate trajectory as reference for the quadrotor
-        # new trajectory
-        hsize = 10
-        num_waypoints = 10
-        trajectory_generator.generate_random_waypoints(hsize, num_waypoints)
-        trajectory_generator.sample_trajectory('random', v_max, a_max, quad_opt.optimization_dt)
-
-    if args.trajectory == 2:
-        # Circle trajectory
-        radius = 50
-        t_max = 30
-
-        trajectory_generator.sample_circle_trajectory_accelerating(radius, v_max, t_max, quad_opt.optimization_dt)
-        
-
-    x_trajectory, t_trajectory = trajectory_generator.load_trajectory()
-    simulation_length = max(t_trajectory) # Simulation duration for this script
-    # Simulation runs for simulation_length seconds and MPC is calculated every quad_opt.optimization_dt
-    Nopt = round(simulation_length/quad_opt.optimization_dt) # number of times MPC control is calculated steps
-
-    # initial condition
-    x0 = np.array([0,0,0] + [1,0,0,0] + [0,0,0] + [0,0,0])
-    save_filepath = args.output
-
-    simulate_trajectory(quad, quad_opt, x0, x_trajectory, simulation_length, Nopt, simulation_dt, save_filepath)
-    
+        gpe.load(ensemble_path)    
 
 
 def simulate_trajectory(quad, quad_opt, x0, x_trajectory, simulation_length, Nopt, simulation_dt, save_filepath):

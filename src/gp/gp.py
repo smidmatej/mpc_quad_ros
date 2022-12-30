@@ -61,7 +61,7 @@ class KernelFunction:
     
     
 class GPR:
-    def __init__(self, z_train, y_train, covariance_function, theta=[1,1,1]):
+    def __init__(self, z_train, y_train, covariance_function=KernelFunction, theta=[1,1,1]):
         """
         The whole contructor is in this method. This method is called when contructing this class and after self.fit()
         
