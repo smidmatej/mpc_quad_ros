@@ -6,6 +6,14 @@ import time
 from geometry_msgs.msg import Pose, Point
 from mav_msgs.msg import Actuators
 from quadrotor_msgs.msg import ControlCommand
+'''
+# ControlCommand control_mode field
+uint8 NONE=0
+uint8 ATTITUDE=1
+uint8 BODY_RATES=2
+uint8 ANGULAR_ACCELERATIONS=3
+uint8 ROTOR_THRUSTS=4
+'''
 from nav_msgs.msg import Odometry
 from std_msgs.msg import String, Float32, Bool
 
@@ -16,6 +24,8 @@ from nav_msgs.msg import Path
 from geometry_msgs.msg import PoseStamped 
 from tqdm import tqdm
 
+from gp.gp_train import train_gp
+from Explorer import Explorer
 
 from mpcros.msg import Trajectory
 from mpcros.msg import Trajectory_request
@@ -36,7 +46,7 @@ class MPC_controller:
         
     def __init__(self):
 
-        quad_name = 'hummingbird'
+        self.quad_name = 'hummingbird'
         rospy.init_node('controller')
 
         self.v_max = rospy.get_param('/mpcros/mpc_controller/v_max')
@@ -45,25 +55,26 @@ class MPC_controller:
         self.training_run = rospy.get_param('/mpcros/mpc_controller/training') # node_name/argsname
         self.training_trajectories_count = rospy.get_param('/mpcros/mpc_controller/training_trajectories_count') # node_name/argsname
         self.use_gp = rospy.get_param('/mpcros/mpc_controller/use_gp')
-
+        self.explore = rospy.get_param('/mpcros/mpc_controller/explore')
         #rospy.logwarn(f"training_run: {self.training_run}")
-        if not self.training_run:
-            #log_filename_base = rospy.get_param('/mpcros/mpc_controller/log_filename_base')
+        
+        if self.training_run:
+            self.trajectory_type = 'random'
+            log_filename = f"training_v{self.v_max:.0f}_a{self.a_max:.0f}_gp{self.use_gp}"
+            if self.explore:
+                log_filename = "explore" 
+        else:
             log_filename = f"test_{self.trajectory_type}_v{self.v_max:.0f}_a{self.a_max:.0f}_gp{self.use_gp}"
             
-        else:
-            log_filename = f"training_v{self.v_max:.0f}_a{self.a_max:.0f}_gp{self.use_gp}"
-        #print(trajectory_type)
-        #rospy.logwarn(f"log_filename: {log_filename}")
-
+        #assert self.explore and self.use_gp, "Exploration is only supported with GP"
 
         # Topics
         reference_trajectory_topic = "reference/trajectory"
         self.new_trajectory_request_topic = "reference/new_trajectory_request"
 
 
-        pose_topic = "/" + quad_name + "/ground_truth/odometry"
-        control_topic = "/" + quad_name + "/autopilot/control_command_input"
+        pose_topic = "/" + self.quad_name + "/ground_truth/odometry"
+        control_topic = "/" + self.quad_name + "/autopilot/control_command_input"
 
         marker_topic = "rviz/marker"
         reference_path_chunk_topic = "rviz/reference_chunk"
@@ -131,8 +142,15 @@ class MPC_controller:
         self.doing_a_line = False
 
         
-        self.mpc_ros_wrapper = MPCROSWrapper(quad_name=quad_name, use_gp=self.use_gp)
+        self.mpc_ros_wrapper = MPCROSWrapper(quad_name=self.quad_name, use_gp=self.use_gp)
+        
+        if self.explore:
+            # Let the explorer decide on the maximum velocity
+            self.explorer = Explorer(self.mpc_ros_wrapper.quad_opt.gpe)
+            self.v_max = self.explorer.velocity_to_explore
+            self.a_max = self.explorer.velocity_to_explore
 
+                
         # MPC steps at a different rate than the odometry
         # Trajectory steps at odometry rate
         # MPC takes trajectory steps as input -> I need to correct these steps to the MPC rate
@@ -145,12 +163,6 @@ class MPC_controller:
 
         self.pose_subscriber = rospy.Subscriber(pose_topic, Odometry, self.pose_received_cb) # Pose is published by the simulator at 100 Hz!
         self.actuator_publisher = rospy.Publisher(control_topic, ControlCommand, queue_size=1, tcp_nodelay=True)
-
-
-
-
-
-
 
 
 
@@ -184,7 +196,7 @@ class MPC_controller:
                 self.publish_trajectory_request("line", start_pos, self.hover_pos, v_max=self.v_max, a_max=self.a_max)
             else:
                 # I am at the hover height, so I can request a new trajectory
-                self.request_trajectory(x)
+                self.request_trajectory(x, self.trajectory_type)
 
 
 
@@ -249,14 +261,6 @@ class MPC_controller:
                     # The trajectory is finished
                     rospy.loginfo("Trajectory finished")
 
-                    if self.doing_a_line:
-                        # This was a line trajectory, dont count it as a finished trajectory
-                        self.logger.clear_memory()
-                        self.doing_a_line = False
-                    else:
-                        # This was a real trajectory, count it as a finished trajectory
-                        self.number_of_trajectories_finished += 1
-                        self.logger.save_log() # Saves the log to a file
 
                     
                         
@@ -268,7 +272,38 @@ class MPC_controller:
                         #sys.exit("Number of trajectories finished") # End this python process
                     else:
                         # Not finished yet, request a new trajectory
-                        self.request_trajectory(x)
+
+                        if self.doing_a_line:
+                            # This was a line trajectory, dont count it as a finished trajectory
+                            self.logger.clear_memory()
+                            self.doing_a_line = False
+                        else:
+                            # This was a real trajectory, count it as a finished trajectory
+                            self.number_of_trajectories_finished += 1
+                            self.logger.save_log() # Saves the log to a file
+
+                            if not self.training_run:
+                                # Clear memory after every trajectory when not collecting data for training
+                                self.logger.clear_memory()
+                                rospy.loginfo("Cleared logger memory because this is not a training run")
+                            rospy.loginfo(f"Explore: {self.explore}")
+                            if self.explore:
+                                # Now I definitely have access to a gp
+                                self.use_gp = True
+                                rospy.loginfo("Retraining controller")
+                                # Explore the state space
+                                self.retrain_controller()
+                                rospy.loginfo("Retrained controller with new gp")
+
+                                # Decide what velocity to use for the next trajectory
+                                self.explorer = Explorer(self.mpc_ros_wrapper.quad_opt.gpe)
+                                self.v_max = self.explorer.velocity_to_explore
+                                self.a_max = self.explorer.velocity_to_explore
+
+                                rospy.loginfo(f"Exploring with velocity {self.v_max} m/s")
+
+                        self.request_trajectory(x, self.trajectory_type)
+                        
 
                     
                     
@@ -278,28 +313,36 @@ class MPC_controller:
         #rospy.loginfo(f"Elapsed time during callback: \n\r {elapsed_during_cb*1000:.3f} ms")
 
 
-    def request_trajectory(self, x):
-        if self.training_run:
-            if self.trajectory_type == "random":
-                self.publish_trajectory_request("random", \
-                    start_point=np.array([x[0], x[1], x[2]]), end_point=None, \
-                        v_max=self.v_max, a_max=self.a_max)
-        else:
-            
-            self.logger.clear_memory() # Clear memory after every trajectory when not collecting data for training
+    def retrain_controller(self):
+        """ 
+        Trains the controller with the data collected so far. Then reinitializes the quad_optimizer inside the MPC wrapper with the new GPE. 
+        """ 
+        dir_path = os.path.dirname(os.path.realpath(__file__))
 
-            if self.trajectory_type == "static":
+        gpefit_plot_filepath = os.path.join(dir_path, '..', 'outputs', 'graphics', 'gpefit_' + "retrain" + '.pdf')
+        gpesamples_plot_filepath = os.path.join(dir_path, '..', 'outputs', 'graphics', 'gpesamples_' + "retrain" + '.pdf')
+        train_gp(self.logger.filepath_dict, self.mpc_ros_wrapper.ensemble_path, n_training_samples=10, theta0=None, show_plots=False, gpefit_plot_filepath=gpefit_plot_filepath, gpesamples_plot_filepath=gpesamples_plot_filepath)
+
+        # Reinitialize MPC solver with the retrained GPE
+        self.mpc_ros_wrapper.initialize()
+
+
+    def request_trajectory(self, x, trajectory_type):           
+            """
+            Wrapper for the publish request which uses preset endpoints and velocities
+            """
+            if trajectory_type == "static":
                 self.publish_trajectory_request("static", \
                     start_point=None, end_point=None, \
                         v_max=self.v_max, a_max=self.a_max)
             
-            if self.trajectory_type == "random":
+            if trajectory_type == "random":
                 self.publish_trajectory_request("random", \
                     start_point=np.array([x[0], x[1], x[2]]), end_point=None, \
                         v_max=self.v_max, a_max=self.a_max)
 
             
-            if self.trajectory_type == "circle":
+            if trajectory_type == "circle":
                 radius = 10.0
                 end_point = np.array([x[0]+radius, x[1], x[2]]) # Circle trajectory radius is calculated as the distance between start and end
                 self.publish_trajectory_request("circle", \

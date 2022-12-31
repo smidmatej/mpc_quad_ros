@@ -14,9 +14,10 @@ class MPCROSWrapper:
 
 
         self.quad_name = quad_name
+        self.use_gp = use_gp
         # MPC prediction horizon
-        t_lookahead = 1.0 # Prediction horizon duration
-        n_nodes = 10 # Prediction horizon number of timesteps in t_lookahead
+        self.t_lookahead = 1.0 # Prediction horizon duration
+        self.n_nodes = 10 # Prediction horizon number of timesteps in self.t_lookahead
 
 
         # Instantiate quadrotor model with default parameters
@@ -24,19 +25,28 @@ class MPCROSWrapper:
         # Loads parameters of  a quad from a xarco file into quad object
         self.quad = set_quad_parameters_from_file(self.quad, self.quad_name)
 
-        if use_gp:
-            dir_path = os.path.dirname(os.path.realpath(__file__))
-            gp_path = rospy.get_param('/mpcros/mpc_controller/gp_path')
-            ensemble_path = os.path.join(dir_path, gp_path)
+
+        dir_path = os.path.dirname(os.path.realpath(__file__))
+        gp_path = rospy.get_param('/mpcros/mpc_controller/gp_path')
+        self.ensemble_path = os.path.join(dir_path, gp_path)
+
+        self.initialize()
+
+
+    def initialize(self):
+        """
+        Initialize the quad optimizer with the quadrotor model and the GP ensemble.
+        This method exists to be called inside the MPCROSWrapper constructor and also to be called when the mpc_controller_node retrains the GP ensemble.
+        """
+        if self.use_gp:
             gpe = GPEnsemble(3)
-            gpe.load(ensemble_path)
+            gpe.load(self.ensemble_path)
         else:
             gpe = None
 
         # Creates an optimizer object for the quad
-        self.quad_opt = quad_optimizer(self.quad, t_horizon=t_lookahead, n_nodes=n_nodes, gpe=gpe) # computing optimal control over model of plant
+        self.quad_opt = quad_optimizer(self.quad, t_horizon=self.t_lookahead, n_nodes=self.n_nodes, gpe=gpe) # computing optimal control over model of plant
         
-
         
 
 
