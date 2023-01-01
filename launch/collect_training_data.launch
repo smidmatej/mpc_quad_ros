@@ -7,6 +7,7 @@
 <arg name="use_gp" default="0"/>
 <arg name="gp_path" default="../outputs/gazebo_simulation/gp_models"/>
 <arg name="training" default="1"/>
+<arg name="explore" default="0"/>
 <arg name="training_trajectories_count" default="3"/>
 <arg name="log_filename" default="no_name_trajectory"/>
 
@@ -19,6 +20,7 @@
         <param name="gp_path" value="$(arg gp_path)"/>
         <param name="log_filename" value="$(arg log_filename)"/>
         <param name="training" value="$(arg training)"/>
+        <param name="explore" value="$(arg explore)"/>
         <param name="training_trajectories_count" value="$(arg training_trajectories_count)"/>
       </node>
       <node name="trajectory_generator" pkg="mpcros" type="trajectory_generator_node.py">

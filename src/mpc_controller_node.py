@@ -15,7 +15,7 @@ uint8 ANGULAR_ACCELERATIONS=3
 uint8 ROTOR_THRUSTS=4
 '''
 from nav_msgs.msg import Odometry
-from std_msgs.msg import String, Float32, Bool
+from std_msgs.msg import String, Float32, Bool, Empty
 
 from visualization_msgs.msg import Marker
 
@@ -40,7 +40,7 @@ import sys
 from MPCROSWrapper import MPCROSWrapper
 from RosLogger import RosLogger
 
-from utils.utils import get_reference_chunk, v_dot_q, get_reference_chunk
+from utils.utils import get_reference_chunk, v_dot_q, get_reference_chunk, quaternion_to_euler, rospy_time_to_float
 
 class MPC_controller:
         
@@ -74,11 +74,14 @@ class MPC_controller:
 
 
         pose_topic = "/" + self.quad_name + "/ground_truth/odometry"
+        autopilot_pose_topic = "/" + self.quad_name  +'/autopilot/pose_command'
         control_topic = "/" + self.quad_name + "/autopilot/control_command_input"
 
         marker_topic = "rviz/marker"
         reference_path_chunk_topic = "rviz/reference_chunk"
         optimal_path_topic = "rviz/optimal_path"
+
+        _force_hover__topic = "/" + self.quad_name + "/autopilot/force_hover"
 
 
         
@@ -110,7 +113,7 @@ class MPC_controller:
         self.odometry_dt = 1/100
         # TODO: Gazebo runs with a variable rate, this changes the odometry dt, but the trajectories are still sampled the same. This is clearly wrong.
 
-        self.EPSILON_TRAJECTORY_FINISHED = 0.5 # m
+        self.EPSILON_TRAJECTORY_FINISHED = 1 # m
         self.trajectory_ready = False
 
         # Counts the number of finished trajectories
@@ -122,6 +125,14 @@ class MPC_controller:
         self.markerPub = rospy.Publisher(marker_topic, Marker, queue_size=10)      
         self.new_trajectory_request_pub = rospy.Publisher(self.new_trajectory_request_topic, Trajectory_request, queue_size=1)
 
+        self._go_to_pose_pub = rospy.Publisher(
+            autopilot_pose_topic, PoseStamped,
+            queue_size=1)
+
+
+        self._force_hover_pub = rospy.Publisher(
+            _force_hover__topic, Empty,
+            queue_size=1)
         # Subscribers
         self.trajectory_sub = rospy.Subscriber(reference_trajectory_topic, Trajectory, self.trajectory_received_cb) # Reference trajectory
 
@@ -158,7 +169,9 @@ class MPC_controller:
         rospy.loginfo(f"Control frequency factor: {self.control_freq_factor}")
 
 
-
+        self.rebooting_controller = False
+        self.rebooted_controller = False
+        self.last_reboot_timestamp = -1.0
         self.pbar = None
 
         self.pose_subscriber = rospy.Subscriber(pose_topic, Odometry, self.pose_received_cb) # Pose is published by the simulator at 100 Hz!
@@ -172,10 +185,30 @@ class MPC_controller:
         Publishes calculated inputs to the autopilot
         :param msg: Odometry message of type nav_msgs/Odometry
         """
+        #!IMPORTANT: This function runs FIFO, not from the most recent message.
+        #!IMPORTANT: This function runs FIFO, not from the most recent message.
+        #!IMPORTANT: This function runs FIFO, not from the most recent message.
+        #!IMPORTANT: This function runs FIFO, not from the most recent message.
+
         # I ignore odometry unless I have a trajectory. This is to avoid the controller to start before the trajectory is received
         # Trajectory is received in the trajectory_received_cb function
         # New trajectory is requested elsewhere
+        x, timestamp_odometry = self.pose_to_state_world(msg)
 
+        """
+        if self.rebooted_controller:
+            # I am rebooting the controller, so I ignore the pose messages
+            #self.send_control_command_hover()
+            self.request_trajectory(x, self.trajectory_type)
+            self.rebooted_controller = False
+            return
+        """
+
+        if timestamp_odometry < self.last_reboot_timestamp:
+            # Dump the accumulated odometry messages that came before the reboot was finished
+            #rospy.logwarn("Dumping odometry messages")
+            #rospy.logwarn(f"{timestamp_odometry} < {self.last_reboot_timestamp}")
+            return
 
         time_at_cb_start = time.time()
 
@@ -183,7 +216,7 @@ class MPC_controller:
             # The controller just started and I am waiting for the first trajectory
             self.need_trajectory_to_hover = False
             self.trajectory_ready = False
-            x, _ = self.pose_to_state_world(msg)
+            #sx, _ = self.pose_to_state_world(msg)
             
             if np.linalg.norm(x[0:3] - self.hover_pos) > self.EPSILON_TRAJECTORY_FINISHED:
                 # I am not at the hover height, so I need to request a trajectory to the hover height
@@ -203,7 +236,7 @@ class MPC_controller:
         if not self.need_trajectory_to_hover and self.trajectory_ready:
                
                 # Get current state from gazebo
-                x, timestamp_odometry = self.pose_to_state_world(msg)
+                
                 self.mpc_ros_wrapper.quad_opt.set_quad_state(x) # This line is superfluous I think.
 
                 # Reference is sampled with 100 Hz, but mpc step is 1s/10 = 0.1s
@@ -277,6 +310,7 @@ class MPC_controller:
                             # This was a line trajectory, dont count it as a finished trajectory
                             self.logger.clear_memory()
                             self.doing_a_line = False
+                            self.request_trajectory(x, self.trajectory_type)
                         else:
                             # This was a real trajectory, count it as a finished trajectory
                             self.number_of_trajectories_finished += 1
@@ -287,22 +321,43 @@ class MPC_controller:
                                 self.logger.clear_memory()
                                 rospy.loginfo("Cleared logger memory because this is not a training run")
                             rospy.loginfo(f"Explore: {self.explore}")
+
+
                             if self.explore:
-                                # Now I definitely have access to a gp
-                                self.use_gp = True
-                                rospy.loginfo("Retraining controller")
+
+                                self.rebooting_controller = True
+
+                                # Let autopilot take over
+                                self.x_hover = x
+                                self.send_go_to_pose_autopilot_command(self.x_hover)
+                                self._force_hover_pub.publish(Empty())
+                                #rospy.logwarn("Sent go to pose command to autopilot")
+                                rospy.logwarn("Retraining controller")
                                 # Explore the state space
                                 self.retrain_controller()
-                                rospy.loginfo("Retrained controller with new gp")
+                                rospy.logwarn("Retrained controller with new gp")
+                                
+
+
 
                                 # Decide what velocity to use for the next trajectory
                                 self.explorer = Explorer(self.mpc_ros_wrapper.quad_opt.gpe)
                                 self.v_max = self.explorer.velocity_to_explore
                                 self.a_max = self.explorer.velocity_to_explore
 
-                                rospy.loginfo(f"Exploring with velocity {self.v_max} m/s")
+                                rospy.logwarn(f"Exploring with velocity {self.v_max} m/s")
+                                #rospy.logwarn(f"Wrapper quad opt gp: {self.mpc_ros_wrapper.quad_opt.gpe}")
 
-                        self.request_trajectory(x, self.trajectory_type)
+                                # Controller rebooted, now we can go as normal
+                                self.rebooting_controller = False
+                                self.rebooted_controller = True
+                                # Remember the time when the controller was rebooted
+                                # This is used to dump callbacks that accumulate during the reboot
+                                self.last_reboot_timestamp = rospy_time_to_float(rospy.Time.now())
+                                rospy.logwarn(f"Last reboot time: {self.last_reboot_timestamp}")
+
+                            self.request_trajectory(x, self.trajectory_type)
+
                         
 
                     
@@ -317,6 +372,9 @@ class MPC_controller:
         """ 
         Trains the controller with the data collected so far. Then reinitializes the quad_optimizer inside the MPC wrapper with the new GPE. 
         """ 
+        # Now I definitely have access to a gp
+        self.use_gp = True
+        self.mpc_ros_wrapper.use_gp = True
         dir_path = os.path.dirname(os.path.realpath(__file__))
 
         gpefit_plot_filepath = os.path.join(dir_path, '..', 'outputs', 'graphics', 'gpefit_' + "retrain" + '.pdf')
@@ -325,6 +383,7 @@ class MPC_controller:
 
         # Reinitialize MPC solver with the retrained GPE
         self.mpc_ros_wrapper.initialize()
+        
 
 
     def request_trajectory(self, x, trajectory_type):           
@@ -418,9 +477,34 @@ class MPC_controller:
         self.trajectory_ready = True
         self.wait_for_trajectory = False
         self.pbar = tqdm(total=self.t_trajectory.shape[0]) 
-        rospy.loginfo("Received new trajectory with duration {}s".format(self.t_trajectory[-1] - self.t_trajectory[0]))
+        rospy.logwarn("Received new trajectory with duration {}s".format(self.t_trajectory[-1] - self.t_trajectory[0]))
         
         
+
+    def send_go_to_pose_autopilot_command(self, x):
+        go_to_pose_msg = PoseStamped()
+        go_to_pose_msg.pose.position.x = float(x[0])
+        go_to_pose_msg.pose.position.y = float(x[1])
+        go_to_pose_msg.pose.position.z = float(x[2])
+
+        roll, pitch, yaw = quaternion_to_euler([x[3], x[4], x[5], x[6]])
+        heading = yaw
+
+        go_to_pose_msg.pose.orientation.w = np.cos(heading / 2.0)
+        go_to_pose_msg.pose.orientation.z = np.sin(heading / 2.0)
+
+        self._go_to_pose_pub.publish(go_to_pose_msg)
+
+    def send_control_command_hover(self):
+        
+        # Control input command to the autopilot
+        control_msg = ControlCommand()
+        control_msg.header = std_msgs.msg.Header()
+        control_msg.header.stamp = rospy.Time.now()
+        control_msg.control_mode = 0
+        control_msg.armed = True
+
+        self.actuator_publisher.publish(control_msg)
 
     def send_control_command(self, thrust, body_rates):
         """
@@ -477,6 +561,7 @@ class MPC_controller:
         return path
         
 
+
     def pose_to_state(self, msg):
         """
         Convert pose message to state vector with velocity in body frame
@@ -485,7 +570,9 @@ class MPC_controller:
         q = msg.pose.pose.orientation # quaternion # 4 x float64
         v = msg.twist.twist.linear # linear velocity # 3 x float64
         r = msg.twist.twist.angular # angular velocity # 3 x float64
-        timestamp = (msg.header.stamp.secs * 1e9 + msg.header.stamp.nsecs) * 1e-9 # time stamp # float64
+        #timestamp = (msg.header.stamp.secs * 1e9 + msg.header.stamp.nsecs) * 1e-9 # time stamp # float64
+        timestamp = rospy_time_to_float(msg.header.stamp)
+
         state = np.array([p.x, p.y, p.z, q.w, q.x, q.y, q.z, v.x, v.y, v.z, r.x, r.y, r.z])
         return state, timestamp
         

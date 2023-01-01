@@ -13,12 +13,16 @@ from utils.utils import v_dot_q, quaternion_inverse
 
 import matplotlib.pyplot as plt
 import seaborn as sns
+import matplotlib
+
 
 class DataLoaderGP:
     def __init__(self, filepath, number_of_training_samples=10):
         """
         Loading and preprocessing for the GP.
         """
+
+        matplotlib.use('SVG')
         
         self.number_of_training_samples = number_of_training_samples
         self.filepath = filepath

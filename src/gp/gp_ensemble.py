@@ -10,11 +10,15 @@ import numpy as np
 import casadi as cs
 import os
 import time
+import matplotlib
 
 class GPEnsemble:
 
     
     def __init__(self, number_of_dimensions=0):
+
+        matplotlib.use('SVG')
+
         self.gp = [None]*number_of_dimensions
         self.number_of_dimensions = number_of_dimensions
         

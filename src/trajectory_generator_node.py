@@ -144,8 +144,8 @@ class TrajectoryBuilder:
         if type == 'random':
             # Generate trajectory as reference for the quadrotor
             # new trajectory
-            hsize = [10, 10, 10]
-            num_waypoints = 10
+            hsize = [5, 5, 5]
+            num_waypoints = 3
             # First generate random waypoints
             self.trajectory_generator.generate_random_waypoints(hsize=hsize, num_waypoints=num_waypoints, start_point=start_point, end_point=end_point)
             # Then interpolate the waypoints to create a trajectory

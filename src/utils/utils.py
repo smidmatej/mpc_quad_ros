@@ -825,6 +825,12 @@ def quaternion_state_mse(x, x_ref, mask):
 
     return np.sqrt((e * np.array(mask)).dot(e))
 
+def rospy_time_to_float(time):
+    """
+    Converts a rospy.Time object to a float64 timestamp.
+    """
+    return (time.secs * 1e9 + time.nsecs) * 1e-9 # time stamp # float64
+
 
 def separate_variables(traj):
     """
