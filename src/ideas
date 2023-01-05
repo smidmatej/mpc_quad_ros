@@ -19,6 +19,10 @@ How to parameterize the safe set of velocities? Using GP uncertainty?
 How to parametrize the state space to explore? vx, vy, vz in [0,20]?
 
 
+Online GP regression:
+Stream the collected data during simulation to RGP. That will update the inducing points and its hyperparameters. I need to choose the number of inducing points before hand. At each timestep (or every n*Ts) i will update the MPC solver with the new RGP. This might be complicated. My best idea right now is to initialize the solver with the RGP with the correct number of inducing points initialized to (0,0). Then change the solver.model parameters of GP with the updated GPR. In this way, I need to create a new GPR class, which will train the inducing points and then pass those to the inference GP class inside the solver.model for predictions. 
+
+    - Maybe its not a bad idea to set the inducing points to {(vx1, 0), (vx2, 0), ..., (vxn, 0)} and then learn the y values online.
 
 Safety MPC:
 
