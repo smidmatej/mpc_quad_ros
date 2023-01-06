@@ -5,7 +5,7 @@ class Explorer:
     def __init__(self, gpe) -> None:
         velocities_to_explore = [0,5,10,15,20]*3 
         self.desired_explored_vmax = 20
-        self.exploration_step = 5
+        self.exploration_step = 10.0
         self.explored_velocities = self.get_explored_velicities_from_gpe(gpe)
 
         

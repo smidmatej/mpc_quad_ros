@@ -42,15 +42,28 @@ class quad_optimizer:
         self.acados_model.name = 'quad_OCP'
         self.acados_model.x = self.x
         self.acados_model.u = self.u
+        self.acados_model.p = self.params
         #acados_model.x_dot = x_dot
         
         #breakpoint()
-        self.acados_model.f_expl_expr = self.dynamics(x=self.x, u=self.u)['f'] # x_dot = f
-        self.acados_model.f_impl_expr = self.x_dot - self.dynamics(x=self.x, u=self.u)['f'] # 0 = f - x_dot
+        self.acados_model.f_expl_expr = self.dynamics(x=self.x, u=self.u, p=self.params)['f'] # x_dot = f
+        self.acados_model.f_impl_expr = self.x_dot - self.dynamics(x=self.x, u=self.u, p=self.params)['f'] # 0 = f - x_dot
+        print('Before change')
+        print(self.acados_model.f_impl_expr)
 
-        #print(acados_model)
+        '''
+        for i in range(3):
+            self.gpe.gp[i].z_train = np.zeros((self.gpe.gp[i].n_train,))
+            self.gpe.gp[i].y_train = np.zeros((self.gpe.gp[i].n_train,))
         
+        #self.gpe.gp[0].z_train = np.zeros((self.gpe.gp[0].n_train,))
+        print('After change')
+        print(self.acados_model.f_impl_expr)
+        '''
 
+        #self.acados_model.set_param('gain', 1)
+        print('After change')
+        print(self.acados_model.f_impl_expr)
         self.acados_ocp = AcadosOcp()
 
         self.acados_source_path = os.environ['ACADOS_SOURCE_DIR']
@@ -60,6 +73,8 @@ class quad_optimizer:
         self.acados_ocp.model = self.acados_model
         self.acados_ocp.dims.N = self.n_nodes # prediction horizon
         self.acados_ocp.solver_options.tf = self.t_horizon # look ahead time
+        
+        self.acados_ocp.parameter_values = np.array([1.0, 1.0]) # initial position
 
         self.acados_ocp.cost.cost_type = 'LINEAR_LS' # weigths times states (as opposed to a nonlinear relationship)
         self.acados_ocp.cost.cost_type_e = 'LINEAR_LS' # end state cost
@@ -67,6 +82,7 @@ class quad_optimizer:
 
         self.nx = self.acados_model.x.size()[0]
         self.nu = self.acados_model.u.size()[0]
+        self.np = self.acados_model.p.size()[0]
         self.ny = self.nx + self.nu # y is x and u concatenated for compactness of the loss function
 
         ## Optimization costs
@@ -117,6 +133,8 @@ class quad_optimizer:
         json_file = '_acados_ocp.json'
         
         self.acados_ocp_solver = AcadosOcpSolver(self.acados_ocp, json_file=json_file)
+        
+        #self.acados_ocp.model.set('', self.t_step)
 
         print(f'Optimizer MPC lookahead time={self.t_horizon}s, Number of timesteps in prediction horizon={self.n_nodes}')
 
@@ -141,6 +159,8 @@ class quad_optimizer:
         u4 = cs.MX.sym('u4')
 
         self.u = cs.vertcat(u1,u2,u3,u4) # complete control
+
+        self.params = cs.vertcat(cs.MX.sym('gain1'), cs.MX.sym('gain2'))
 
         # d position 
         f_p = self.v # position dynamicss
@@ -184,12 +204,13 @@ class quad_optimizer:
             B_x = np.concatenate([np.zeros((3,3)), np.zeros((4,3)), np.diag([1,1,1]), np.zeros((3,3))], axis=0)
             f_augment = cs.mtimes(B_x, gp_means)
 
+            
             # Dynamics correction using learned GP
-            f_corrected = f_dyn + f_augment
+            f_corrected = self.params[0] * f_dyn + self.params[1] * f_augment
 
 
             # Dynamics corrected using the gpe 
-            return cs.Function('x_dot', [self.x,self.u], [f_corrected], ['x','u'], ['f'])
+            return cs.Function('x_dot', [self.x, self.u, self.params], [f_corrected], ['x', 'u', 'p'], ['f'])
 
         # Dynamics w/o the gpe augmentation
         return cs.Function('x_dot', [self.x,self.u], [f_dyn], ['x','u'], ['f'])

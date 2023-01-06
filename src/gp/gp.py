@@ -159,7 +159,8 @@ class GPR:
         else:
             if isinstance(at_values_z, cs.MX):
                 mean_at_values = cs.mtimes(sigma_k.T, cs.mtimes(self.inv_cov_matrix_of_input_data, self.y_train))
-                cov_matrix = np.eye(1)
+                
+                cov_matrix = np.eye(1) # TODO: Calculate covariance matrix for prediction if needed
 
                
             else:
