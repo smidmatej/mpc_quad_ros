@@ -64,8 +64,22 @@ class quad_optimizer:
         #acados_model.x_dot = x_dot
         
         #breakpoint()
-        self.acados_model.f_expl_expr = self.dynamics(x=self.x, u=self.u, p=self.params)['f'] # x_dot = f
-        self.acados_model.f_impl_expr = self.x_dot - self.dynamics(x=self.x, u=self.u, p=self.params)['f'] # 0 = f - x_dot
+        if self.gpe is not None:
+            self.acados_model.f_expl_expr = self.dynamics(x=self.x, u=self.u, p=self.params)['f'] # x_dot = f
+            self.acados_model.f_impl_expr = self.x_dot - self.dynamics(x=self.x, u=self.u, p=self.params)['f'] # 0 = f - x_dot
+        else:
+            self.acados_model.f_expl_expr = self.dynamics(x=self.x, u=self.u)['f']
+            self.acados_model.f_impl_expr = self.x_dot - self.dynamics(x=self.x, u=self.u)['f']
+        
+
+        self.nx = self.acados_model.x.size()[0]
+        self.nu = self.acados_model.u.size()[0]
+        if self.params is None:
+            self.np = 0
+        else:
+            self.np = self.acados_model.p.size()[0]
+        self.ny = self.nx + self.nu # y is x and u concatenated for compactness of the loss function
+
         print('Before change')
         print(self.acados_model.f_impl_expr)
 
@@ -92,16 +106,13 @@ class quad_optimizer:
         self.acados_ocp.dims.N = self.n_nodes # prediction horizon
         self.acados_ocp.solver_options.tf = self.t_horizon # look ahead time
         
-        self.acados_ocp.parameter_values = np.array([1.0, 1.0]) # initial position
+        if self.gpe is not None:
+            self.acados_ocp.parameter_values = np.array([1.0, 1.0]) # initial position
 
         self.acados_ocp.cost.cost_type = 'LINEAR_LS' # weigths times states (as opposed to a nonlinear relationship)
         self.acados_ocp.cost.cost_type_e = 'LINEAR_LS' # end state cost
 
 
-        self.nx = self.acados_model.x.size()[0]
-        self.nu = self.acados_model.u.size()[0]
-        self.np = self.acados_model.p.size()[0]
-        self.ny = self.nx + self.nu # y is x and u concatenated for compactness of the loss function
 
         ## Optimization costs
         self.acados_ocp.cost.Vx = np.zeros((self.ny, self.nx)) # raise the dim of x to the dim of y
@@ -178,7 +189,7 @@ class quad_optimizer:
 
         self.u = cs.vertcat(u1,u2,u3,u4) # complete control
 
-        self.params = cs.vertcat(cs.MX.sym('gain1'), cs.MX.sym('gain2'))
+        self.params = None
 
         # d position 
         f_p = self.v # position dynamicss
@@ -206,6 +217,8 @@ class quad_optimizer:
         f_dyn = cs.vertcat(f_p, f_q, f_v, f_r)
 
         if self.gpe is not None:
+
+            self.params = cs.vertcat(cs.MX.sym('gain1'), cs.MX.sym('gain2'))
 
             # Transform to body frame because thats what the gpe were trained on
             v_body = v_dot_q(self.v, quaternion_inverse(self.q))

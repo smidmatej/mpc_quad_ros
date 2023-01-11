@@ -152,7 +152,7 @@ class GP:
 
 
 
-    def predict(self, at_values_z, var=False, std=False, cov=False):
+    def predict(self, at_values_z, cov=False, var=False, std=False):
         """
         Evaluate the posterior mean m(z) and covariance sigma for supplied values of z
         
@@ -293,37 +293,39 @@ class GP:
         :param: kernel: Instance of a KernelFunction class
         """
         if isinstance(x1, cs.MX) or isinstance(x2, cs.MX):
+            # Casadi implementation
             cov_mat = cs.MX.zeros((x1.shape[0], x2.shape[0]))
             for i in range(x1.shape[0]):
-                #a = .reshape(1,1)
+
                 a = cs.reshape(x1[i,:], 1, x1.shape[1])
+
                 for j in range(x2.shape[0]):
 
-                    #b = x2[j,:].reshape(-1,1)
                     b = cs.reshape(x2[j,:], 1, x2.shape[1])
                     cov_mat[i,j] = kernel(a,b)
+                    
             return cov_mat
+        else:
+            # Numpy implementation
+            if x1 is None or x2 is None:
+                # Dimension zero matrix 
+                return np.zeros((0,0))
+            
+            cov_mat = np.empty((x1.shape[0], x2.shape[0]))*np.NaN
+            x1 = np.atleast_2d(x1)
+            x2 = np.atleast_2d(x2)
+            
+            # for all combinations calculate the kernel
+            for i in range(x1.shape[0]):
+                a = x1[i,:].reshape(-1,1)
+                for j in range(x2.shape[0]):
 
+                    b = x2[j,:].reshape(-1,1)
 
-        if x1 is None or x2 is None:
-            # Dimension zero matrix 
-            return np.zeros((0,0))
-        
-        cov_mat = np.empty((x1.shape[0], x2.shape[0]))*np.NaN
-        x1 = np.atleast_2d(x1)
-        x2 = np.atleast_2d(x2)
-        
-        # for all combinations calculate the kernel
-        for i in range(x1.shape[0]):
-            a = x1[i,:].reshape(-1,1)
-            for j in range(x2.shape[0]):
+                    
+                    cov_mat[i,j] = kernel(a,b)
 
-                b = x2[j,:].reshape(-1,1)
-
-                
-                cov_mat[i,j] = kernel(a,b)
-
-        return cov_mat
+            return cov_mat
 
     @staticmethod
     def save(gp:"GP", save_path:str) -> None:
