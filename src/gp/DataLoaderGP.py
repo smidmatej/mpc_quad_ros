@@ -1,11 +1,27 @@
-import numpy as np
+ # 
+ # This file is part of the mpc_quad_ros distribution (https://github.com/smidmatej/mpc_quad_ros).
+ # Copyright (c) 2023 Smid Matej.
+ # 
+ # This program is free software: you can redistribute it and/or modify  
+ # it under the terms of the GNU General Public License as published by  
+ # the Free Software Foundation, version 3.
+ #
+ # This program is distributed in the hope that it will be useful, but 
+ # WITHOUT ANY WARRANTY; without even the implied warranty of 
+ # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU 
+ # General Public License for more details.
+ #
+ # You should have received a copy of the GNU General Public License 
+ # along with this program. If not, see <http://www.gnu.org/licenses/>.
+ #
 
-from sklearn.mixture import GaussianMixture
+
+import numpy as np
 import scipy.stats
+from sklearn.mixture import GaussianMixture
 
 from warnings import warn
 import sys
-
 # Adds the parent directory to the path so that we can import utils
 sys.path.append('../')
 from utils.save_dataset import load_dict
