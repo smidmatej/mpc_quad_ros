@@ -21,8 +21,10 @@ import seaborn as sns
 
 try:
     from GP import GP
+    from RGP import RGP
 except ImportError:
     from gp.GP import GP
+    from gp.RGP import RGP
 import numpy as np
 import casadi as cs
 import os
@@ -31,13 +33,14 @@ import matplotlib
 
 class GPEnsemble:
 
-    
-    def __init__(self, number_of_dimensions : int = 0) -> None:
+    def __init__(self, number_of_dimensions : int = 0, type : str = 'GP') -> None:
         """
-        Initialize the GPEnsemble object. Holds a list of GP objects, one for each dimension of the output.
+        Ensamble of (Recursive) Gaussian Process regressors. Holds a list of GP or RGP objects, one for each dimension of the output.
+        :param number_of_dimensions: Number of dimensions of the output
         """
         self.gp = [None]*number_of_dimensions
         self.number_of_dimensions = number_of_dimensions
+        self.type = type
 
 
         
@@ -48,14 +51,9 @@ class GPEnsemble:
         if isinstance(X_t, cs.MX):
             # ----------------- Casadi prediction -----------------
             for n in range(len(self.gp)):
-                #print(X_t.shape)
-                z_in_dim = X_t[:,n]
-                #if z_in_dim.shape == (1,)
-                #print(z_in_dim)
-                out_j[n] = self.gp[n].predict(z_in_dim)
-                #print(type(out_j[n]))
+                out_j[n] = self.gp[n].predict(X_t[:,n])
+
             concat = [out_j[n] for n in range(len(out_j))]
-            #print(len(concat))
             out = cs.horzcat(*concat)
             return out
         else:
@@ -81,7 +79,8 @@ class GPEnsemble:
         """
         Fits all GPs in the GPEnsemble
         """
-
+        if self.type == 'RGP':
+            raise NotImplementedError("RGP is not fitted with fit() method, use regress() instead")
         print("Fitting GPEnsemble")
 
         start_time = time.time()
@@ -97,6 +96,10 @@ class GPEnsemble:
         :param: z: Casadi symbolic vector expression n x d
         :return: Casadi function jacobian
         """
+
+        if self.type == 'RGP':
+            raise NotImplementedError("RGP does not have jacobian() method")
+
         assert z.shape[1] == self.number_of_dimensions, f"z needs to be n x d,  z.shape={z.shape}, GPE.number_of_dimensions={self.number_of_dimensions}"
 
         f_jacobs = list()
@@ -104,10 +107,10 @@ class GPEnsemble:
             f_jacobs.append(self.gp[col].jacobian(z[:,col]))
         return f_jacobs
 
-    def save(self, path : str, xyz : bool = True) -> None:
+    def save(self, path : str) -> None:
         """
-        Runs GP.save() for each GP in the GPEnsemble
-        :param: path: folder path to save the models. Models will be saved inside the folder with the name model_x, model_y, model_z
+        Runs GP.save() (or RGP.save()) for each GP (or RGP) in the GPEnsemble
+        :param: path: folder path to save the models. Models will be saved inside the folder with the name gp_x, gp_y, gp_z (or rgp_x, rgp_y, rgp_z)
         """
 
         if os.path.exists(path):
@@ -115,26 +118,38 @@ class GPEnsemble:
         else:
             os.makedirs(path)
             print(f"Created folder {path}, saving models inside")
-
-        if xyz: 
-            xyz_name = ['model_x','model_y','model_z']
-            # GPE contains 3 GPs, one for each dimension
-
+ 
+        if self.type == 'RGP':
+            xyz_name = ['rgp_x','rgp_y','rgp_z']
             for i_gp in range(len(self.gp)):
                 path_with_name = os.path.join(path, xyz_name[i_gp])
-                #self.gp[i_gp].save(path_with_name)
+                RGP.save(self.gp[i_gp], path_with_name)
+        elif self.type == 'GP':
+
+            xyz_name = ['gp_x','gp_y','gp_z']
+            # GPE contains 3 GPs, one for each dimension
+            for i_gp in range(len(self.gp)):
+                path_with_name = os.path.join(path, xyz_name[i_gp])
                 GP.save(self.gp[i_gp], path_with_name)
         
-        else:
-            raise NotImplementedError
 
-    def load(self, path : str, xyz=True) -> None:
+
+    def load(self, path : str) -> None:
         """
         Loads GPs from path and adds them to the GPEnsemble
         :param: path: folder path to load the models. Models will be loaded from inside the folder with the name model_x, model_y, model_z
         """
         print("Loading GPEnsemble from path: ", path)
-        if xyz: 
+
+        if self.type == 'RGP':
+            xyz_name = ['rgp_x','rgp_y','rgp_z']
+            for i_gp in range(len(xyz_name)):
+                path_with_name = os.path.join(path, xyz_name[i_gp])
+                # Create a new empty RGP and add it to GPE
+                self.gp[i_gp] = RGP.load(path_with_name)
+
+        elif self.type == 'GP':
+
             xyz_name = ['model_x','model_y','model_z']
             # GPE contains 3 GPs, one for each dimension
             for i_gp in range(len(xyz_name)):
@@ -142,9 +157,9 @@ class GPEnsemble:
                 # Create a new empty GP and add it to GPE
                 self.gp[i_gp] = GP.load(path_with_name)
 
-            self.number_of_dimensions = len(self.gp)
-        else:
-            raise NotImplementedError
+
+        self.number_of_dimensions = len(self.gp)
+
 
     def plot(self, z_train=None, y_train=None, filepath=None, show=True):
 
