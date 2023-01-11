@@ -25,8 +25,8 @@ import pickle
     
 import argparse
     
-from gp.gp import *
-from gp.gp_ensemble import GPEnsemble
+from mpc_quad.src.gp.GP import *
+from mpc_quad.src.gp.GPE import GPEnsemble
 from gp.gp_train import train_gp
 
 from Explorer import Explorer

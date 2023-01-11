@@ -6,7 +6,7 @@ import os
 from quad import Quadrotor3D
 from quad_opt import quad_optimizer
 from utils.utils import parse_xacro_file
-from gp.gp_ensemble import GPEnsemble
+from gp.GPE import GPEnsemble
 
 class MPCROSWrapper:
         

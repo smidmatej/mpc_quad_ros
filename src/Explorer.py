@@ -1,6 +1,8 @@
 import matplotlib.pyplot as plt
 import numpy as np
 import seaborn as sns
+import os
+
 class Explorer:
     def __init__(self, gpe) -> None:
         velocities_to_explore = [0,5,10,15,20]*3 
@@ -59,8 +61,8 @@ class Explorer:
             # Loop over GPE to find the min and max of each dimension
             for gp, n in zip(gpe.gp, range(len(gpe.gp))):
                 explored_velocities[n] = dict() 
-                explored_velocities[n]['min'] = gp.z_train.min()
-                explored_velocities[n]['max'] = gp.z_train.max()
+                explored_velocities[n]['min'] = gp.X.min()
+                explored_velocities[n]['max'] = gp.X.max()
             
         return explored_velocities
 
@@ -93,4 +95,8 @@ class Explorer:
             plt.ylim([min_over_all, max_over_all])
             plt.xticks([])
         plt.tight_layout()
-        plt.show()
+
+        dir_path = os.path.dirname(os.path.realpath(__file__))
+        save_path = os.path.join(dir_path, '../..', 'outputs', 'graphics', 'exploration.pdf')
+        plt.savefig(save_path, format="pdf", bbox_inches="tight")
+        #plt.show()

@@ -17,18 +17,19 @@ import matplotlib
 
 
 class DataLoaderGP:
-    def __init__(self, filepath, number_of_training_samples=10):
+    def __init__(self, filepath : str, number_of_training_samples : int = 10):
         """
         Loading and preprocessing for the GP.
         """
 
-        matplotlib.use('SVG')
         
         self.number_of_training_samples = number_of_training_samples
         self.filepath = filepath
 
         # ---------------- Open filepath and save its contents internally ---------------- 
-        self.load_data()
+        self.data_dict = load_dict(self.filepath)
+        print(f'Loaded data from {self.filepath}')
+        print(f'Number of samples: {self.data_dict["x_odom"].shape[0]}')
 
         print(f'Number of collocation points: {self.number_of_training_samples}')
         # ---------------- Make the appropriate transformations to extract X, y  ---------------- 
@@ -36,6 +37,7 @@ class DataLoaderGP:
         # ---------------- Select most informative samples ---------------- 
         self.X_train, self.y_train = self.cluster_data3D(self.X, self.y)
 
+    """
     def load_data(self):
         '''
         Loads the dictonary at self.filepath into self.data_dict
@@ -43,8 +45,7 @@ class DataLoaderGP:
         self.data_dict = load_dict(self.filepath)
         print(f'Loaded data from {self.filepath}')
         print(f'Number of samples: {self.data_dict["x_odom"].shape[0]}')
-
-
+    """
 
     def preprocess_data(self):
         """
@@ -83,7 +84,7 @@ class DataLoaderGP:
         
 
 
-    def plot(self, filepath=None, show=True):
+    def plot(self, filepath=None, show=False):
         xyz = ['x','y','z']
         #plt.style.use('seaborn')
         sns.set_theme()

@@ -3,9 +3,9 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 
 try:
-    from gp.gp import GPR
+    from GP import GP
 except ImportError:
-    from gp import GPR
+    from gp.GP import GP
 import numpy as np
 import casadi as cs
 import os
@@ -15,24 +15,24 @@ import matplotlib
 class GPEnsemble:
 
     
-    def __init__(self, number_of_dimensions=0):
-
-        matplotlib.use('SVG')
-
+    def __init__(self, number_of_dimensions : int = 0) -> None:
+        """
+        Initialize the GPEnsemble object. Holds a list of GP objects, one for each dimension of the output.
+        """
         self.gp = [None]*number_of_dimensions
         self.number_of_dimensions = number_of_dimensions
+
+
         
-    def add_gp(self, new_gp, dim):
-        self.gp[dim] = new_gp
-        
-    def predict(self, z, std=False):
+    def predict(self, X_t : float, std=False):
         ### TODO: Add std and variance to casadi prediction ###
 
         out_j = [None]*self.number_of_dimensions
-        if isinstance(z, cs.MX):
+        if isinstance(X_t, cs.MX):
+            # ----------------- Casadi prediction -----------------
             for n in range(len(self.gp)):
-                #print(z.shape)
-                z_in_dim = z[:,n]
+                #print(X_t.shape)
+                z_in_dim = X_t[:,n]
                 #if z_in_dim.shape == (1,)
                 #print(z_in_dim)
                 out_j[n] = self.gp[n].predict(z_in_dim)
@@ -42,31 +42,35 @@ class GPEnsemble:
             out = cs.horzcat(*concat)
             return out
         else:
+            # ----------------- Numpy prediction -----------------
             # in case of prediction on one sample
-            z = np.atleast_2d(z)
+            X_t = np.atleast_2d(X_t)
             if std:
                 # std requested, need to get std from all gps
                 std = [None]*self.number_of_dimensions
                 for n in range(len(self.gp)):
-                    out_j[n], std[n] = self.gp[n].predict(z[:,n].reshape(-1,1), std=True)
+                    out_j[n], std[n] = self.gp[n].predict(X_t[:,n].reshape(-1,1), std=True)
                 out = np.concatenate(out_j, axis=1)
                 return out, std
             else:
                 # Nobody wants std
                 for n in range(len(self.gp)):
-                    out_j[n] = self.gp[n].predict(z[:,n].reshape(-1,1))
+                    out_j[n] = self.gp[n].predict(X_t[:,n].reshape(-1,1))
                 out = np.concatenate(out_j, axis=1)
                 return out
             
         
-    
-    
+    def fit(self) -> None:
+        """
+        Fits all GPs in the GPEnsemble
+        """
 
-    def fit(self):
         print("Fitting GPEnsemble")
+
         start_time = time.time()
         for gpr in self.gp:
             gpr.fit()
+
         print(f"Fitted GPEnsemble in {(time.time() - start_time):.2f} seconds")
 
     def jacobian(self, z):
@@ -83,40 +87,43 @@ class GPEnsemble:
             f_jacobs.append(self.gp[col].jacobian(z[:,col]))
         return f_jacobs
 
-    def save(self, path, xyz=True):
+    def save(self, path : str, xyz : bool = True) -> None:
+        """
+        Runs GP.save() for each GP in the GPEnsemble
+        :param: path: folder path to save the models. Models will be saved inside the folder with the name model_x, model_y, model_z
+        """
 
         if os.path.exists(path):
-            print("Folder already exists, saving models inside")
+            print(f"Saving models inside inside {path}")
         else:
             os.makedirs(path)
-            print("Folder created, saving models inside")
+            print(f"Created folder {path}, saving models inside")
 
         if xyz: 
             xyz_name = ['model_x','model_y','model_z']
             # GPE contains 3 GPs, one for each dimension
 
-            for gpr_index in range(len(self.gp)):
-                path_with_name = os.path.join(path, xyz_name[gpr_index])
-                self.gp[gpr_index].save(path_with_name)
+            for i_gp in range(len(self.gp)):
+                path_with_name = os.path.join(path, xyz_name[i_gp])
+                #self.gp[i_gp].save(path_with_name)
+                GP.save(self.gp[i_gp], path_with_name)
         
         else:
             raise NotImplementedError
 
-    def load(self, path, xyz=True):
+    def load(self, path : str, xyz=True) -> None:
+        """
+        Loads GPs from path and adds them to the GPEnsemble
+        :param: path: folder path to load the models. Models will be loaded from inside the folder with the name model_x, model_y, model_z
+        """
         print("Loading GPEnsemble from path: ", path)
         if xyz: 
             xyz_name = ['model_x','model_y','model_z']
             # GPE contains 3 GPs, one for each dimension
-
-            # Discard the old GPE contents
-            #self.gp = list()
-            for gpr_index in range(len(xyz_name)):
-                path_with_name = os.path.join(path, xyz_name[gpr_index])
-                # Create a new empty GPR and add it to GPE
-                self.add_gp(GPR(None,None,None,None), gpr_index)
-                
-                # Call the load method of the new empty GPR
-                self.gp[gpr_index].load(path_with_name)
+            for i_gp in range(len(xyz_name)):
+                path_with_name = os.path.join(path, xyz_name[i_gp])
+                # Create a new empty GP and add it to GPE
+                self.gp[i_gp] = GP.load(path_with_name)
 
             self.number_of_dimensions = len(self.gp)
         else:

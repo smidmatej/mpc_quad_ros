@@ -60,71 +60,68 @@ class KernelFunction:
 
     
     
-class GPR:
-    def __init__(self, z_train, y_train, covariance_function=KernelFunction, theta=[1,1,1]):
+class GP:
+    def __init__(self, X : np.array, y : np.array, covariance_function=KernelFunction, theta=[1,1,1]) -> None:
         """
         The whole contructor is in this method. This method is called when contructing this class and after self.fit()
         
-        :param: z_train: np.array of n samples with dimension d. Input samples for regression
-        :param: y_train: np.array of n samples with dimension d. Output samples for regression
+        :param: X: np.array of n samples with dimension d. Input samples for regression
+        :param: y: np.array of n samples with dimension d. Output samples for regression
         :param: covariance_function: Reference to a KernelFunction
         :param: theta: np.array of hyperparameters
         """
-        if z_train is None and y_train is None and covariance_function is None and theta is None:
-            # do nothing
-            1+1
-        else:
-            self.initialize(z_train, y_train, covariance_function, theta)
+        if X is not None and y is not None and covariance_function is not None and theta is not None:
+            self.initialize(X, y, covariance_function, theta)
 
         
-    def initialize(self, z_train, y_train, covariance_function, theta):
+    def initialize(self, X, y, covariance_function, theta):
         """
         The whole contructor is in this method. This method is called when contructing this class and after self.fit()
         
-        :param: z_train: np.array of n samples with dimension d. Input samples for regression
-        :param: y_train: np.array of n samples with dimension d. Output samples for regression
+        :param: X: np.array of n samples with dimension d. Input samples for regression
+        :param: y: np.array of n samples with dimension d. Output samples for regression
         :param: covariance_function: Reference to a KernelFunction
         :param: theta: np.array of hyperparameters
         """
 
-        if z_train is None or y_train is None:
+        if X is None or y is None:
             # No training data given, gp will only provide prior predictions
             self.n_train = 0
-            self.z_dim = 1 # this needs to be set in a general way for prediction from prior
+            self.X_dim = 1 # this needs to be set in a general way for prediction from prior
         else:
             # Assure that the training data has the correct format
-            if z_train.ndim < 2 and z_train.shape != (1,1):
+            if X.ndim < 2 and X.shape != (1,1):
                 # input is a (n,) np.array
-                z_train = z_train.reshape((-1,1))
+                X = X.reshape((-1,1))
             else:
                 # input is a scalar or ndim >=2
-                y_train = np.atleast_2d(y_train)
+                y = np.atleast_2d(y)
 
 
-            if y_train.ndim == 1 and y_train.shape != (1,1):
+            if y.ndim == 1 and y.shape != (1,1):
                 # input is a (n,)
-                y_train = y_train.reshape((-1,1))
+                y = y.reshape((-1,1))
             else:
                 # input is a scalar or ndim >=2
-                y_train = np.atleast_2d(y_train)
+                y = np.atleast_2d(y)
 
 
-            self.n_train = z_train.shape[0]
-            self.z_dim = z_train.shape[1]
+            self.n_train = X.shape[0]
+            self.X_dim = X.shape[1]
 
 
-        self.z_train = z_train
-        self.y_train = y_train
+        self.X = X
+        self.y = y
         self.covariance_function = covariance_function
         
         self.theta=theta
         
-        self.kernel = covariance_function(L=np.eye(self.z_dim)*theta[0], sigma_f=theta[-2])
+        self.kernel = covariance_function(L=np.eye(self.X_dim)*theta[0], sigma_f=theta[-2])
         
         self.noise = theta[-1]
         
-        if isinstance(z_train, cs.MX):
-            self.cov_matrix_of_input_data = self.calculate_covariance_matrix(z_train, z_train, self.kernel) \
+        if isinstance(X, cs.MX):
+            self.cov_matrix_of_input_data = self.calculate_covariance_matrix(X, X, self.kernel) \
                                             + (self.noise+1e-7)*np.identity(self.n_train)
 
             # Symbolic matrix inverse using linear system solve, since cs does not have native matrix inverse method
@@ -132,11 +129,10 @@ class GPR:
 
         else:
             self.inv_cov_matrix_of_input_data = np.linalg.inv(
-                self.calculate_covariance_matrix(z_train, z_train, self.kernel) \
+                self.calculate_covariance_matrix(X, X, self.kernel) \
                 + (self.noise+1e-7)*np.identity(self.n_train))
         
-        #print(f'Size of feature training data = {(self.n_train, self.z_dim)}')
-        #print(f'Size of output training data = {self.n_train, self.z_dim}')
+
 
 
     def predict(self, at_values_z, var=False, std=False, cov=False):
@@ -147,7 +143,7 @@ class GPR:
         """
 
         ### TODO: Add std and variance to casadi prediction ###
-        sigma_k = self.calculate_covariance_matrix(self.z_train, at_values_z, self.kernel)
+        sigma_k = self.calculate_covariance_matrix(self.X, at_values_z, self.kernel)
         sigma_kk = self.calculate_covariance_matrix(at_values_z, at_values_z, self.kernel)
 
 
@@ -158,7 +154,7 @@ class GPR:
         
         else:
             if isinstance(at_values_z, cs.MX):
-                mean_at_values = cs.mtimes(sigma_k.T, cs.mtimes(self.inv_cov_matrix_of_input_data, self.y_train))
+                mean_at_values = cs.mtimes(sigma_k.T, cs.mtimes(self.inv_cov_matrix_of_input_data, self.y))
                 
                 cov_matrix = np.eye(1) # TODO: Calculate covariance matrix for prediction if needed
 
@@ -166,7 +162,7 @@ class GPR:
             else:
                 mean_at_values = sigma_k.T.dot(
                                         self.inv_cov_matrix_of_input_data.dot(
-                                            self.y_train)) 
+                                            self.y)) 
 
                 cov_matrix = sigma_kk - sigma_k.T.dot(
                                         self.inv_cov_matrix_of_input_data.dot(
@@ -184,7 +180,7 @@ class GPR:
         else:  
             return mean_at_values
         
-    #def predict_symbolic(self, at_values_z_sym):
+
         
     def draw_function_sample(self, at_values_z, n_sample_functions=1):
         """ 
@@ -198,14 +194,14 @@ class GPR:
         y_sample = np.random.multivariate_normal(mean=mean_at_values.ravel(), cov=cov_matrix, size=n_sample_functions)
         return y_sample
         
-    def fit(self):
+    def fit(self) -> None:
         """ 
         Uses the negative log likelyhood function to maximize likelyhood by varying the hyperparameters theta
         """
         
-        #print(self.y_train.shape)
+        #print(self.y.shape)
         low_bnd = 0.01
-        #bnds = tuple([(low_bnd, None) for i in range(self.z_train.shape[1])]) + ((low_bnd, None), (low_bnd, None))
+        #bnds = tuple([(low_bnd, None) for i in range(self.X.shape[1])]) + ((low_bnd, None), (low_bnd, None))
         bnds = ((low_bnd, None), (low_bnd, None), (low_bnd, None))
         #print('Maximizing the likelyhood function for GP')
         #print(f'Hyperparameters before optimization = {self.theta}')
@@ -214,12 +210,12 @@ class GPR:
         theta_star = sol_min.x
         
         # Ammounts to recreating all relevant contents of this class
-        self.initialize(self.z_train, self.y_train, self.covariance_function, theta_star)
+        self.initialize(self.X, self.y, self.covariance_function, theta_star)
 
         #print('Optimization done')
         #print(f'Hyperparameters after optimization = {self.theta}')
 
-    def jacobian(self, z):
+    def jacobian(self, z : cs.MX) -> cs.Function:
         """
         Casadi symbolic jacobian of prediction y with respect to z
 
@@ -233,8 +229,10 @@ class GPR:
         Jf = cs.Function('J', [z], [J])
         return Jf
         
-    def nll(self, theta):
+
+    def nll(self, theta : np.array) -> float:
         """
+        Negative log likelyhood of the prediction using the theta hyperparameters.
         Numerically more stable implementation of Eq. (11)
         as described in http://www.gaussianprocess.org/gpml/chapters/RW2.pdf, Section 2.2, Algorithm 2.1.
         
@@ -242,60 +240,24 @@ class GPR:
         """
 
         # Kernel function k(x1,x2)
-        k = self.covariance_function(L=np.eye(self.z_train.shape[1])*theta[0], sigma_f=theta[-2])
+        k = self.covariance_function(L=np.eye(self.X.shape[1])*theta[0], sigma_f=theta[-2])
         
         # Evaluate k(x,x) over all combinations of x1 and x2
-        K = self.calculate_covariance_matrix(self.z_train, self.z_train, k) + \
-                (theta[-1]+1e-7)*np.identity(self.z_train.shape[0])
+        K = self.calculate_covariance_matrix(self.X, self.X, k) + \
+                (theta[-1]+1e-7)*np.identity(self.X.shape[0])
         
         L = cholesky(K)
 
-        S1 = solve_triangular(L, self.y_train, lower=True)
+        S1 = solve_triangular(L, self.y, lower=True)
         S2 = solve_triangular(L.T, S1, lower=False)
 
 
         neg_log_lklhd = (np.sum(np.log(np.diagonal(L))) + \
-                       0.5 * self.y_train.T.dot(S2) + \
-                       0.5 * self.z_train.shape[0] * np.log(2*np.pi)).flatten()
+                       0.5 * self.y.T.dot(S2) + \
+                       0.5 * self.X.shape[0] * np.log(2*np.pi)).flatten()
         return neg_log_lklhd
 
 
-    def save(self, path):
-        """
-        Saves the current GP  to the specified path as a pickle file. Must be re-loaded with the function load
-        :param path: absolute path to save the regressor to
-        """
-
-        saved_vars = {
-            "kernel_params": self.kernel.params,
-            "kernel_type": self.kernel.kernel_type,
-            "z_train": self.z_train,
-            "y_train": self.y_train,
-            "theta": self.theta,
-            "z_dim": self.z_dim,
-        }
-
-        with open(path, 'wb') as f:
-            joblib.dump(saved_vars, f)
-        
-    def load(self, path):
-        """
-        Load a pre-trained GP regressor
-        :param data_dict: a dictionary with all the pre-trained matrices of the GP regressor
-        """
-        data_dict = joblib.load(path)
-
-        #self.kernel.params = data_dict['kernel_params']
-        #self.kernel.kernel_type = data_dict['kernel_type']
-        '''
-        self.z_train = data_dict['z_train']
-        self.y_train = data_dict['y_train']
-        self.theta = data_dict['theta']
-        self.kernel = KernelFunction(data_dict['kernel_params']['L'], data_dict['kernel_params']['sigma_f'])
-        self.sigma_n = self.theta[-1]
-        '''
-        self.initialize(data_dict['z_train'], data_dict['y_train'], KernelFunction, data_dict['theta'])
-        
 
     def __str__(self):
         theta_string = '[' + ', '.join([f'{theta:.2f}' for theta in self.theta]) +']'
@@ -305,7 +267,7 @@ class GPR:
 
 
     @staticmethod
-    def calculate_covariance_matrix(x1,x2, kernel):
+    def calculate_covariance_matrix(x1 : np.array, x2 : np.array, kernel):
         """
         Fills in a matrix with k(x1[i,:], x2[j,:])
         
@@ -345,5 +307,38 @@ class GPR:
                 cov_mat[i,j] = kernel(a,b)
 
         return cov_mat
+
+    @staticmethod
+    def save(gp:"GP", save_path:str) -> None:
+        """
+        Saves the gp to the specified save_path as a pickle file. Must be re-loaded with the load function
+        :param gp: GP instance
+        :param save_path: absolute save_path to save the gp to
+        """
+
+        saved_vars = {
+            "kernel_params": gp.kernel.params,
+            "kernel_type": gp.kernel.kernel_type,
+            "X": gp.X,
+            "y": gp.y,
+            "theta": gp.theta,
+            "X_dim": gp.X_dim,
+        }
+
+        with open(save_path, 'wb') as f:
+            joblib.dump(saved_vars, f)
+        
+    @staticmethod
+    def load(load_path:str) -> "GP":
+        """
+        Load a pre-trained GP regressor
+        :param load_path: path to pkl file with a dictionary with all the pre-trained matrices of the GP regressor
+        """
+        data_dict = joblib.load(load_path)
+
+        gp = GP(data_dict['X'], data_dict['y'], KernelFunction, data_dict['theta'])
+        #self.initialize(data_dict['X'], data_dict['y'], KernelFunction, data_dict['theta'])
+        return gp
+        
 
 

@@ -337,7 +337,7 @@ class MPC_controller:
                                 self.retrain_controller()
                                 rospy.logwarn("Retrained controller with new gp")
                                 
-                                self.mpc_ros_wrapper.quad_opt.acados_ocp.model.
+                                #self.mpc_ros_wrapper.quad_opt.acados_ocp.model.
 
 
                                 # Decide what velocity to use for the next trajectory
