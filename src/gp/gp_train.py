@@ -1,20 +1,17 @@
 import numpy as np
-
-#from gp_ensemble import GPEnsemble
 import time
 import casadi as cs
 
 import os
 import argparse
 
-
 try:
-    from gp import GPR
-    from gp_ensemble import GPEnsemble
+    from GP import GP
+    from GPE import GPEnsemble
     from DataLoaderGP import DataLoaderGP
 except ImportError:
-    from gp.gp import GPR
-    from gp.gp_ensemble import GPEnsemble
+    from gp.GP import GP
+    from gp.GPE import GPEnsemble
     from gp.DataLoaderGP import DataLoaderGP
 
 def main():
@@ -24,10 +21,10 @@ def main():
     parser.add_argument("-s", "--save", type=int, required=False, default=1, help="Save the model? 1: yes, 0: no")
     args = parser.parse_args()
 
-    environment = 'python_simulation'
+    environment = 'gazebo_simulation'
     
-    filename = 'test_circle_v15_a5_gp0'
-    filename = 'training_dataset'
+    filename = 'training_v20_a10_gp0'
+    #filename = 'training_dataset'
     training_dataset_filepath = os.path.join(dir_path, '../..', 'outputs', environment, 'data', filename + '.pkl')
     model_save_filepath = os.path.join(dir_path, '../..', 'outputs', environment, 'gp_models/')
 
@@ -60,12 +57,14 @@ def train_gp(training_dataset_filepath, model_save_filepath, n_training_samples=
     # -------------- Fill GPE with data from the appropriate dimension --------------
     for n in range(ensemble_components):
         if theta0 is None:
-            # I dont have a guess of the theta0 parameters -> Use the default in GPR
-            gpr = GPR(data_loader_gp.X_train[:,n], data_loader_gp.y_train[:,n])
+            # I dont have a guess of the theta0 parameters -> Use the default in GP
+            gp = GP(data_loader_gp.X_train[:,n], data_loader_gp.y_train[:,n])
         else:
-            gpr = GPR(data_loader_gp.X_train[:,n], data_loader_gp.y_train[:,n], theta=theta0[n])
+            gp = GP(data_loader_gp.X_train[:,n], data_loader_gp.y_train[:,n], theta=theta0[n])
         
-        gpe.add_gp(gpr, n)
+        #gpe.add_gp(gpr, n)
+        
+        gpe.gp[n] = gp # Load GP into GPE's list of GPs
 
 
     # -------------- Hyperparameter optimization --------------
