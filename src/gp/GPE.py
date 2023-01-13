@@ -37,10 +37,27 @@ class GPEnsemble:
         """
         Ensamble of (Recursive) Gaussian Process regressors. Holds a list of GP or RGP objects, one for each dimension of the output.
         :param number_of_dimensions: Number of dimensions of the output
+        :param type: Type of GP to be used. 'GP' or 'RGP'
         """
         self.gp = [None]*number_of_dimensions
         self.number_of_dimensions = number_of_dimensions
+        
         self.type = type
+
+    def __init__(self, gps : list = []) -> None:
+        """
+        Ensamble of (Recursive) Gaussian Process regressors. Holds a list of GP or RGP objects, one for each dimension of the output.
+        :param gps: List of GP or RGP objects
+        """
+        self.gp = gps
+        self.number_of_dimensions = len(gps)
+        
+        if all([isinstance(g, GP) for g in self.gp]):
+            self.type = 'GP'
+        elif all([isinstance(g, RGP) for g in self.gp]):
+            self.type = 'RGP'
+        else:
+            raise ValueError("All GP objects in the list must be of the same type")
 
 
         
@@ -124,6 +141,7 @@ class GPEnsemble:
             for i_gp in range(len(self.gp)):
                 path_with_name = os.path.join(path, xyz_name[i_gp])
                 RGP.save(self.gp[i_gp], path_with_name)
+
         elif self.type == 'GP':
 
             xyz_name = ['gp_x','gp_y','gp_z']

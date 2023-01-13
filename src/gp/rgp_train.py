@@ -41,20 +41,20 @@ def main():
     parser.add_argument("-s", "--save", type=int, required=False, default=1, help="Save the model? 1: yes, 0: no")
     args = parser.parse_args()
 
-    environment = 'gazebo_simulation'
+    environment = 'python_simulation'
     
-    filename = 'training_v20_a10_gp0'
-    #filename = 'training_dataset'
+    #filename = 'training_v20_a10_gp0'
+    filename = 'training_dataset'
     training_dataset_filepath = os.path.join(dir_path, '../..', 'outputs', environment, 'data', filename + '.pkl')
-    model_save_filepath = os.path.join(dir_path, '../..', 'outputs', environment, 'gp_models/')
+    model_save_filepath = os.path.join(dir_path, '../..', 'outputs', environment, 'rgp_models/')
 
     if args.save != 1:
         model_save_filepath = None
-    gpefit_plot_filepath = os.path.join(dir_path, '../..', 'outputs', 'graphics', 'gpefit_' + filename + '.pdf')
-    gpesamples_plot_filepath = os.path.join(dir_path, '../..', 'outputs', 'graphics', 'gpesamples_' + filename + '.pdf')
+    gpefit_plot_filepath = os.path.join(dir_path, '../..', 'outputs', 'graphics', 'rgpefit_' + filename + '.pdf')
+    gpesamples_plot_filepath = os.path.join(dir_path, '../..', 'outputs', 'graphics', 'rgpesamples_' + filename + '.pdf')
 
     n_training_samples = 20
-    theta0 = [1,1,1]*3 # Kernel variables
+    theta0 = [0.1,1,1]*3 # Kernel variables
 
     train_rgp(training_dataset_filepath, model_save_filepath, n_training_samples=n_training_samples, show_plots=True, gpefit_plot_filepath=gpefit_plot_filepath, gpesamples_plot_filepath=gpesamples_plot_filepath)
 
@@ -68,44 +68,39 @@ def train_rgp(training_dataset_filepath, model_save_filepath, n_training_samples
 
     data_loader_gp = DataLoaderGP(training_dataset_filepath, number_of_training_samples=n_training_samples)
 
-    gpe = GPEnsemble(ensemble_components)
+    
 
     if theta0 is not None:
         assert len(theta0) == ensemble_components, f"theta0 has to be a list of len {ensemble_components}, passed a list of {len(theta0)}"
 
     #breakpoint()
     # -------------- Fill GPE with data from the appropriate dimension --------------
+    X_ = np.arange(-10.0,10.0,1.0)
+    y_ = np.random.normal(0, 0, size=X_.shape)
+    gps = [None]*ensemble_components
     for n in range(ensemble_components):
         if theta0 is None:
             # I dont have a guess of the theta0 parameters -> Use the default in GP
-            #breakpoint()
-            gp = RGP(data_loader_gp.X_train[:,n].reshape(-1,1), data_loader_gp.y_train[:,n].reshape(-1,1))
+            gps[n] = RGP(X_, y_)
         else:
-            gp = RGP(data_loader_gp.X_train[:,n].reshape(-1,1), data_loader_gp.y_train[:,n].reshape(-1,1), theta=theta0[n])
+            gps[n] = RGP(data_loader_gp.X_train[:,n].reshape(-1,1), data_loader_gp.y_train[:,n].reshape(-1,1), theta=theta0[n])
         
-        #gpe.add_gp(gpr, n)
-        
-        gpe.gp[n] = gp # Load GP into GPE's list of GPs
+    gpe = GPEnsemble(gps)
 
 
-    # -------------- Hyperparameter optimization --------------
-    #print(gpe)
     # TODO: Implement regression. Perhaps encapsulate the for loop inside the RGP class
 
     print('Training model recursively...')
     pbar = tqdm(total=data_loader_gp.X.shape[0])
+    
     for t in range(data_loader_gp.X.shape[0]):
         for n in range(ensemble_components):
-            #breakpoint()
-            gpe.gp[n].regress(data_loader_gp.X[t,n], data_loader_gp.y[t,n])
-        #rgp.regress(data_loader_gp.X[t,:], data_loader_gp.y[t,:])
-        #mean_training[t+1], cov_training[t+1] = rgp.predict(X_query, cov=True)
-        #g_[t+1] = rgp.mu_g_t # Current estimate of g at X
+            gpe.gp[n].regress(np.atleast_1d(data_loader_gp.X[t,n]), np.atleast_1d(data_loader_gp.y[t,n]))
         pbar.update()
     pbar.close()
     print('Done training model.')
 
-    #gpe.fit()
+    # -------------- Plotting --------------
 
     # Color scheme convert from [0,255] to [0,1]
     cs = [[x/256 for x in (8, 65, 92)], \
@@ -118,7 +113,7 @@ def train_rgp(training_dataset_filepath, model_save_filepath, n_training_samples
     plt.style.use('fast')
     sns.set_style("whitegrid")
 
-    
+    X_query = np.linspace(-10.0, 10.0, 100)
 
     fig = plt.figure(figsize=(10,10), dpi=100)
     ax = [None]*3
@@ -126,18 +121,16 @@ def train_rgp(training_dataset_filepath, model_save_filepath, n_training_samples
     ax[0] = fig.add_subplot(131)
     ax[1] = fig.add_subplot(132)
     ax[2] = fig.add_subplot(133)
-    X_query = np.linspace(-5, 5, 1000).reshape(-1,1)
+
     for n in range(ensemble_components):
         mean, std = gpe.gp[n].predict(X_query, std=True)
         ax[n].plot(X_query, mean, '--', color=cs[0], label='E[g(x)]')
-        breakpoint()
-        # FIXME: This is not working
-        ax[n].fill_between(X_query, (mean - 2*std).reshape(-1,1), (mean + 2*std).reshape(-1,1), color=cs[0], alpha=0.2, label='2 std')
-        ax[n].scatter(gpe.gp[n].X_, gpe.gp[n].mu_g_t, marker='o', s=20, color=cs[0], label='Basis Vectors')
-        
-        ax[n].plot(data_loader_gp.X[:,n], data_loader_gp.y[:,n], '+', color=cs[1], label='Samples')
+        ax[n].scatter(gpe.gp[n].X, gpe.gp[n].mu_g_t, marker='o', s=20, color=cs[0], label='Basis Vectors')
+        ax[n].fill_between(X_query.ravel(), mean - 2*std, mean + 2*std, color=cs[0], alpha=0.2, label='2 std')
 
         
+        ax[n].scatter(data_loader_gp.X[:,n], data_loader_gp.y[:,n], s=0.5, marker='.', color=cs[2], label='Samples')
+
         ax[n].set_xlabel('x')
         ax[n].set_ylabel('y')
         ax[n].set_title(f'GP {n+1}')

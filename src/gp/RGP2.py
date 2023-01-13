@@ -17,8 +17,7 @@
 
 import numpy as np
 from scipy.linalg import sqrtm
-import casadi as cs
-import joblib
+
 
 
 class RBF:
@@ -36,67 +35,42 @@ class RBF:
         self.L = L
         self.sigma_f = sigma_f
         
-
-    def __call__(self, x1 : float, x2 :  float) -> float:
+    def __call__(self, x1 : float, x2 : float) -> float:
         """
-        Calculate the value of the kernel function given 2 input floats or cs.DM. 
-        :param: x1: float or cs.DM
-        :param: x2: float or cs.DM
+        Calculate the value of the kernel function given 2 input floats   
+        :param: x1: float
+        :param: x2: float
         """
-        if (isinstance(x1, float) and isinstance(x2, float)) or (isinstance(x1, int) and isinstance(x2, int)):
-            # Scalar implementation
-            return float(self.sigma_f**2 * np.exp(-1/2*(x1-x2) * np.linalg.inv(self.L*self.L) * (x1-x2)))
+        assert x1.ndim == 0, "x1 must be a scalar"
+        assert x2.ndim == 0, "x2 must be a scalar"
 
-
-        elif isinstance(x1, cs.DM) and isinstance(x2, cs.DM):
-            # Casadi implementation
-            dif = x1-x2
-            return self.sigma_f**2 * np.exp(-1/2* cs.mtimes(cs.mtimes(dif, np.linalg.inv(self.L*self.L)), dif.T))
-        else:
-            raise NotImplementedError("Only numpy and casadi are supported. Is the input a numpy array or casadi DM?")
-
+        return float(self.sigma_f**2 * np.exp(-1/2*(x1-x2) * np.linalg.inv(self.L*self.L) * (x1-x2)))
 
     def calculate_covariance_matrix(self, x1 : np.array, x2 : np.array) -> np.array:
         """
         Fills in a matrix with k(x1[i,:], x2[j,:])
-        :param: x1: (n,) np.array or cs.MX, where n is the number of samples
-        :param: x2: (n,) np.array or cs.MX, where n is the number of samples
+        :param: x1: (n,) np.array, where n is the number of samples
+        :param: x2: (n,) np.array, where n is the number of samples
         """
 
+        assert x1.ndim == 1, "x1 must be a 1D array"
+        assert x2.ndim == 1, "x2 must be a 1D array"
+
+        cov_mat = np.empty((x1.shape[0], x2.shape[0]))*np.NaN # Initialize the covariance matrix with NaNs
         
-        if isinstance(x1, cs.MX) or isinstance(x2, cs.MX):
-            # Casadi implementation
-            cov_mat = cs.MX.zeros((x1.shape[0], x2.shape[0]))
-            for i in range(x1.shape[0]):
+        # for all combinations calculate the kernel
+        for i in range(x1.shape[0]):
+            for j in range(x2.shape[0]):
+                cov_mat[i,j] = self.__call__(x1[i],x2[j])
 
-                a = cs.reshape(x1[i,:], 1, x1.shape[1])
-
-                for j in range(x2.shape[0]):
-
-                    b = cs.reshape(x2[j,:], 1, x2.shape[1])
-                    cov_mat[i,j] = self.RBF(a,b)
-
-            return cov_mat
-        else:
-            # Numpy implementation
-            assert x1.ndim == 1, "x1 must be a 1D array"
-            assert x2.ndim == 1, "x2 must be a 1D array"
-
-            cov_mat = np.empty((x1.shape[0], x2.shape[0]))*np.NaN # Initialize the covariance matrix with NaNs
-            
-            # for all combinations calculate the kernel
-            for i in range(x1.shape[0]):
-                for j in range(x2.shape[0]):
-                    cov_mat[i,j] = self.__call__(x1[i],x2[j])
-
-            return cov_mat
+        return cov_mat
 
     def __str__(self):
         return f"L = {self.L}, \n\r Sigma_f = {self.sigma_f}"
         
 
 class RGP:
-    def __init__(self, X : np.array, y_ : np.array, theta : list = [1.,1.,0.1]) -> None:
+    def __init__(self, X : np.array, y : np.array, theta : list = [1.,1.,1.]) -> None:
         """
         Recursive Gaussian Process (RGP) class. Initialize with n basis vectors and n measurements and hyperparameters theta. 
         Recursively update the RGP with new measurements using regress(). Update and predict the hyperparameters using learn().
@@ -104,28 +78,26 @@ class RGP:
         :param: y_: (n,) np.array, where n is the number of basis vectors
         :theta: theta: list of hyperparameters [L, sigma_f, sigma_n]
         """
-
-        # TODO: THIS CLASS CAN IMPLEMENT FIT THE SAME WAY AS GP, SINCE THE GP.FIT TAKES JUST THE BASIS VECTORS AND THEIR RESPONSE
-        # but I dont know the response, the reason to use rgp is to not have to have a response before using gp
-        assert X.ndim == 1, "X must be a 1D array"
-        assert y_.ndim == 1, "y_ must be a 1D array"
-        assert X.shape[0] == y_.shape[0], "X and y_ must have the same number of rows"
+        assert X.ndim == 1, "Xt must be a 1D array"
+        assert y.ndim == 1, "yt must be a 1D array"
+        assert X.shape[0] == y.shape[0], "X and y must have the same number of rows"
 
         self.X = X
-        self.y_ = y_
+        self.y = y
         
         # L and sigma_f are the hyperparameters of the RBF kernel function, they are not properties of the RGP
-        L = np.eye(1) * theta[0]
-        #L = np.diag(theta[0])
-        sigma_f = theta[1] # RBF
-        self.sigma_n = theta[2] # Noise variance
+        L = np.eye(1) # RBF
+        sigma_f = 1 # RBF
+        self.sigma_n = 1 # Noise variance
 
+               
         # Mean function m(x) = 0
         self.K = RBF(L=L, sigma_f=sigma_f) # Kernel function
 
+        
         # WARNING: Dont confuse the estimate g at X with the estimate g_t at X_t 
         # p(g|y_t-1)
-        self.mu_g_t = y_ # The a priori mean is the measurement with no y_t 
+        self.mu_g_t = y # The a priori mean is the measurement with no y_t 
         self.C_g_t = self.K.calculate_covariance_matrix(X, X) + self.sigma_n**2 * np.eye(self.X.shape[0]) # The a priori covariance is the covariance with no y_t
 
         # Hyperparameter estimates for RGP*
@@ -134,8 +106,10 @@ class RGP:
         self.mu_eta_t = np.concatenate([np.diagonal(L), [sigma_f], [self.sigma_n]])  # The a priori mean of the hyperparameters is the hyperparameters
         self.C_eta_t = np.eye(self.mu_eta_t.shape[0]) # The a priori covariance of the hyperparameters is the identity matrix
         
-        # Cross-covariance between the basis vectors and the hyperparameters
+        # Cross-covaariance between the basis vectors and the hyperparameters
         self.C_g_eta_t = np.zeros((self.X.shape[0], self.mu_eta_t.shape[0])) # The a priori covariance is zero
+
+
 
         # Precompute these since they do not change with regression (They change during learning, since the hyperparameters change)
         self.K_x = self.K.calculate_covariance_matrix(self.X, self.X) + self.sigma_n**2 * np.eye(self.X.shape[0]) # Covariance matrix over X
@@ -146,44 +120,25 @@ class RGP:
         
     def predict(self, X_t_star : np.array, cov : bool = False, var : bool = False, std : bool = False, return_Jt : bool = False) -> np.array:
         """
-        Predict the value of the response at X_t_star given the data GP.
-        :param: X_t_star: (m,) np.array or cs.MX, where m is the number of points to predict
+        Predict the value of the response at X_t_star given the data X and y_.
+        :param: X_t_star: (m,) np.array, where m is the number of points to predict
         :param: cov: Boolean value. If true, the covariance matrix of the prediction is calculated and returned as well
         :param: var: Boolean value. If true, the variance of the prediction is calculated and returned as well
         :param: std: Boolean value. If true, the standard deviation of the prediction is calculated and returned as well
         :param: return_Jt: Boolean value. If true, the gain matrix Jt is returned as well INTERNAL USE ONLY
         """
-        assert X_t_star.ndim == 1, "X_t_star must be a 1D array"
 
-        if isinstance(X_t_star, cs.MX):
-            # Casadi implementation
-            K_x_star = self.K.calculate_covariance_matrix(X_t_star, self.X)
-            Jt = cs.mtimes(K_x_star, self.K_x_inv) # Gain matrix
-            mu_p_t = cs.mtimes(Jt, self.mu_g_t) # The a posteriori mean of p(g_t|y_t)
+        Jt = self.K.calculate_covariance_matrix(X_t_star, self.X).dot(self.K_x_inv) # Gain matrix
+        mu_p_t = Jt.dot(self.mu_g_t) # The a posteriori mean of p(g_t|y_t)
 
-            if cov or var or std:
-                K_x_star_star = self.K.calculate_covariance_matrix(X_t_star, X_t_star)
-                # Is self.K.calculate_covariance_matrix(X_t_star, self.X).T = self.K.calculate_covariance_matrix(self.X, X_t_star) ?
-                B =  K_x_star_star - cs.mtimes(Jt, self.K.calculate_covariance_matrix(self.X, X_t_star))
-                C_p_t = B + cs.mtimes(Jt, cs.mtimes(self.C_g_t, Jt.T)) # The a posteriori covariance of p(g_t|y_t)
-                var_p_t = cs.diag(C_p_t) # The variance of p(g_t|y_t)
-                std_p_t = cs.sqrt(var_p_t) # The standard deviation of p(g_t|y_t)
-        else:
-            # Numpy implementation
-            #breakpoint()
-            Jt = self.K.calculate_covariance_matrix(X_t_star, self.X).dot(self.K_x_inv) # Gain matrix
-            mu_p_t = Jt.dot(self.mu_g_t) # The a posteriori mean of p(g_t|y_t)
 
-            mu_p_t = mu_p_t.ravel() # return as (m,)
-            
-            if cov or var or std:
-                # Calculate and return the covariance matrix too
-                K_x_star_star = self.K.calculate_covariance_matrix(X_t_star, X_t_star)
-                B = K_x_star_star - Jt.dot(self.K.calculate_covariance_matrix(self.X, X_t_star)) # Covariance of p(g_t|g_)
-                C_p_t = B + Jt.dot(self.C_g_t).dot(Jt.T) # The a posteriori covariance of p(g_t|y_t)
-                var_p_t = np.diag(C_p_t) # The variance of p(g_t|y_t)
-                std_p_t = np.sqrt(var_p_t) # The standard deviation of p(g_t|y_t)
-            
+        if cov or var or std:
+            # Calculate and return the covariance matrix too
+            B = self.K.calculate_covariance_matrix(X_t_star, X_t_star) - Jt.dot(self.K.calculate_covariance_matrix(self.X, X_t_star)) # Covariance of p(g_t|g_)
+            C_p_t = B + Jt .dot(self.C_g_t).dot(Jt.T) # The a posteriori covariance of p(g_t|y_t)
+            var_p_t = np.diag(C_p_t) # The variance of p(g_t|y_t)
+            std_p_t = np.sqrt(var_p_t) # The standard deviation of p(g_t|y_t)
+
         if return_Jt:
             if cov:
                 return mu_p_t, C_p_t, Jt
@@ -210,6 +165,7 @@ class RGP:
         :param: Xt: (k,) np.array, where k is the number of new data points
         :param: yt: (k,) np.array, where k is the number of new data points
         """
+
         assert Xt.ndim == 1, "Xt must be a 1D array"
         assert yt.ndim == 1, "yt must be a 1D array"
         assert Xt.shape == yt.shape, "Xt and yt must have the same shape"
@@ -218,6 +174,7 @@ class RGP:
         self.mu_g_t_minus_1 = self.mu_g_t # The a priori mean is the estimate of g at X_
         self.C_g_t_minus_1 = self.C_g_t
 
+        
         # ------ Inference step ------
         # Infer the a posteriori distribution of p(g_t|y_t) (the estimate of g_t at X_t)
         mu_p_t, C_p_t, Jt = self.predict(Xt, cov = True, return_Jt = True)
@@ -407,35 +364,6 @@ class RGP:
             w[i+1+n] = (1-w[0])/(2*n)
         
         return w, x
-
-    @staticmethod
-    def save(rgp:"RGP", save_path:str) -> None:
-        """
-        Saves the gp to the specified save_path as a pickle file. Must be re-loaded with the load function
-        :param gp: GP instance
-        :param save_path: absolute save_path to save the gp to
-        """
-
-        saved_vars = {
-            "X": rgp.X,
-            "y": rgp.y_,
-            "theta": rgp.mu_eta_t,
-        }
-
-        with open(save_path, 'wb') as f:
-            joblib.dump(saved_vars, f)
-        
-    @staticmethod
-    def load(load_path:str) -> "RGP":
-        """
-        Load a pre-trained GP regressor
-        :param load_path: path to pkl file with a dictionary with all the pre-trained matrices of the GP regressor
-        """
-        data_dict = joblib.load(load_path)
-
-        rgp = RGP(data_dict['X'], data_dict['y'], data_dict['theta'])
-        #self.initialize(data_dict['X'], data_dict['y'], KernelFunction, data_dict['theta'])
-        return rgp
 
 
 
