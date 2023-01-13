@@ -66,7 +66,7 @@ def train_gp(training_dataset_filepath, model_save_filepath, n_training_samples=
 
     data_loader_gp = DataLoaderGP(training_dataset_filepath, number_of_training_samples=n_training_samples)
 
-    gpe = GPEnsemble.fromdims(3, 'GP')
+    #gpe = GPEnsemble.fromdims(3, 'GP')
 
     if theta0 is not None:
         assert len(theta0) == ensemble_components, f"theta0 has to be a list of len {ensemble_components}, passed a list of {len(theta0)}"
@@ -77,9 +77,9 @@ def train_gp(training_dataset_filepath, model_save_filepath, n_training_samples=
     for n in range(ensemble_components):
         if theta0 is None:
             # I dont have a guess of the theta0 parameters -> Use the default in GP
-            gps.append(GP(data_loader_gp.X_train[:,n], data_loader_gp.y_train[:,n]))
+            gps[n] = (GP(data_loader_gp.X_train[:,n], data_loader_gp.y_train[:,n]))
         else:
-            gps.append(GP(data_loader_gp.X_train[:,n], data_loader_gp.y_train[:,n], theta=theta0[n]))
+            gps[n] = (GP(data_loader_gp.X_train[:,n], data_loader_gp.y_train[:,n], theta=theta0[n]))
         
 
 

@@ -50,7 +50,6 @@ class GPEnsemble:
 
     @classmethod
     def fromlist(cls, gp_list : list = []):
-        
         if all([isinstance(g, GP) for g in gp_list]):
             type = 'GP'
         elif all([isinstance(g, RGP) for g in gp_list]):
@@ -164,6 +163,8 @@ class GPEnsemble:
             print(f"Created folder {path}, saving models inside")
 
         xyz_name = ['mdl_x','mdl_y','mdl_z']
+        assert len(self.gp) == len(xyz_name), f"GPEnsemble has {len(self.gp)} GPs, but xyz_name has {len(xyz_name)} names"
+
         for i_gp in range(len(self.gp)):
             path_with_name = os.path.join(path, xyz_name[i_gp])
             
@@ -210,27 +211,39 @@ class GPEnsemble:
 
 
 
-    def plot(self, z_train=None, y_train=None, filepath=None, show=True):
+    def plot(self, z_train : np.array = None , y_train : np.array = None, filepath=None, show=True):
+        
 
+        assert z_train.ndim == 2, f"z_train needs to be n x d,  z_train.shape={z_train.shape}"
+        assert y_train.ndim == 2, f"y_train needs to be n x d,  y_train.shape={y_train.shape}"
+        assert z_train.shape[1] == len(self.gp), f"z_train needs to be n x d,  z_train.shape={z_train.shape}, GPE.number_of_dimensions={len(self.gp)}"
+        assert y_train.shape[1] == len(self.gp), f"y_train needs to be n x d,  y_train.shape={y_train.shape}, GPE.number_of_dimensions={len(self.gp)}"
+        
         # TODO: Why am I passing the z_train and y_train here? I can just use the data from the GPE
-        z_query = np.concatenate([np.arange(-20,20,0.5).reshape(-1,1) for i in range(3)], axis=1)
-        y_query, std_query = self.predict(z_query, std=True)
+
+        z_query = [None]*len(self.gp)
+        y_query = [None]*len(self.gp)
+        std_query = [None]*len(self.gp)
+        for dim in range(len(self.gp)):
+            z_query[dim] = np.arange(-20,20,0.5) # TODO: This is a (n,) array, but the GP.predict() method expects a (n,1) array. FIX THE GP.predict() method
+            y_query[dim], std_query[dim] = self.gp[dim].predict(z_query[dim], std=True)
+
 
         xyz = ['x','y','z']
         #plt.style.use('seaborn')
         sns.set_theme()
         plt.figure(figsize=(10, 6), dpi=100)
 
-        for col in range(y_query.shape[1]):
+        for col in range(len(self.gp)):
             #print(np.ravel([f_grads[col](z_query[:,col])[d,d].full() for d in range(z_query.shape[0])]))
             plt.subplot(1,3,col+1)
-            plt.plot(z_query[:,col], y_query[:,col])
+            plt.plot(z_query[col], y_query[col])
             if z_train is not None and y_train is not None:
                 plt.scatter(z_train[:,col], y_train[:,col], marker='+', c='k')
             plt.xlabel(f'Velocity {xyz[col]} [ms-1]')
             plt.ylabel(f'Drag acceleration {xyz[col]} [ms-2]')
             plt.legend(('m(z) interpolation', "m(z') training"))
-            plt.fill_between(z_query[:,col], y_query[:,col] - 2*std_query[col], y_query[:,col] + 2*std_query[col], color='gray', alpha=0.2)
+            plt.fill_between(z_query[col], y_query[col] - 2*std_query[col], y_query[col] + 2*std_query[col], color='gray', alpha=0.2)
         plt.tight_layout()
 
         if filepath is not None:
