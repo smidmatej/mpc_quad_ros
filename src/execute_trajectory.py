@@ -76,15 +76,14 @@ def main():
 
     if args.gpe:
         #ensemble_path = "gp/models/ensemble"
-        ensemble_path = os.path.join(os.path.dirname(__file__), '..', 'outputs', 'python_simulation', 'gp_models')
-        gpe = GPEnsemble(3)
-        gpe.load(ensemble_path)
+        ensemble_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'outputs', 'python_simulation', 'gp_models')
+        gpe = GPEnsemble.fromdir(ensemble_path, "RGP")
     else:
         gpe = None
 
 
 
-    explorer = Explorer(gpe)
+    
 
     trajectory_generator = TrajectoryGenerator()
 
@@ -96,7 +95,8 @@ def main():
     v_max = args.v_max
     a_max = args.a_max
 
-    v_max = explorer.velocity_to_explore
+    #explorer = Explorer(gpe)
+    #v_max = explorer.velocity_to_explore
 
     if v_max > v_max_limit:
         v_max = v_max_limit

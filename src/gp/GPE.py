@@ -60,25 +60,24 @@ class GPEnsemble:
         return cls(gp_list=gp_list, type=type)
 
     @classmethod
-    def fromfolder(cls, filepath : str):
+    def fromdir(cls, filepath : str, type : str):
         """
         Loads GPs from path and adds them to the GPEnsemble
         :param: path: folder path to load the models. Models will be loaded from inside the folder with the name model_x, model_y, model_z
         """
         print("Loading GPEnsemble from path: ", filepath)
-        breakpoint()
 
-        files_in_directory = os.listdir() # list all the files in the directory
+        files_in_directory = os.listdir(filepath) # list all the files in the directory
         number_of_files = len(files_in_directory)
-        print(f"Found {number_of_files} files in the directory")
+        print(f"Found {number_of_files} files in directory: {filepath}")
         print("Files: ", files_in_directory)
 
         gp_list = list()
         for file in files_in_directory:
-            if file.endswith(".gp"):
+            if file.endswith(".gp") and type == 'GP':
                 path_to_file = os.path.join(filepath, file)
                 gp_list.append(GP.load(path_to_file))
-            elif file.endswith(".rgp"):
+            elif file.endswith(".rgp") and type == 'RGP':
                 path_to_file = os.path.join(filepath, file)
                 gp_list.append(RGP.load(path_to_file))
                 
@@ -94,7 +93,7 @@ class GPEnsemble:
         if isinstance(X_t, cs.MX):
             # ----------------- Casadi prediction -----------------
             for n in range(len(self.gp)):
-                out_j[n] = self.gp[n].predict(X_t[:,n])
+                out_j[n] = self.gp[n].predict(X_t[n])
 
             concat = [out_j[n] for n in range(len(out_j))]
             out = cs.horzcat(*concat)

@@ -40,20 +40,22 @@ class RBF:
     def __call__(self, x1 : float, x2 :  float) -> float:
         """
         Calculate the value of the kernel function given 2 input floats or cs.DM. 
-        :param: x1: float or cs.DM
-        :param: x2: float or cs.DM
+        :param: x1: float or cs.MX
+        :param: x2: float or cs.MX
         """
+
         if (isinstance(x1, float) and isinstance(x2, float)) or (isinstance(x1, int) and isinstance(x2, int)):
             # Scalar implementation
             return float(self.sigma_f**2 * np.exp(-1/2*(x1-x2) * np.linalg.inv(self.L*self.L) * (x1-x2)))
 
 
-        elif isinstance(x1, cs.DM) and isinstance(x2, cs.DM):
+        elif isinstance(x1, cs.MX) or isinstance(x2, cs.MX):
             # Casadi implementation
+            # Use casadi if either x1 or x2 is a casadi object
             dif = x1-x2
             return self.sigma_f**2 * np.exp(-1/2* cs.mtimes(cs.mtimes(dif, np.linalg.inv(self.L*self.L)), dif.T))
         else:
-            raise NotImplementedError("Only numpy and casadi are supported. Is the input a numpy array or casadi DM?")
+            raise NotImplementedError("Only numpy and casadi are supported. Is the input a numpy array or casadi MX?")
 
 
     def calculate_covariance_matrix(self, x1 : np.array, x2 : np.array) -> np.array:
@@ -66,6 +68,11 @@ class RBF:
         
         if isinstance(x1, cs.MX) or isinstance(x2, cs.MX):
             # Casadi implementation
+            if isinstance(x1, np.ndarray):
+                x1 = x1.reshape((x1.shape[0],1))
+            if isinstance(x2, np.ndarray):
+                x2 = x2.reshape((x2.shape[0],1))
+
             cov_mat = cs.MX.zeros((x1.shape[0], x2.shape[0]))
             for i in range(x1.shape[0]):
 
@@ -74,7 +81,7 @@ class RBF:
                 for j in range(x2.shape[0]):
 
                     b = cs.reshape(x2[j,:], 1, x2.shape[1])
-                    cov_mat[i,j] = self.RBF(a,b)
+                    cov_mat[i,j] = self.__call__(a,b)
 
             return cov_mat
         else:
@@ -153,7 +160,7 @@ class RGP:
         :param: std: Boolean value. If true, the standard deviation of the prediction is calculated and returned as well
         :param: return_Jt: Boolean value. If true, the gain matrix Jt is returned as well INTERNAL USE ONLY
         """
-        assert X_t_star.ndim == 1, "X_t_star must be a 1D array"
+
 
         if isinstance(X_t_star, cs.MX):
             # Casadi implementation
@@ -170,7 +177,8 @@ class RGP:
                 std_p_t = cs.sqrt(var_p_t) # The standard deviation of p(g_t|y_t)
         else:
             # Numpy implementation
-            #breakpoint()
+            assert X_t_star.ndim == 1, "X_t_star must be a 1D array"
+
             Jt = self.K.calculate_covariance_matrix(X_t_star, self.X).dot(self.K_x_inv) # Gain matrix
             mu_p_t = Jt.dot(self.mu_g_t) # The a posteriori mean of p(g_t|y_t)
 
