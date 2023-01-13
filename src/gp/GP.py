@@ -56,6 +56,7 @@ class KernelFunction:
             x2 = np.atleast_2d(x2)
 
             dif = x1-x2
+            breakpoint()
             return float(self.sigma_f**2 * np.exp(-1/2*dif.T.dot(np.linalg.inv(self.L*self.L)).dot(dif)))
         else:
             # input is assumed to be a casadi vector
@@ -132,7 +133,6 @@ class GP:
         self.covariance_function = covariance_function
         
         self.theta=theta
-        
         self.kernel = covariance_function(L=np.eye(self.X_dim)*theta[0], sigma_f=theta[-2])
         
         self.noise = theta[-1]

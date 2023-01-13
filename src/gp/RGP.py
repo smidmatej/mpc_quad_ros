@@ -46,8 +46,17 @@ class RBF:
         """
         if isinstance(x1, np.ndarray) and isinstance(x2, np.ndarray):
             # Numpy implementation
+            if x1.shape != x2.shape:
+                raise ValueError("x1 and x2 must have the same shape")
+
+            # Reshape to 1 x d
+            x1 = x1.reshape(1,-1)
+            x2 = x2.reshape(1,-1)
+
             dif = x1-x2
-            return float(self.sigma_f**2 * np.exp(-1/2*dif.T.dot(np.linalg.inv(self.L*self.L)).dot(dif)))
+            #breakpoint()
+            #return float(self.sigma_f**2 * np.exp(-1/2*dif.T.dot(np.linalg.inv(self.L*self.L)).dot(dif)))
+            return float(self.sigma_f**2 * np.exp(-1/2*dif.dot(np.linalg.inv(self.L*self.L)).dot(dif.T)))
 
         elif isinstance(x1, cs.DM) and isinstance(x2, cs.DM):
             # Casadi implementation
@@ -85,9 +94,12 @@ class RBF:
                 # Dimension zero matrix 
                 return np.zeros((0,0))
             
+            #breakpoint()
             cov_mat = np.empty((x1.shape[0], x2.shape[0]))*np.NaN
             x1 = np.atleast_2d(x1)
             x2 = np.atleast_2d(x2)
+            x1 = x1.reshape(-1,1)
+            x2 = x2.reshape(-1,1)
             
             # for all combinations calculate the kernel
             for i in range(x1.shape[0]):
@@ -105,12 +117,14 @@ class RBF:
         
 
 class RGP:
-    def __init__(self, X : np.array, y_ : np.array, theta : np.array = np.array([1.,1.,1.])) -> None:
+    def __init__(self, X : np.array, y_ : np.array, theta : list = [1.,1.,1.]) -> None:
         """
-        :param: X: n x dx np.array, where n is the number of basis vectors and dx is the dimension of the regressor
-        :param: y_: n x dy np.array, where n is the number of basis vectors and dy is the dimension of the response
+        :param: X: n x 1 np.array, where n is the number of basis vectors and dx is the dimension of the regressor
+        :param: y_: n x 1 np.array, where n is the number of basis vectors and dy is the dimension of the response
         """
 
+        # TODO: THIS CLASS CAN IMPLEMENT FIT THE SAME WAY AS GP, SINCE THE GP.FIT TAKES JUST THE BASIS VECTORS AND THEIR RESPONSE
+        # but I dont know the response, the reason to use rgp is to not have to have a response before using gp
         assert X.shape[0] == y_.shape[0], "X and y_ must have the same number of rows"
 
         if y_.shape[1] > 1:
@@ -122,7 +136,10 @@ class RGP:
         self.y_ = y_
         
         # L and sigma_f are the hyperparameters of the RBF kernel function, they are not properties of the RGP
-        L = np.eye(theta[0]) # RBF
+        # L = np.eye(theta[0]) # RBF
+        #breakpoint()
+        L = np.eye(1) * theta[0]
+        #L = np.diag(theta[0])
         sigma_f = theta[1] # RBF
         self.sigma_n = theta[2] # Noise variance
 
@@ -154,7 +171,7 @@ class RGP:
 
         
         
-    def predict(self, X_t_star : np.array, cov : bool, var : bool = False, std : bool = False, return_Jt : bool = False) -> np.array:
+    def predict(self, X_t_star : np.array, cov : bool = False, var : bool = False, std : bool = False, return_Jt : bool = False) -> np.array:
         """
         Predict the value of the response at X_t_star given the data X and y_.
         :param: X_t_star: m x 1 np.array, where m is the number of points to predict at and dx is the dimension of the regressor
@@ -176,9 +193,12 @@ class RGP:
                 std_p_t = cs.sqrt(var_p_t) # The standard deviation of p(g_t|y_t)
         else:
             # Numpy implementation
+            #breakpoint()
             Jt = self.K.calculate_covariance_matrix(X_t_star, self.X).dot(self.K_x_inv) # Gain matrix
             mu_p_t = Jt.dot(self.mu_g_t) # The a posteriori mean of p(g_t|y_t)
 
+            mu_p_t = mu_p_t.ravel() # return as (m,)
+            
             if cov or var or std:
                 # Calculate and return the covariance matrix too
                 K_x_star_star = self.K.calculate_covariance_matrix(X_t_star, X_t_star)
@@ -209,11 +229,14 @@ class RGP:
 
     def regress(self, Xt : np.array, yt : np.array) -> np.array:
         
+        Xt = np.atleast_2d(Xt)
+        yt = np.atleast_2d(yt)
+
         # ------ New data received -> step the memory forward ------
         self.mu_g_t_minus_1 = self.mu_g_t # The a priori mean is the estimate of g at X_
         self.C_g_t_minus_1 = self.C_g_t
 
-        
+        #breakpoint()
         # ------ Inference step ------
         # Infer the a posteriori distribution of p(g_t|y_t) (the estimate of g_t at X_t)
         mu_p_t, C_p_t, Jt = self.predict(Xt, cov = True, return_Jt = True)
