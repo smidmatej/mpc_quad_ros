@@ -42,8 +42,8 @@ import pickle
     
 import argparse
     
-from mpc_quad.src.gp.GP import *
-from mpc_quad.src.gp.GPE import GPEnsemble
+from gp.GP import *
+from gp.GPE import GPEnsemble
 
 from Explorer import Explorer
 

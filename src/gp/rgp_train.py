@@ -46,7 +46,7 @@ def main():
     #filename = 'training_v20_a10_gp0'
     filename = 'training_dataset'
     training_dataset_filepath = os.path.join(dir_path, '../..', 'outputs', environment, 'data', filename + '.pkl')
-    model_save_filepath = os.path.join(dir_path, '../..', 'outputs', environment, 'rgp_models/')
+    model_save_filepath = os.path.join(dir_path, '../..', 'outputs', environment, 'gp_models/')
 
     if args.save != 1:
         model_save_filepath = None
@@ -85,7 +85,7 @@ def train_rgp(training_dataset_filepath, model_save_filepath, n_training_samples
         else:
             gps[n] = RGP(data_loader_gp.X_train[:,n].reshape(-1,1), data_loader_gp.y_train[:,n].reshape(-1,1), theta=theta0[n])
         
-    gpe = GPEnsemble(gps)
+    gpe = GPEnsemble.fromlist(gps)
 
 
     # TODO: Implement regression. Perhaps encapsulate the for loop inside the RGP class

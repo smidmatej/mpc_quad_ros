@@ -56,7 +56,6 @@ class KernelFunction:
             x2 = np.atleast_2d(x2)
 
             dif = x1-x2
-            breakpoint()
             return float(self.sigma_f**2 * np.exp(-1/2*dif.T.dot(np.linalg.inv(self.L*self.L)).dot(dif)))
         else:
             # input is assumed to be a casadi vector
@@ -344,6 +343,7 @@ class GP:
             "X_dim": gp.X_dim,
         }
 
+        save_path = save_path + '.gp'
         with open(save_path, 'wb') as f:
             joblib.dump(saved_vars, f)
         

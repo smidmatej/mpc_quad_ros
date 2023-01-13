@@ -1984,7 +1984,7 @@
         "ng_e": 0,
         "nh": 0,
         "nh_e": 0,
-        "np": 2,
+        "np": 0,
         "nphi": 0,
         "nphi_e": 0,
         "nr": 0,
@@ -2020,10 +2020,7 @@
         },
         "name": "quad_OCP"
     },
-    "parameter_values": [
-        1.0,
-        1.0
-    ],
+    "parameter_values": [],
     "problem_class": "OCP",
     "shared_lib_ext": ".so",
     "simulink_opts": {

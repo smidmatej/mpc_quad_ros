@@ -224,7 +224,7 @@ class quad_optimizer:
             v_body = v_dot_q(self.v, quaternion_inverse(self.q))
             #x_body = cs.vertcat(self.x[0:7], v_body, self.x[10:])
 
-
+            breakpoint()
             # Symbolic prediction
             gp_means = self.gpe.predict(v_body.T).T
 

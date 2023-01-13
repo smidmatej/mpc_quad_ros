@@ -33,38 +33,65 @@ import matplotlib
 
 class GPEnsemble:
 
-    def __init__(self, number_of_dimensions : int = 0, type : str = 'GP') -> None:
+    def __init__(self, gp_list : list = [], type : str = 'GP') -> None:
         """
         Ensamble of (Recursive) Gaussian Process regressors. Holds a list of GP or RGP objects, one for each dimension of the output.
         :param number_of_dimensions: Number of dimensions of the output
         :param type: Type of GP to be used. 'GP' or 'RGP'
         """
-        self.gp = [None]*number_of_dimensions
-        self.number_of_dimensions = number_of_dimensions
-        
+        self.gp = gp_list
         self.type = type
 
-    def __init__(self, gps : list = []) -> None:
-        """
-        Ensamble of (Recursive) Gaussian Process regressors. Holds a list of GP or RGP objects, one for each dimension of the output.
-        :param gps: List of GP or RGP objects
-        """
-        self.gp = gps
-        self.number_of_dimensions = len(gps)
+
+    @classmethod
+    def fromdims(cls, number_of_dimensions : int, type : str):
+        gp_list = [None]*number_of_dimensions
+        return cls(gp_list=gp_list, type=type)
+
+    @classmethod
+    def fromlist(cls, gp_list : list = []):
         
-        if all([isinstance(g, GP) for g in self.gp]):
-            self.type = 'GP'
-        elif all([isinstance(g, RGP) for g in self.gp]):
-            self.type = 'RGP'
+        if all([isinstance(g, GP) for g in gp_list]):
+            type = 'GP'
+        elif all([isinstance(g, RGP) for g in gp_list]):
+            type = 'RGP'
         else:
             raise ValueError("All GP objects in the list must be of the same type")
+
+        return cls(gp_list=gp_list, type=type)
+
+    @classmethod
+    def fromfolder(cls, filepath : str):
+        """
+        Loads GPs from path and adds them to the GPEnsemble
+        :param: path: folder path to load the models. Models will be loaded from inside the folder with the name model_x, model_y, model_z
+        """
+        print("Loading GPEnsemble from path: ", filepath)
+        breakpoint()
+
+        files_in_directory = os.listdir() # list all the files in the directory
+        number_of_files = len(files_in_directory)
+        print(f"Found {number_of_files} files in the directory")
+        print("Files: ", files_in_directory)
+
+        gp_list = list()
+        for file in files_in_directory:
+            if file.endswith(".gp"):
+                path_to_file = os.path.join(filepath, file)
+                gp_list.append(GP.load(path_to_file))
+            elif file.endswith(".rgp"):
+                path_to_file = os.path.join(filepath, file)
+                gp_list.append(RGP.load(path_to_file))
+                
+        return cls(gp_list)
+
 
 
         
     def predict(self, X_t : float, std=False):
         ### TODO: Add std and variance to casadi prediction ###
 
-        out_j = [None]*self.number_of_dimensions
+        out_j = [None]*len(self.gp)
         if isinstance(X_t, cs.MX):
             # ----------------- Casadi prediction -----------------
             for n in range(len(self.gp)):
@@ -78,8 +105,8 @@ class GPEnsemble:
             # in case of prediction on one sample
             X_t = np.atleast_2d(X_t)
             if std:
-                # std requested, need to get std from all gps
-                std = [None]*self.number_of_dimensions
+                # std requested, need to get std from all gp_list
+                std = [None]*len(self.gp)
                 for n in range(len(self.gp)):
                     out_j[n], std[n] = self.gp[n].predict(X_t[:,n].reshape(-1,1), std=True)
                 out = np.concatenate(out_j, axis=1)
@@ -117,10 +144,10 @@ class GPEnsemble:
         if self.type == 'RGP':
             raise NotImplementedError("RGP does not have jacobian() method")
 
-        assert z.shape[1] == self.number_of_dimensions, f"z needs to be n x d,  z.shape={z.shape}, GPE.number_of_dimensions={self.number_of_dimensions}"
+        assert z.shape[1] == len(self.gp), f"z needs to be n x d,  z.shape={z.shape}, GPE.number_of_dimensions={len(self.gp)}"
 
         f_jacobs = list()
-        for col in range(self.number_of_dimensions):
+        for col in range(len(self.gp)):
             f_jacobs.append(self.gp[col].jacobian(z[:,col]))
         return f_jacobs
 
@@ -135,30 +162,32 @@ class GPEnsemble:
         else:
             os.makedirs(path)
             print(f"Created folder {path}, saving models inside")
- 
-        if self.type == 'RGP':
-            xyz_name = ['rgp_x','rgp_y','rgp_z']
-            for i_gp in range(len(self.gp)):
-                path_with_name = os.path.join(path, xyz_name[i_gp])
-                RGP.save(self.gp[i_gp], path_with_name)
 
-        elif self.type == 'GP':
-
-            xyz_name = ['gp_x','gp_y','gp_z']
-            # GPE contains 3 GPs, one for each dimension
-            for i_gp in range(len(self.gp)):
-                path_with_name = os.path.join(path, xyz_name[i_gp])
+        xyz_name = ['mdl_x','mdl_y','mdl_z']
+        for i_gp in range(len(self.gp)):
+            path_with_name = os.path.join(path, xyz_name[i_gp])
+            
+            if self.type == 'GP':
                 GP.save(self.gp[i_gp], path_with_name)
+            elif self.type == 'RGP':
+                RGP.save(self.gp[i_gp], path_with_name)
+            else:
+                raise ValueError(f"Unknown type {self.type}")
         
 
 
-    def load(self, path : str) -> None:
+
+
+    # USE THE CLASSMETHOD TO LOAD THE GPEnsemble!
+    '''
+
+        def load(self, path : str) -> None:
         """
         Loads GPs from path and adds them to the GPEnsemble
         :param: path: folder path to load the models. Models will be loaded from inside the folder with the name model_x, model_y, model_z
         """
         print("Loading GPEnsemble from path: ", path)
-
+        breakpoint()
         if self.type == 'RGP':
             xyz_name = ['rgp_x','rgp_y','rgp_z']
             for i_gp in range(len(xyz_name)):
@@ -176,7 +205,9 @@ class GPEnsemble:
                 self.gp[i_gp] = GP.load(path_with_name)
 
 
-        self.number_of_dimensions = len(self.gp)
+        #len(self.gp) = len(self.gp)
+    '''
+
 
 
     def plot(self, z_train=None, y_train=None, filepath=None, show=True):

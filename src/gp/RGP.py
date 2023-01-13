@@ -421,7 +421,7 @@ class RGP:
             "y": rgp.y_,
             "theta": rgp.mu_eta_t,
         }
-
+        save_path = save_path + '.rgp'
         with open(save_path, 'wb') as f:
             joblib.dump(saved_vars, f)
         

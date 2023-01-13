@@ -38,10 +38,11 @@ def main():
     parser.add_argument("-s", "--save", type=int, required=False, default=1, help="Save the model? 1: yes, 0: no")
     args = parser.parse_args()
 
-    environment = 'gazebo_simulation'
+    #environment = 'gazebo_simulation'
+    environment = 'python_simulation'
     
-    filename = 'training_v20_a10_gp0'
-    #filename = 'training_dataset'
+    #filename = 'training_v20_a10_gp0'
+    filename = 'training_dataset'
     training_dataset_filepath = os.path.join(dir_path, '../..', 'outputs', environment, 'data', filename + '.pkl')
     model_save_filepath = os.path.join(dir_path, '../..', 'outputs', environment, 'gp_models/')
 
@@ -65,23 +66,24 @@ def train_gp(training_dataset_filepath, model_save_filepath, n_training_samples=
 
     data_loader_gp = DataLoaderGP(training_dataset_filepath, number_of_training_samples=n_training_samples)
 
-    gpe = GPEnsemble(ensemble_components)
+    gpe = GPEnsemble.fromdims(3, 'GP')
 
     if theta0 is not None:
         assert len(theta0) == ensemble_components, f"theta0 has to be a list of len {ensemble_components}, passed a list of {len(theta0)}"
 
 
     # -------------- Fill GPE with data from the appropriate dimension --------------
+    gps = [None]*ensemble_components
     for n in range(ensemble_components):
         if theta0 is None:
             # I dont have a guess of the theta0 parameters -> Use the default in GP
-            gp = GP(data_loader_gp.X_train[:,n], data_loader_gp.y_train[:,n])
+            gps.append(GP(data_loader_gp.X_train[:,n], data_loader_gp.y_train[:,n]))
         else:
-            gp = GP(data_loader_gp.X_train[:,n], data_loader_gp.y_train[:,n], theta=theta0[n])
+            gps.append(GP(data_loader_gp.X_train[:,n], data_loader_gp.y_train[:,n], theta=theta0[n]))
         
-        #gpe.add_gp(gpr, n)
-        
-        gpe.gp[n] = gp # Load GP into GPE's list of GPs
+
+
+    gpe = GPEnsemble.fromlist(gps)
 
 
     # -------------- Hyperparameter optimization --------------
