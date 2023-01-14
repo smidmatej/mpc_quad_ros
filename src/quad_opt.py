@@ -103,8 +103,10 @@ class quad_optimizer:
         self.acados_ocp.dims.N = self.n_nodes # prediction horizon
         self.acados_ocp.solver_options.tf = self.t_horizon # look ahead time
         
-        if self.gpe is not None:
-            self.acados_ocp.parameter_values = np.array([1.0, 1.0]) # Default parameter values
+        if self.gpe.type == 'RGP':
+            #self.acados_ocp.parameter_values = np.zeros((self.gpe.gp[0].X.shape[0], len(self.gpe.gp))) # Default parameter values
+            self.acados_ocp.parameter_values = np.zeros((self.gpe.gp[0].X.shape[0] * len(self.gpe.gp))) # Default parameter values
+
 
         self.acados_ocp.cost.cost_type = 'LINEAR_LS' # weigths times states (as opposed to a nonlinear relationship)
         self.acados_ocp.cost.cost_type_e = 'LINEAR_LS' # end state cost
@@ -215,23 +217,25 @@ class quad_optimizer:
 
         if self.gpe is not None:
 
-            self.params = cs.vertcat(cs.MX.sym('gain1'), cs.MX.sym('gain2'))
-            self.params = cs.MX.sym('p_y', len(self.gpe.gp), self.gpe.gp[0].X.shape[0])
 
-            p_y = [None]*len(self.gpe.gp)
-            for d in range(len(self.gpe.gp)):
-                p_y[d] = cs.MX.sym('p_x', 1, self.gpe.gp[d].X.shape[0])
-            
             # Transform to body frame because thats what the gpe were trained on
             v_body = v_dot_q(self.v, quaternion_inverse(self.q))
-            breakpoint()
-            v_body = v_body.tolist()
+            #breakpoint()
+            v_body = [v_body[0], v_body[1], v_body[2]] # 3 x 1 matrix to list of 3 elements
 
             # Symbolic prediction
             if self.gpe.type == "RGP":
-                gp_means = self.gpe.predict_at_y(v_body, p_).T
-            
-            gp_means = self.gpe.predict(v_body).T
+                #breakpoint()
+                # Symbolic basis vectors
+                p_y = [None]*len(self.gpe.gp)
+                for d in range(len(self.gpe.gp)):
+                    p_y[d] = cs.MX.sym('p_x', self.gpe.gp[d].X.shape[0], 1) # n x 1 matrix where n is the number of basis vectors inside RGP
+                self.params = cs.horzcat(*p_y) # n x 3 matrix
+                gp_means = self.gpe.predict_using_y(v_body, p_y).T
+            elif self.gpe.type == "GP":
+                gp_means = self.gpe.predict(v_body).T
+            else:
+                raise ValueError("Unknown GPE type")
 
             # Transform prediction back to world frame because thats what the simulator uses
             gp_means = v_dot_q(gp_means, self.q)
@@ -242,7 +246,7 @@ class quad_optimizer:
 
             
             # Dynamics correction using learned GP
-            f_corrected = self.params[0] * f_dyn + self.params[1] * f_augment
+            f_corrected = f_dyn + f_augment
 
 
             # Dynamics corrected using the gpe 

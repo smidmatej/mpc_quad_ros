@@ -191,7 +191,9 @@ def simulate_trajectory(quad, quad_opt, x0, x_trajectory, simulation_length, Nop
         if i == int(Nopt/2):
             print("Halfway there!")
             for ii in range(quad_opt.n_nodes):
-                quad_opt.acados_ocp_solver.set(ii, 'p', np.array([0.0, 1.0]))
+                rgp_params = 100.0*np.concatenate((np.ones(20), np.zeros(40)))
+                quad_opt.acados_ocp_solver.set(ii, 'p', rgp_params)
+                pass
             #quad_opt.acados_ocp.parameter_values = np.array([0.0, 0.0]) # initial position
             #json_file = '_acados_ocp.json'
             #quad_opt.acados_ocp_solver = AcadosOcpSolver(quad_opt.acados_ocp, json_file=json_file)

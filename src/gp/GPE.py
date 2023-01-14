@@ -33,7 +33,7 @@ import matplotlib
 
 class GPEnsemble:
 
-    def __init__(self, gp_list : list = [], type : str = 'GP') -> None:
+    def __init__(self, gp_list : list, type : str) -> None:
         """
         Ensamble of (Recursive) Gaussian Process regressors. Holds a list of GP or RGP objects, one for each dimension of the output.
         :param number_of_dimensions: Number of dimensions of the output
@@ -81,7 +81,7 @@ class GPEnsemble:
                 path_to_file = os.path.join(filepath, file)
                 gp_list.append(RGP.load(path_to_file))
                 
-        return cls(gp_list)
+        return cls(gp_list, type=type)
 
 
 
@@ -96,39 +96,34 @@ class GPEnsemble:
         assert len(X_t) == len(self.gp), "X_t must be a list of np.ndarray with the same length as the number of GPs in the GPEnsemble"
         assert all([isinstance(X_t[n], np.ndarray) or isinstance(X_t[n], cs.MX) for n in range(len(X_t))]), "X_t must be a list of np.ndarray or casadi.MX"
 
-        out_j = [None]*len(self.gp)
-        if isinstance(X_t, cs.MX):
-            # ----------------- Casadi prediction -----------------
-            for n in range(len(self.gp)):
-                out_j[n] = self.gp[n].predict(X_t[n])
+        mu_dim = [None]*len(self.gp)
+        std_dim = [None]*len(self.gp)
 
-            concat = [out_j[n] for n in range(len(out_j))]
-            out = cs.horzcat(*concat)
-            return out
-
-        elif isinstance(X_t, np.ndarray):
-            # ----------------- Numpy prediction -----------------
-            # in case of prediction on one sample
-            assert X_t[n].ndims == 1, "X_t must be a list of np.ndarray with shape (m,)"
-
+        # Do the predictions
+        for n in range(len(self.gp)):
             if std:
-                # std requested, need to get std from all gp_list
-                std = [None]*len(self.gp)
-                for n in range(len(self.gp)):
-                    out_j[n], std[n] = self.gp[n].predict(X_t[n], std=True)
-                out = np.concatenate(out_j, axis=1)
-                return out, std
+                mu_dim[n], std_dim[n]  = self.gp[n].predict(X_t[n], std=std)
             else:
-                # Nobody wants std
-                for n in range(len(self.gp)):
-                    out_j[n] = self.gp[n].predict(X_t[n])
-                out = np.concatenate(out_j, axis=1)
-                return out
-        else:
-            raise ValueError("X_t must be a list of np.ndarray or casadi.MX")
-            
+                mu_dim[n] = self.gp[n].predict(X_t[n], std=std)
 
-    def predict_at_y(self, X_t : list, y : list, std : bool = False) -> np.ndarray:
+
+        # Output formatting
+        if all([isinstance(mu_dim[n], np.ndarray) for n in range(len(mu_dim))]):
+            mu = np.concatenate(mu_dim, axis=1)
+            if std:
+                std = np.concatenate(std_dim, axis=1)
+                return mu, std
+        elif all([isinstance(mu_dim[n], cs.MX) for n in range(len(mu_dim))]):
+            mu = cs.horzcat(*mu_dim)
+            if std:
+                std = cs.horzcat(*std_dim)
+                return mu, std
+        else:
+            raise ValueError("Output mu must be a list of np.ndarray or casadi.MX")
+        
+        return mu
+
+    def predict_using_y(self, X_t : list, y : list, std : bool = False) -> np.ndarray:
         """
         Predicts the output of the GPEnsemble at X_t given the output y of the GPEnsemble
         :param X_t: list of np.ndarray or cs.MX to the GPEnsemble
@@ -148,21 +143,23 @@ class GPEnsemble:
         # Do the predictions
         for n in range(len(self.gp)):
             if std:
-                mu_dim[n], std_dim[n]  = self.gp[n].predict_at_y(X_t[n], y[n], std=std)
+                mu_dim[n], std_dim[n]  = self.gp[n].predict_using_y(X_t[n], y[n], std=std)
             else:
-                mu_dim[n] = self.gp[n].predict_at_y(X_t[n], y[n], std=std)
-
+                mu_dim[n] = self.gp[n].predict_using_y(X_t[n], y[n], std=std)
+        
         # Output formatting
-        if isinstance(X_t, np.ndarray):
+        if all([isinstance(mu_dim[n], np.ndarray) for n in range(len(mu_dim))]):
             mu = np.concatenate(mu_dim, axis=1)
             if std:
                 std = np.concatenate(std_dim, axis=1)
                 return mu, std
-        elif isinstance(X_t, cs.MX):
+        elif all([isinstance(mu_dim[n], cs.MX) for n in range(len(mu_dim))]):
             mu = cs.horzcat(*mu_dim)
             if std:
                 std = cs.horzcat(*std_dim)
                 return mu, std
+        else:
+            raise ValueError("Output mu must be a list of np.ndarray or casadi.MX")
         
         return mu
 

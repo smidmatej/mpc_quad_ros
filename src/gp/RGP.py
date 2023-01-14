@@ -160,6 +160,9 @@ class RGP:
         :param: std: Boolean value. If true, the standard deviation of the prediction is calculated and returned as well
         :param: return_Jt: Boolean value. If true, the gain matrix Jt is returned as well INTERNAL USE ONLY
         """
+        assert isinstance(X_t_star, np.ndarray) or isinstance(X_t_star, cs.MX), "X_t_star must be a np.array or cs.MX"
+        assert isinstance(y, np.ndarray) or isinstance(y, cs.MX), "y must be a np.array or cs.MX"
+
 
 
         if isinstance(X_t_star, cs.MX):
@@ -219,15 +222,18 @@ class RGP:
         """
         Predict the value of the response at X_t_star given the vector y corresponding to the response of the regressed function at X.
         :param: X_t_star: (m,) np.array or cs.MX, where m is the number of points to predict
-        :param: y: (n,) np.array, where n is the number of basis vectors. The response at the basis points
+        :param: y: (n,) np.array or cs.MX, where n is the number of basis vectors. The response at the basis points
         :param: cov: Boolean value. If true, the covariance matrix of the prediction is calculated and returned as well
         :param: var: Boolean value. If true, the variance of the prediction is calculated and returned as well
         :param: std: Boolean value. If true, the standard deviation of the prediction is calculated and returned as well
         :param: return_Jt: Boolean value. If true, the gain matrix Jt is returned as well INTERNAL USE ONLY
         """
 
+        assert isinstance(X_t_star, np.ndarray) or isinstance(X_t_star, cs.MX), "X_t_star must be a np.array or cs.MX"
+        assert isinstance(y, np.ndarray) or isinstance(y, cs.MX), "y must be a np.array or cs.MX"
 
-        if isinstance(X_t_star, cs.MX):
+
+        if isinstance(X_t_star, cs.MX) or isinstance(y, cs.MX):
             # Casadi implementation
             K_x_star = self.K.calculate_covariance_matrix(X_t_star, self.X)
             Jt = cs.mtimes(K_x_star, self.K_x_inv) # Gain matrix
@@ -240,7 +246,8 @@ class RGP:
                 C_p_t = B + cs.mtimes(Jt, cs.mtimes(self.C_g_t, Jt.T)) # The a posteriori covariance of p(g_t|y_t)
                 var_p_t = cs.diag(C_p_t) # The variance of p(g_t|y_t)
                 std_p_t = cs.sqrt(var_p_t) # The standard deviation of p(g_t|y_t)
-        else:
+
+        elif isinstance(X_t_star, np.ndarray) and isinstance(y, np.ndarray):
             # Numpy implementation
             assert X_t_star.ndim == 1, "X_t_star must be a 1D array"
 
@@ -256,6 +263,8 @@ class RGP:
                 C_p_t = B + Jt.dot(self.C_g_t).dot(Jt.T) # The a posteriori covariance of p(g_t|y_t)
                 var_p_t = np.diag(C_p_t) # The variance of p(g_t|y_t)
                 std_p_t = np.sqrt(var_p_t) # The standard deviation of p(g_t|y_t)
+        else:
+            raise ValueError("Either X_t_star or y must be a cs.MX object, or both must be np.array objects")
             
         if return_Jt:
             if cov:
