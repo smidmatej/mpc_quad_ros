@@ -85,9 +85,16 @@ class GPEnsemble:
 
 
 
-        
-    def predict(self, X_t : float, std=False):
+    def predict(self, X_t : list, std : bool = False) -> np.ndarray:
+        """
+        Predicts the output of the GPEnsemble at X_t
+        :param X_t: list of np.ndarray to the GPEnsemble
+        :param std: If True, returns the standard deviation of the prediction
+        :return: Prediction of the GPEnsemble at X_t
+        """
         ### TODO: Add std and variance to casadi prediction ###
+        assert len(X_t) == len(self.gp), "X_t must be a list of np.ndarray with the same length as the number of GPs in the GPEnsemble"
+        assert all([isinstance(X_t[n], np.ndarray) or isinstance(X_t[n], cs.MX) for n in range(len(X_t))]), "X_t must be a list of np.ndarray or casadi.MX"
 
         out_j = [None]*len(self.gp)
         if isinstance(X_t, cs.MX):
@@ -98,24 +105,68 @@ class GPEnsemble:
             concat = [out_j[n] for n in range(len(out_j))]
             out = cs.horzcat(*concat)
             return out
-        else:
+
+        elif isinstance(X_t, np.ndarray):
             # ----------------- Numpy prediction -----------------
             # in case of prediction on one sample
-            X_t = np.atleast_2d(X_t)
+            assert X_t[n].ndims == 1, "X_t must be a list of np.ndarray with shape (m,)"
+
             if std:
                 # std requested, need to get std from all gp_list
                 std = [None]*len(self.gp)
                 for n in range(len(self.gp)):
-                    out_j[n], std[n] = self.gp[n].predict(X_t[:,n].reshape(-1,1), std=True)
+                    out_j[n], std[n] = self.gp[n].predict(X_t[n], std=True)
                 out = np.concatenate(out_j, axis=1)
                 return out, std
             else:
                 # Nobody wants std
                 for n in range(len(self.gp)):
-                    out_j[n] = self.gp[n].predict(X_t[:,n].reshape(-1,1))
+                    out_j[n] = self.gp[n].predict(X_t[n])
                 out = np.concatenate(out_j, axis=1)
                 return out
+        else:
+            raise ValueError("X_t must be a list of np.ndarray or casadi.MX")
             
+
+    def predict_at_y(self, X_t : list, y : list, std : bool = False) -> np.ndarray:
+        """
+        Predicts the output of the GPEnsemble at X_t given the output y of the GPEnsemble
+        :param X_t: list of np.ndarray or cs.MX to the GPEnsemble
+        :param y: list of np.ndarray or cs.MX of the output of the GPEnsemble
+        :param std: If True, returns the standard deviation of the prediction
+        :return: Prediction of the GPEnsemble at X_t
+        """
+        ### TODO: Add std and variance to casadi prediction ###
+        assert len(X_t) == len(self.gp), "X_t must be a list of np.ndarray with the same length as the number of GPs in the GPEnsemble"
+        assert len(y) == len(self.gp), "y must be a list of np.ndarray with the same length as the number of GPs in the GPEnsemble"
+        assert all([isinstance(X_t[n], np.ndarray) or isinstance(X_t[n], cs.MX) for n in range(len(X_t))]), "X_t must be a list of np.ndarray or casadi.MX"
+        assert all([isinstance(y[n], np.ndarray) or isinstance(y[n], cs.MX) for n in range(len(y))]), "y must be a list of np.ndarray or casadi.MX"
+
+        mu_dim = [None]*len(self.gp)
+        std_dim = [None]*len(self.gp)
+
+        # Do the predictions
+        for n in range(len(self.gp)):
+            if std:
+                mu_dim[n], std_dim[n]  = self.gp[n].predict_at_y(X_t[n], y[n], std=std)
+            else:
+                mu_dim[n] = self.gp[n].predict_at_y(X_t[n], y[n], std=std)
+
+        # Output formatting
+        if isinstance(X_t, np.ndarray):
+            mu = np.concatenate(mu_dim, axis=1)
+            if std:
+                std = np.concatenate(std_dim, axis=1)
+                return mu, std
+        elif isinstance(X_t, cs.MX):
+            mu = cs.horzcat(*mu_dim)
+            if std:
+                std = cs.horzcat(*std_dim)
+                return mu, std
+        
+        return mu
+
+
         
     def fit(self) -> None:
         """

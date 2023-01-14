@@ -41,10 +41,11 @@ def main():
     parser.add_argument("-s", "--save", type=int, required=False, default=1, help="Save the model? 1: yes, 0: no")
     args = parser.parse_args()
 
-    environment = 'python_simulation'
+    #environment = 'python_simulation'
+    environment = 'gazebo_simulation'
     
-    #filename = 'training_v20_a10_gp0'
-    filename = 'training_dataset'
+    filename = 'training_v20_a10_gp0'
+    #filename = 'training_dataset'
     training_dataset_filepath = os.path.join(dir_path, '../..', 'outputs', environment, 'data', filename + '.pkl')
     model_save_filepath = os.path.join(dir_path, '../..', 'outputs', environment, 'gp_models/')
 
@@ -54,7 +55,7 @@ def main():
     gpesamples_plot_filepath = os.path.join(dir_path, '../..', 'outputs', 'graphics', 'rgpesamples_' + filename + '.pdf')
 
     n_training_samples = 20
-    theta0 = [0.1,1,1]*3 # Kernel variables
+    theta0 = [1.0,1.0,1]*3 # Kernel variables
 
     train_rgp(training_dataset_filepath, model_save_filepath, n_training_samples=n_training_samples, show_plots=True, gpefit_plot_filepath=gpefit_plot_filepath, gpesamples_plot_filepath=gpesamples_plot_filepath)
 

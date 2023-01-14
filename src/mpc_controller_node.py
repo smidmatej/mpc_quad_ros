@@ -105,25 +105,6 @@ class MPC_controller:
 
         
         self.logger = RosLogger(log_filename)
-        
-        '''
-        # If logging is enabled
-        # TODO: Add condition for logging
-        if True:
-            if self.trajectory_type == "static":
-                log_filename = "static_dataset"
-            elif self.trajectory_type == "random":
-                log_filename = "random_dataset"
-            elif self.trajectory_type == "circle":
-                log_filename = "circle_dataset"
-            else:
-                log_filename = "trajectory"
-
-            self.logger = RosLogger(log_filename)
-        else:
-            self.logger = None
-        
-        '''
 
 
 

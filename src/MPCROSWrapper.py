@@ -58,8 +58,7 @@ class MPCROSWrapper:
         This method exists to be called inside the MPCROSWrapper constructor and also to be called when the mpc_controller_node retrains the GP ensemble.
         """
         if self.use_gp:
-            gpe = GPEnsemble(3)
-            gpe.load(self.ensemble_path)
+            gpe = GPEnsemble.fromdir(self.ensemble_path, "RGP")
         else:
             gpe = None
 

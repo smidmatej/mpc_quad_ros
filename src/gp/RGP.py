@@ -212,6 +212,71 @@ class RGP:
                 return mu_p_t
 
 
+
+
+
+    def predict_using_y(self, X_t_star : np.array, y : np.array, cov : bool = False, var : bool = False, std : bool = False, return_Jt : bool = False) -> np.array:
+        """
+        Predict the value of the response at X_t_star given the vector y corresponding to the response of the regressed function at X.
+        :param: X_t_star: (m,) np.array or cs.MX, where m is the number of points to predict
+        :param: y: (n,) np.array, where n is the number of basis vectors. The response at the basis points
+        :param: cov: Boolean value. If true, the covariance matrix of the prediction is calculated and returned as well
+        :param: var: Boolean value. If true, the variance of the prediction is calculated and returned as well
+        :param: std: Boolean value. If true, the standard deviation of the prediction is calculated and returned as well
+        :param: return_Jt: Boolean value. If true, the gain matrix Jt is returned as well INTERNAL USE ONLY
+        """
+
+
+        if isinstance(X_t_star, cs.MX):
+            # Casadi implementation
+            K_x_star = self.K.calculate_covariance_matrix(X_t_star, self.X)
+            Jt = cs.mtimes(K_x_star, self.K_x_inv) # Gain matrix
+            mu_p_t = cs.mtimes(Jt, y) # The a posteriori mean of p(g_t|y_t)
+
+            if cov or var or std:
+                K_x_star_star = self.K.calculate_covariance_matrix(X_t_star, X_t_star)
+                # Is self.K.calculate_covariance_matrix(X_t_star, self.X).T = self.K.calculate_covariance_matrix(self.X, X_t_star) ?
+                B =  K_x_star_star - cs.mtimes(Jt, self.K.calculate_covariance_matrix(self.X, X_t_star))
+                C_p_t = B + cs.mtimes(Jt, cs.mtimes(self.C_g_t, Jt.T)) # The a posteriori covariance of p(g_t|y_t)
+                var_p_t = cs.diag(C_p_t) # The variance of p(g_t|y_t)
+                std_p_t = cs.sqrt(var_p_t) # The standard deviation of p(g_t|y_t)
+        else:
+            # Numpy implementation
+            assert X_t_star.ndim == 1, "X_t_star must be a 1D array"
+
+            Jt = self.K.calculate_covariance_matrix(X_t_star, self.X).dot(self.K_x_inv) # Gain matrix
+            mu_p_t = Jt.dot(y) # The a posteriori mean of p(g_t|y_t)
+
+            mu_p_t = mu_p_t.ravel() # return as (m,)
+            
+            if cov or var or std:
+                # Calculate and return the covariance matrix too
+                K_x_star_star = self.K.calculate_covariance_matrix(X_t_star, X_t_star)
+                B = K_x_star_star - Jt.dot(self.K.calculate_covariance_matrix(self.X, X_t_star)) # Covariance of p(g_t|g_)
+                C_p_t = B + Jt.dot(self.C_g_t).dot(Jt.T) # The a posteriori covariance of p(g_t|y_t)
+                var_p_t = np.diag(C_p_t) # The variance of p(g_t|y_t)
+                std_p_t = np.sqrt(var_p_t) # The standard deviation of p(g_t|y_t)
+            
+        if return_Jt:
+            if cov:
+                return mu_p_t, C_p_t, Jt
+            elif var:
+                return mu_p_t, var_p_t, Jt
+            elif std:
+                return mu_p_t, std_p_t, Jt
+            else:
+                return mu_p_t, Jt
+        else:
+            if cov:
+                return mu_p_t, C_p_t
+            elif var:
+                return mu_p_t, var_p_t
+            elif std:
+                return mu_p_t, std_p_t
+            else:
+                return mu_p_t
+
+
     def regress(self, Xt : np.array, yt : np.array) -> np.array:
         """
         Modify the RGP mean and covariance to account for new data Xt and yt.

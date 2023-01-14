@@ -82,9 +82,6 @@ def main():
         gpe = None
 
 
-
-    
-
     trajectory_generator = TrajectoryGenerator()
 
     v_max_limit = 30
@@ -188,18 +185,19 @@ def simulate_trajectory(quad, quad_opt, x0, x_trajectory, simulation_length, Nop
     simulation_time = 0
     for i in tqdm(range(Nopt)):
         
-        if i >= int(Nopt/2):
+        #if i >= int(Nopt/2):
+
+
+        if i == int(Nopt/2):
+            print("Halfway there!")
             for ii in range(quad_opt.n_nodes):
                 quad_opt.acados_ocp_solver.set(ii, 'p', np.array([0.0, 1.0]))
-
-            if i == int(Nopt/2):
-                print("Halfway there!")
-                #quad_opt.acados_ocp.parameter_values = np.array([0.0, 0.0]) # initial position
-                #json_file = '_acados_ocp.json'
-                #quad_opt.acados_ocp_solver = AcadosOcpSolver(quad_opt.acados_ocp, json_file=json_file)
-                
-                
-                print(quad_opt.acados_ocp.model.f_impl_expr)
+            #quad_opt.acados_ocp.parameter_values = np.array([0.0, 0.0]) # initial position
+            #json_file = '_acados_ocp.json'
+            #quad_opt.acados_ocp_solver = AcadosOcpSolver(quad_opt.acados_ocp, json_file=json_file)
+            
+            
+            print(quad_opt.acados_ocp.model.f_impl_expr)
 
         # Set the part of trajectory relevant for current time as the MPC reference
         x_ref = utils.get_reference_chunk(x_trajectory, i, quad_opt.n_nodes)
