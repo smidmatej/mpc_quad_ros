@@ -35,41 +35,38 @@ class quad_optimizer:
         self.n_nodes = n_nodes
         self.t_horizon = t_horizon
         self.gpe = gpe
-        #self.optimization_dt = optimization_dt
 
         self.optimization_dt = self.t_horizon/self.n_nodes
-        #self.t_horizon = self.n_nodes*self.optimization_dt # look-ahead time
-        
+        self.terminal_cost = 1
+
         self.quad = quad # quad is needed to create the casadi model using quad parameters
         self.dynamics = self.setup_casadi_model()
-        #self.dynamics = self.f_dict['f_dyn']# + self.f_dict['f_augment'] 
        
         self.x_dot = cs.MX.sym('x_dot', self.dynamics(x=self.x, u=self.u)['f'].shape)  # x_dot has the same dimensions as the dynamics function output
 
-        #print(dynamics(x=x, u=u)['x_dot'])
-
-        #optimization_dt = 5e-2 # dt between predicted states
-        #n_nodes = 100 # number of predicted states
-        
-
-        #self.discrete_dynamics = 
-
-        self.terminal_cost = 1
 
         self.acados_model = AcadosModel()
         self.acados_model.name = 'quad_OCP'
         self.acados_model.x = self.x
         self.acados_model.u = self.u
         self.acados_model.p = self.params
-        #acados_model.x_dot = x_dot
         
-        #breakpoint()
+        if self.gpe.type == 'RGP':
+            self.acados_model.f_expl_expr = self.dynamics(x=self.x, u=self.u, p=self.params)['f'] # x_dot = f
+            self.acados_model.f_impl_expr = self.x_dot - self.dynamics(x=self.x, u=self.u, p=self.params)['f'] # 0 = f - x_dot
+        else:
+            self.acados_model.f_expl_expr = self.dynamics(x=self.x, u=self.u)['f']
+            self.acados_model.f_impl_expr = self.x_dot - self.dynamics(x=self.x, u=self.u)['f']
+
+        '''
         if self.gpe is not None:
             self.acados_model.f_expl_expr = self.dynamics(x=self.x, u=self.u, p=self.params)['f'] # x_dot = f
             self.acados_model.f_impl_expr = self.x_dot - self.dynamics(x=self.x, u=self.u, p=self.params)['f'] # 0 = f - x_dot
         else:
             self.acados_model.f_expl_expr = self.dynamics(x=self.x, u=self.u)['f']
             self.acados_model.f_impl_expr = self.x_dot - self.dynamics(x=self.x, u=self.u)['f']
+        '''
+
         
 
         self.nx = self.acados_model.x.size()[0]
@@ -107,7 +104,7 @@ class quad_optimizer:
         self.acados_ocp.solver_options.tf = self.t_horizon # look ahead time
         
         if self.gpe is not None:
-            self.acados_ocp.parameter_values = np.array([1.0, 1.0]) # initial position
+            self.acados_ocp.parameter_values = np.array([1.0, 1.0]) # Default parameter values
 
         self.acados_ocp.cost.cost_type = 'LINEAR_LS' # weigths times states (as opposed to a nonlinear relationship)
         self.acados_ocp.cost.cost_type_e = 'LINEAR_LS' # end state cost
@@ -219,14 +216,22 @@ class quad_optimizer:
         if self.gpe is not None:
 
             self.params = cs.vertcat(cs.MX.sym('gain1'), cs.MX.sym('gain2'))
+            self.params = cs.MX.sym('p_y', len(self.gpe.gp), self.gpe.gp[0].X.shape[0])
 
+            p_y = [None]*len(self.gpe.gp)
+            for d in range(len(self.gpe.gp)):
+                p_y[d] = cs.MX.sym('p_x', 1, self.gpe.gp[d].X.shape[0])
+            
             # Transform to body frame because thats what the gpe were trained on
             v_body = v_dot_q(self.v, quaternion_inverse(self.q))
-            #x_body = cs.vertcat(self.x[0:7], v_body, self.x[10:])
-
             breakpoint()
+            v_body = v_body.tolist()
+
             # Symbolic prediction
-            gp_means = self.gpe.predict(v_body.T).T
+            if self.gpe.type == "RGP":
+                gp_means = self.gpe.predict_at_y(v_body, p_).T
+            
+            gp_means = self.gpe.predict(v_body).T
 
             # Transform prediction back to world frame because thats what the simulator uses
             gp_means = v_dot_q(gp_means, self.q)
