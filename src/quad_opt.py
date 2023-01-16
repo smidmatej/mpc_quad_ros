@@ -51,9 +51,10 @@ class quad_optimizer:
         self.acados_model.u = self.u
         self.acados_model.p = self.params
         
-        if self.gpe.type == 'RGP':
-            self.acados_model.f_expl_expr = self.dynamics(x=self.x, u=self.u, p=self.params)['f'] # x_dot = f
-            self.acados_model.f_impl_expr = self.x_dot - self.dynamics(x=self.x, u=self.u, p=self.params)['f'] # 0 = f - x_dot
+        if self.gpe is not None:
+            if self.gpe.type == 'RGP':
+                self.acados_model.f_expl_expr = self.dynamics(x=self.x, u=self.u, p=self.params)['f'] # x_dot = f
+                self.acados_model.f_impl_expr = self.x_dot - self.dynamics(x=self.x, u=self.u, p=self.params)['f'] # 0 = f - x_dot
         else:
             self.acados_model.f_expl_expr = self.dynamics(x=self.x, u=self.u)['f']
             self.acados_model.f_impl_expr = self.x_dot - self.dynamics(x=self.x, u=self.u)['f']
@@ -102,10 +103,10 @@ class quad_optimizer:
         self.acados_ocp.model = self.acados_model
         self.acados_ocp.dims.N = self.n_nodes # prediction horizon
         self.acados_ocp.solver_options.tf = self.t_horizon # look ahead time
-        
-        if self.gpe.type == 'RGP':
-            #self.acados_ocp.parameter_values = np.zeros((self.gpe.gp[0].X.shape[0], len(self.gpe.gp))) # Default parameter values
-            self.acados_ocp.parameter_values = np.zeros((self.gpe.gp[0].X.shape[0] * len(self.gpe.gp))) # Default parameter values
+        if self.gpe is not None:
+            if self.gpe.type == 'RGP':
+                #self.acados_ocp.parameter_values = np.zeros((self.gpe.gp[0].X.shape[0], len(self.gpe.gp))) # Default parameter values
+                self.acados_ocp.parameter_values = np.zeros((self.gpe.gp[0].X.shape[0] * len(self.gpe.gp))) # Default parameter values
 
 
         self.acados_ocp.cost.cost_type = 'LINEAR_LS' # weigths times states (as opposed to a nonlinear relationship)

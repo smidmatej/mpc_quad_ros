@@ -161,7 +161,6 @@ class RGP:
         :param: return_Jt: Boolean value. If true, the gain matrix Jt is returned as well INTERNAL USE ONLY
         """
         assert isinstance(X_t_star, np.ndarray) or isinstance(X_t_star, cs.MX), "X_t_star must be a np.array or cs.MX"
-        assert isinstance(y, np.ndarray) or isinstance(y, cs.MX), "y must be a np.array or cs.MX"
 
 
 

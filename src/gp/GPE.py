@@ -164,6 +164,33 @@ class GPEnsemble:
         return mu
 
 
+    def regress(self, X_t : list, y_t : list) -> list:
+        """
+        Regress the RGP to the data X_t, y_t
+        :param X_t: list of np.ndarray to the GPEnsemble
+        :param y_t: list of np.ndarray to the GPEnsemble
+        :return: Prediction of the GPEnsemble at X_t
+        """
+        ### TODO: Add std and variance to casadi prediction ###
+        assert len(X_t) == len(self.gp), "X_t must be a list of np.ndarray with the same length as the number of GPs in the GPEnsemble"
+        assert all([isinstance(X_t[n], np.ndarray)for n in range(len(X_t))]), "X_t must be a list of np.ndarray"
+        assert len(y_t) == len(self.gp), "y_t must be a list of np.ndarray with the same length as the number of GPs in the GPEnsemble"
+        assert all([isinstance(y_t[n], np.ndarray)for n in range(len(y_t))]), "y_t must be a list of np.ndarray"
+
+        mu_dim = [None]*len(self.gp)
+        C_dim = [None]*len(self.gp)
+
+        # Do the regressions
+        for n in range(len(self.gp)):
+                mu_dim[n], C_dim[n]  = self.gp[n].regress(X_t[n], y_t[n])
+
+        #breakpoint()
+        # Output formatting
+        #mu = np.concatenate(mu_dim, axis=1)
+        #C = np.concatenate(C_dim, axis=1)
+        return mu_dim, C_dim
+
+
         
     def fit(self) -> None:
         """

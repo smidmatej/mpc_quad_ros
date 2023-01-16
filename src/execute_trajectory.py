@@ -31,7 +31,8 @@ from tqdm import tqdm
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 
 from quad import Quadrotor3D
-from utils.utils import skew_symmetric, quaternion_to_euler, unit_quat, v_dot_q, quaternion_inverse
+#from utils.utils import skew_symmetric, quaternion_to_euler, unit_quat, v_dot_q, quaternion_inverse
+
 from utils import utils
 from quad_opt import quad_optimizer
 from utils.save_dataset import *
@@ -138,6 +139,8 @@ def main():
         
 
     x_trajectory, t_trajectory = trajectory_generator.load_trajectory()
+    
+    #t_trajectory = t_trajectory[:len(t_trajectory)//4] # TODO: Remove this
     simulation_length = max(t_trajectory) # Simulation duration for this script
     # Simulation runs for simulation_length seconds and MPC is calculated every quad_opt.optimization_dt
     Nopt = round(simulation_length/quad_opt.optimization_dt) # number of times MPC control is calculated steps
@@ -175,7 +178,9 @@ def simulate_trajectory(quad, quad_opt, x0, x_trajectory, simulation_length, Nop
     solution_times = list()
     cost_solutions = list()
 
-
+    rgp_params = list()
+    mu_regress = list()
+    a_dif = list()
 
     # Set quad to start position
     #quad.set_state(x)
@@ -188,11 +193,14 @@ def simulate_trajectory(quad, quad_opt, x0, x_trajectory, simulation_length, Nop
         #if i >= int(Nopt/2):
 
 
+
         if i == int(Nopt/2):
             print("Halfway there!")
             for ii in range(quad_opt.n_nodes):
-                rgp_params = 100.0*np.concatenate((np.ones(20), np.zeros(40)))
-                quad_opt.acados_ocp_solver.set(ii, 'p', rgp_params)
+                # TODO: find out which parameters belong to which model. First 20 belong to x?
+                # Mean value of the RGP at basis vectors
+                #quad_opt.gpe.gp[0].mu_g_t 
+
                 pass
             #quad_opt.acados_ocp.parameter_values = np.array([0.0, 0.0]) # initial position
             #json_file = '_acados_ocp.json'
@@ -211,8 +219,9 @@ def simulate_trajectory(quad, quad_opt, x0, x_trajectory, simulation_length, Nop
         x_opt_acados, w_opt_acados, t_cpu, cost_solution = quad_opt.run_optimization(x)
         u = w_opt_acados[0,:] # control to be applied to quad
 
-        #x_pred = quad_opt.discrete_dynamics(x, u, simulation_dt)
-        x_pred = x_opt_acados[1,:]
+
+        x_pred = np.array(quad_opt.discrete_dynamics(x, u, simulation_dt)).ravel()
+        #x_pred = x_opt_acados[1,:]
         # Save nlp solution diagnostics
         solution_times.append(t_cpu)
         cost_solutions.append(cost_solution)
@@ -223,6 +232,44 @@ def simulate_trajectory(quad, quad_opt, x0, x_trajectory, simulation_length, Nop
         w_odom.append(u)
         t_odom.append(simulation_time)
         x_pred_odom.append(x_pred)
+
+        # Regress RGP
+        if quad_opt.gpe is not None:
+            if quad_opt.gpe.type == 'RGP':
+                if i > 0:
+                    # Ignore first step
+                    #sbreakpoint()
+                    # Get the drag force from the difference between the predicted and actual velocity
+                    x_world = x
+                    #x_world_pred = np.array(quad_opt.discrete_dynamics(x, u, quad_opt.optimization_dt)).ravel()
+                    x_world_pred = x_pred_odom[-1]
+                    v_body = utils.v_dot_q(x_world[7:10], utils.quaternion_inverse(x_world[3:7]))
+                    v_body_pred = utils.v_dot_q(x_world_pred[7:10], utils.quaternion_inverse(x_world_pred[3:7]))
+                    a_drag = (v_body - v_body_pred)/quad_opt.optimization_dt
+
+                    a_drag_body = quad.get_aero_drag(x_body_for_drag, body_frame=True).ravel()
+                    #breakpoint()
+                    a_dif.append(a_drag_body - a_drag)
+                    
+                    # Convert to list of arrays for gpe 
+                    v_body = [np.array([v_body[i]]) for i in range(3)]
+                    a_drag = [np.array([a_drag[i]]) for i in range(3)]
+
+                    
+                    #breakpoint()
+                    
+                    mu, C = quad_opt.gpe.regress(v_body, a_drag)
+                    mu_regress.append(mu)
+                
+
+                rgp_params.append(np.concatenate([quad_opt.gpe.gp[d].mu_g_t for d in range(len(quad_opt.gpe.gp))]))
+                #rgp_params.append(10.0*np.concatenate((np.ones(20), np.zeros(40))))
+            
+                #print(rgp_params)
+                #rgp_params = 10.0*np.concatenate([np.array([1.0, 0.0, 0.0]) for i in range(20)])
+                for ii in range(quad_opt.n_nodes):
+                    quad_opt.acados_ocp_solver.set(ii, 'p', rgp_params[-1])
+
 
         control_time = 0
         # Simulate the quad plant with the optimal control until the next MPC optimization step is reached
@@ -315,6 +362,63 @@ def simulate_trajectory(quad, quad_opt, x0, x_trajectory, simulation_length, Nop
     
     save_dict(data, save_filepath)
     print(f'Saved simulated data to {save_filepath}')
+
+    # Plot the results
+    plt.figure(figsize=(10, 10), dpi=100)
+    plt.plot(range(Nopt), rgp_params)
+    plt.show()
+
+    plt.figure(figsize=(10, 10), dpi=100)
+    plt.plot(range(Nopt-1), a_dif)
+    plt.show()
+
+
+    print('Rendering animation...')
+    
+    X_ = [None]*len(quad_opt.gpe.gp)
+    for d in range(len(quad_opt.gpe.gp)):
+        X_[d] = quad_opt.gpe.gp[d].X
+    
+    def animate(i):
+        for d in range(len(quad_opt.gpe.gp)):
+            scat_basis_vectors[d].set_offsets(np.array([X_[d].ravel(), mu_regress[i][d].ravel()]).T)
+
+        pbar.update()
+
+
+    animation.writer = animation.writers['ffmpeg']
+    plt.ioff() # Turn off interactive mode to hide rendering animations
+
+
+
+
+    plt.style.use('fast')
+    sns.set_style("whitegrid")
+
+    #gs = gridspec.GridSpec(2, 2)
+    scat_basis_vectors = [None]*len(quad_opt.gpe.gp)
+    fig = plt.figure(figsize=(10,10), dpi=100)
+    for d in range(len(quad_opt.gpe.gp)): 
+        ax = fig.add_subplot(1,3,d+1)
+        scat_basis_vectors[d] = ax.scatter([], [], marker='o', label='Basis Vectors')
+        ax.set_xlim(( min(X_[d])) , max(X_[d]))
+        ax.set_ylim(( min([min(mu_regress[i][d]) for i in range(len(mu_regress))])) , max([max(mu_regress[i][d]) for i in range(len(mu_regress))]))
+        #ax.set_ylim((min((min(y_), min(y_t), min(y_true))) , max((max(y_), max(y_t), max(y_true)))))
+        #ax.set_ylim((-10,10))
+        ax.set_xlabel('x')
+        ax.set_ylabel('y')
+        ax.set_title('Recursive Gaussian Process')
+        ax.legend()
+
+
+
+
+    pbar = tqdm(total=len(mu_regress))
+    ani = animation.FuncAnimation(fig, animate, frames=len(mu_regress), interval=500)     
+    ani.save('regression.mp4', writer='ffmpeg', fps=10, dpi=100)
+    ani.save('regression.gif', writer='imagemagick', fps=10, dpi=100)
+    pbar.close()
+    plt.show()
 
 
     

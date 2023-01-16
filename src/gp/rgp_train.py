@@ -41,11 +41,11 @@ def main():
     parser.add_argument("-s", "--save", type=int, required=False, default=1, help="Save the model? 1: yes, 0: no")
     args = parser.parse_args()
 
-    #environment = 'python_simulation'
-    environment = 'gazebo_simulation'
+    environment = 'python_simulation'
+    #environment = 'gazebo_simulation'
     
-    filename = 'training_v20_a10_gp0'
-    #filename = 'training_dataset'
+    #filename = 'training_v20_a10_gp0'
+    filename = 'training_dataset'
     training_dataset_filepath = os.path.join(dir_path, '../..', 'outputs', environment, 'data', filename + '.pkl')
     model_save_filepath = os.path.join(dir_path, '../..', 'outputs', environment, 'gp_models/')
 
