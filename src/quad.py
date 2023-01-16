@@ -81,8 +81,8 @@ class Quadrotor3D:
 		#self.rotor_drag_z = 0.0  # No rotor drag in the z dimension
 		
 		self.rotor_drag = np.array([self.rotor_drag_xy, self.rotor_drag_xy, self.rotor_drag_z])[:, np.newaxis]
-		self.aero_drag = 0.08
-		#self.aero_drag = 80
+		#self.aero_drag = 0.08
+		self.aero_drag = 0.8
 
 		self.payload_mass = 0.3  # kg
 		self.payload_mass = self.payload_mass * payload
@@ -129,14 +129,6 @@ class Quadrotor3D:
 				return [self.pos, angle, self.vel, self.a_rate]
 
 		
-
-
-		
-
-
-
-
-
 
 	def get_control(self):
 

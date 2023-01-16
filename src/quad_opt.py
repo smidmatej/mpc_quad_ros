@@ -78,22 +78,7 @@ class quad_optimizer:
             self.np = self.acados_model.p.size()[0]
         self.ny = self.nx + self.nu # y is x and u concatenated for compactness of the loss function
 
-        print('Before change')
-        print(self.acados_model.f_impl_expr)
 
-        '''
-        for i in range(3):
-            self.gpe.gp[i].z_train = np.zeros((self.gpe.gp[i].n_train,))
-            self.gpe.gp[i].y_train = np.zeros((self.gpe.gp[i].n_train,))
-        
-        #self.gpe.gp[0].z_train = np.zeros((self.gpe.gp[0].n_train,))
-        print('After change')
-        print(self.acados_model.f_impl_expr)
-        '''
-
-        #self.acados_model.set_param('gain', 1)
-        print('After change')
-        print(self.acados_model.f_impl_expr)
         self.acados_ocp = AcadosOcp()
 
         self.acados_source_path = os.environ['ACADOS_SOURCE_DIR']
