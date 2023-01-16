@@ -77,9 +77,10 @@ def train_gp(training_dataset_filepath, model_save_filepath, n_training_samples=
     for n in range(ensemble_components):
         if theta0 is None:
             # I dont have a guess of the theta0 parameters -> Use the default in GP
-            gps[n] = (GP(data_loader_gp.X_train[:,n], data_loader_gp.y_train[:,n]))
+
+            gps[n] = (GP(data_loader_gp.X_train[:,n].reshape(-1), data_loader_gp.y_train[:,n].reshape(-1)))
         else:
-            gps[n] = (GP(data_loader_gp.X_train[:,n], data_loader_gp.y_train[:,n], theta=theta0[n]))
+            gps[n] = (GP(data_loader_gp.X_train[:,n].reshape(-1), data_loader_gp.y_train[:,n].reshape(-1), theta=theta0[n]))
         
 
 

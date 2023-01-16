@@ -84,7 +84,8 @@ def train_rgp(training_dataset_filepath, model_save_filepath, n_training_samples
             # I dont have a guess of the theta0 parameters -> Use the default in GP
             gps[n] = RGP(X_, y_)
         else:
-            gps[n] = RGP(data_loader_gp.X_train[:,n].reshape(-1,1), data_loader_gp.y_train[:,n].reshape(-1,1), theta=theta0[n])
+            raise NotImplementedError
+            #gps[n] = RGP(data_loader_gp.X_train[:,n].reshape(-1,1), data_loader_gp.y_train[:,n].reshape(-1,1), theta=theta0[n])
         
     gpe = GPEnsemble.fromlist(gps)
 

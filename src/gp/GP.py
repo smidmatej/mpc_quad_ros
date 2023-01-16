@@ -41,34 +41,29 @@ class KernelFunction:
                         "sigma_f": self.sigma_f
                         }
         
-    def __call__(self, x1, x2):
+    def __call__(self, x1 : float, x2 : float) -> float:
         """
         Calculate the value of the kernel function given 2 input vectors
-        
-        :param: x1: np.array or cs.MX of dimension 1 x d 
-        :param: x2: np.array or cs.MX of dimension 1 x d 
+        :param: x1: float or cs.MX of dimension 1
+        :param: x2: float or cs.MX of dimension 1
+        :return: k(x1,x2) float or cs.MX of dimension 1
         """
         assert self.kernel_type == "SEK", f"Kernel type is not of type SEK, kernel_type={self.kernel_type}"
 
-        if isinstance(x1, np.ndarray) and isinstance(x2, np.ndarray): 
-            # assure that x is not onedimensional
-            x1 = np.atleast_2d(x1)
-            x2 = np.atleast_2d(x2)
 
-            dif = x1-x2
-            return float(self.sigma_f**2 * np.exp(-1/2*dif.T.dot(np.linalg.inv(self.L*self.L)).dot(dif)))
-        else:
-            # input is assumed to be a casadi vector
-            # Only implemented for scalar symbolics
-            #print(self.L.shape)
-            #assert self.L.shape == (1,1), "Symbolic kernel evaluation only works for n x 1 inputs, create a kernel with L.shape = (1,1)"
-            assert x1.shape[1] == self.L.shape[0] and x2.shape[1] == self.L.shape[0] , f"Cannot multiply L with x1 or x2, L.shape={self.L.shape}, x1.shape={x1.shape}, x2.shape={x2.shape    }"
+        if (isinstance(x1, float) and isinstance(x2, float)) or (isinstance(x1, int) and isinstance(x2, int)):
+            # Scalar implementation
+            return float(self.sigma_f**2 * np.exp(-1/2*(x1-x2) * np.linalg.inv(self.L*self.L) * (x1-x2)))
 
-            assert x1.shape[1] == x2.shape[1], "Inputs to kernel need identical second axis dimensions"
-            assert x1.shape[0] == 1 and x2.shape[0] == 1, f"Kernel function defined only for 1 x d casadi symbolics, x1.shape={x1.shape}, x2.shape={x2.shape    }"
 
+        elif isinstance(x1, cs.MX) or isinstance(x2, cs.MX):
+            # Casadi implementation
+            # Use casadi if either x1 or x2 is a casadi object
             dif = x1-x2
             return self.sigma_f**2 * np.exp(-1/2* cs.mtimes(cs.mtimes(dif, np.linalg.inv(self.L*self.L)), dif.T))
+        else:
+            raise NotImplementedError("Only numpy and casadi are supported. Is the input a numpy array or casadi MX?")
+
 
 
     def __str__(self):
@@ -91,40 +86,26 @@ class GP:
             self.initialize(X, y, covariance_function, theta)
 
         
-    def initialize(self, X, y, covariance_function, theta):
+    def initialize(self, X : np.ndarray, y : np.ndarray, covariance_function, theta) -> None:
         """
         The whole contructor is in this method. This method is called when contructing this class and after self.fit()
         
-        :param: X: np.array of n samples with dimension d. Input samples for regression
-        :param: y: np.array of n samples with dimension d. Output samples for regression
+        :param: X: (n,) np.ndarray of n samples. Input samples for regression
+        :param: y: (n,) np.ndarray of n samplesd. Output samples for regression
         :param: covariance_function: Reference to a KernelFunction
-        :param: theta: np.array of hyperparameters
+        :param: theta: np.ndarray of hyperparameters
         """
+
+        assert X.ndim == 1, f"X.ndim = {X.ndim}, X.ndim must be 1"
+        assert y.ndim == 1, f"y.ndim = {y.ndim}, y.ndim must be 1"
 
         if X is None or y is None:
             # No training data given, gp will only provide prior predictions
             self.n_train = 0
             self.X_dim = 1 # this needs to be set in a general way for prediction from prior
         else:
-            # Assure that the training data has the correct format
-            if X.ndim < 2 and X.shape != (1,1):
-                # input is a (n,) np.array
-                X = X.reshape((-1,1))
-            else:
-                # input is a scalar or ndim >=2
-                y = np.atleast_2d(y)
-
-
-            if y.ndim == 1 and y.shape != (1,1):
-                # input is a (n,)
-                y = y.reshape((-1,1))
-            else:
-                # input is a scalar or ndim >=2
-                y = np.atleast_2d(y)
-
-
             self.n_train = X.shape[0]
-            self.X_dim = X.shape[1]
+            self.X_dim = 1
 
 
         self.X = X
@@ -151,25 +132,25 @@ class GP:
 
 
 
-    def predict(self, at_values_z, cov=False, var=False, std=False):
+    def predict(self, X_star, cov=False, var=False, std=False):
         """
-        Evaluate the posterior mean m(z) and covariance sigma for supplied values of z
-        
-        :param at_values_z: np vector to evaluate at
+        Evaluate the posterior mean m(x) and covariance sigma for supplied values of X_star
+        :param X_star: (m,) np.ndarray of values to evaluate the posterior mean and covariance for, where m is the number of evaluation points
         """
+        assert X_star.ndim == 1, "X_star must be a 1D np.ndarray"
 
         ### TODO: Add std and variance to casadi prediction ###
-        sigma_k = self.calculate_covariance_matrix(self.X, at_values_z, self.kernel)
-        sigma_kk = self.calculate_covariance_matrix(at_values_z, at_values_z, self.kernel)
+        sigma_k = self.calculate_covariance_matrix(self.X, X_star, self.kernel)
+        sigma_kk = self.calculate_covariance_matrix(X_star, X_star, self.kernel)
 
 
         if self.n_train == 0:
-            mean_at_values = np.zeros((at_values_z.shape[0],1))
+            mean_at_values = np.zeros((X_star.shape[0],1))
         
             cov_matrix = sigma_kk
         
         else:
-            if isinstance(at_values_z, cs.MX):
+            if isinstance(X_star, cs.MX):
                 mean_at_values = cs.mtimes(sigma_k.T, cs.mtimes(self.inv_cov_matrix_of_input_data, self.y))
                 
                 cov_matrix = np.eye(1) # TODO: Calculate covariance matrix for prediction if needed
@@ -198,15 +179,15 @@ class GP:
         
 
         
-    def draw_function_sample(self, at_values_z, n_sample_functions=1):
+    def draw_function_sample(self, X_star, n_sample_functions=1):
         """ 
-        Draw a function from the current distribution evaluated at at_values_z.
+        Draw a function from the current distribution evaluated at X_star.
         
-        :param at_values_z: np vector to evaluate function at
+        :param X_star: np vector to evaluate function at
         :param n_sample_functions: allows for multiple sample draws from the same distribution
         """
 
-        mean_at_values, cov_matrix = self.predict(at_values_z, cov=True)
+        mean_at_values, cov_matrix = self.predict(X_star, cov=True)
         y_sample = np.random.multivariate_normal(mean=mean_at_values.ravel(), cov=cov_matrix, size=n_sample_functions)
         return y_sample
         
@@ -256,7 +237,7 @@ class GP:
         """
 
         # Kernel function k(x1,x2)
-        k = self.covariance_function(L=np.eye(self.X.shape[1])*theta[0], sigma_f=theta[-2])
+        k = self.covariance_function(L=np.eye(self.X_dim)*theta[0], sigma_f=theta[-2])
         
         # Evaluate k(x,x) over all combinations of x1 and x2
         K = self.calculate_covariance_matrix(self.X, self.X, k) + \
@@ -283,16 +264,24 @@ class GP:
 
 
     @staticmethod
-    def calculate_covariance_matrix(x1 : np.array, x2 : np.array, kernel):
+    def calculate_covariance_matrix(x1 : np.array, x2 : np.array, kernel) -> np.array:
         """
         Fills in a matrix with k(x1[i,:], x2[j,:])
         
-        :param: x1: n x d np.array, where n is the number of samples and d is the dimension of the regressor
-        :param: x2: n x d np.array, where n is the number of samples and d is the dimension of the regressor
-        :param: kernel: Instance of a KernelFunction class
+        :param: x1: (n,) np.ndarray, where n is the number of samples to evaluate for
+        :param: x2: (m,) np.ndarray, where m is the number of samples samples to evaluate for
+        :param: kernel Instance of a KernelFunction class
+        :return: (n,m) np.ndarray with k(x1[i], x2[j]) for all i and j
         """
+
+        
         if isinstance(x1, cs.MX) or isinstance(x2, cs.MX):
             # Casadi implementation
+            if isinstance(x1, np.ndarray):
+                x1 = x1.reshape((x1.shape[0],1))
+            if isinstance(x2, np.ndarray):
+                x2 = x2.reshape((x2.shape[0],1))
+
             cov_mat = cs.MX.zeros((x1.shape[0], x2.shape[0]))
             for i in range(x1.shape[0]):
 
@@ -302,29 +291,25 @@ class GP:
 
                     b = cs.reshape(x2[j,:], 1, x2.shape[1])
                     cov_mat[i,j] = kernel(a,b)
-                    
+
             return cov_mat
         else:
+
             # Numpy implementation
-            if x1 is None or x2 is None:
-                # Dimension zero matrix 
-                return np.zeros((0,0))
-            
-            cov_mat = np.empty((x1.shape[0], x2.shape[0]))*np.NaN
-            x1 = np.atleast_2d(x1)
-            x2 = np.atleast_2d(x2)
+            assert x1.ndim == 1, "x1 must be a 1D array"
+            assert x2.ndim == 1, "x2 must be a 1D array"
+
+            cov_mat = np.empty((x1.shape[0], x2.shape[0]))*np.NaN # Initialize the covariance matrix with NaNs
             
             # for all combinations calculate the kernel
             for i in range(x1.shape[0]):
-                a = x1[i,:].reshape(-1,1)
                 for j in range(x2.shape[0]):
-
-                    b = x2[j,:].reshape(-1,1)
-
-                    
-                    cov_mat[i,j] = kernel(a,b)
+                    cov_mat[i,j] = kernel(x1[i],x2[j])
 
             return cov_mat
+
+
+
 
     @staticmethod
     def save(gp:"GP", save_path:str) -> None:
