@@ -42,10 +42,12 @@ from trajectory_generation.TrajectoryGenerator import TrajectoryGenerator
 import pickle
     
 import argparse
-    
+import time
+
 from gp.GP import *
 from gp.GPE import GPEnsemble
 
+from Logger import Logger
 from Explorer import Explorer
 
 def main():
@@ -87,8 +89,8 @@ def main():
     else:
         raise ValueError("Invalid GPE argument")
         
-
-
+    save_filepath = args.output
+    logger = Logger(save_filepath)
     trajectory_generator = TrajectoryGenerator()
 
     v_max_limit = 30
@@ -153,13 +155,13 @@ def main():
 
     # initial condition
     x0 = np.array([0,0,0] + [1,0,0,0] + [0,0,0] + [0,0,0])
-    save_filepath = args.output
+    
 
-    simulate_trajectory(quad, quad_opt, quad_nominal, x0, x_trajectory, simulation_length, Nopt, simulation_dt, save_filepath)
+    simulate_trajectory(quad, quad_opt, quad_nominal, x0, x_trajectory, simulation_length, Nopt, simulation_dt, logger)
     
 
 
-def simulate_trajectory(quad, quad_opt, quad_nominal, x0, x_trajectory, simulation_length, Nopt, simulation_dt, save_filepath):
+def simulate_trajectory(quad, quad_opt, quad_nominal, x0, x_trajectory, simulation_length, Nopt, simulation_dt, logger):
 
     x = x0
     # Ground truth data
@@ -185,6 +187,7 @@ def simulate_trajectory(quad, quad_opt, quad_nominal, x0, x_trajectory, simulati
     cost_solutions = list()
 
     rgp_params = list()
+    rgp_basis_vectors = list()
     mu_regress = list()
     a_dif = list()
     a_drag_list = list()
@@ -206,11 +209,13 @@ def simulate_trajectory(quad, quad_opt, quad_nominal, x0, x_trajectory, simulati
 
         # I dont think I need to run optimization more times as with the case of new opt
         # TODO: Figure out why OCP gives different solutions both times it is run. warm start?
+        time_before_mpc = time.time()
         x_opt_acados, w_opt_acados, t_cpu, cost_solution = quad_opt.run_optimization(x)
-        u = w_opt_acados[0,:] # control to be applied to quad
+        elapsed_during_mpc = time.time() - time_before_mpc
+        w = w_opt_acados[0,:] # control to be applied to quad
 
         # Predicted state w/o using the RGP model
-        x_pred = np.array(quad_nominal.discrete_dynamics(x, u, quad_opt.optimization_dt)).ravel() 
+        x_pred = np.array(quad_nominal.discrete_dynamics(x, w, quad_opt.optimization_dt)).ravel() 
         #x_pred = x_opt_acados[1,:] # This uses the RGP model too.
 
         # Save nlp solution diagnostics
@@ -220,7 +225,7 @@ def simulate_trajectory(quad, quad_opt, quad_nominal, x0, x_trajectory, simulati
         # Odometry every MPC timestep (100ms)    
         x_odom.append(x)
         x_ref_odom.append(yref[0,:13])
-        w_odom.append(u)
+        w_odom.append(w)
         t_odom.append(simulation_time)
         x_pred_odom.append(x_pred)
 
@@ -231,9 +236,9 @@ def simulate_trajectory(quad, quad_opt, quad_nominal, x0, x_trajectory, simulati
         while control_time < quad_opt.optimization_dt: 
             # ----------- Simulate ----------------
             # Uses the optimization model to predict one step ahead, used for gp fitting
-            x_pred = quad_opt.discrete_dynamics(x, u, simulation_dt, body_frame=True)
+            x_pred = quad_opt.discrete_dynamics(x, w, simulation_dt, body_frame=True)
             # Control the quad with the most recent u for the whole control period (multiple simulation steps for one optimization)
-            quad.update(u, simulation_dt)
+            quad.update(w, simulation_dt)
 
 
             # ----------- Save simulation results ----------------
@@ -250,7 +255,7 @@ def simulate_trajectory(quad, quad_opt, quad_nominal, x0, x_trajectory, simulati
             # Save simulation results
             # Add current simulation results to list for dataset creation and visualisation
             x_sim.append(x_world)
-            u_sim.append(u)
+            u_sim.append(w)
             x_sim_body.append(x_body)
             
             x_pred_sim.append(x_pred)
@@ -293,14 +298,19 @@ def simulate_trajectory(quad, quad_opt, quad_nominal, x0, x_trajectory, simulati
                     mu, C = quad_opt.gpe.regress(v_body, a_drag)
                     mu_regress.append(mu)
                 
+                rgp_basis_vectors = np.concatenate([quad_opt.gpe.gp[d].X for d in range(len(quad_opt.gpe.gp))])
+                rgp_params = np.concatenate([quad_opt.gpe.gp[d].mu_g_t for d in range(len(quad_opt.gpe.gp))])
 
-                rgp_params.append(np.concatenate([quad_opt.gpe.gp[d].mu_g_t for d in range(len(quad_opt.gpe.gp))]))
-                #rgp_params.append(10.0*np.concatenate((np.ones(20), np.zeros(40))))
-            
-                #print(rgp_params)
-                #rgp_params = 10.0*np.concatenate([np.array([1.0, 0.0, 0.0]) for i in range(20)])
                 for ii in range(quad_opt.n_nodes):
-                    quad_opt.acados_ocp_solver.set(ii, 'p', rgp_params[-1])
+                    quad_opt.acados_ocp_solver.set(ii, 'p', rgp_params)
+        
+        # ------- Log data -------
+        if logger is not None:
+            dict_to_log = {"x_odom": x, "x_pred_odom": x_pred, "x_ref": x_ref[0,:], "t_odom": simulation_time, \
+                "w_odom": w, 't_cpu': t_cpu, "cost_solution": cost_solution, \
+                    "rgp_basis_vectors" : rgp_basis_vectors, "rgp_params": rgp_params}
+            
+            logger.log(dict_to_log)
         # Counts until simulation is finished
         simulation_time += quad_opt.optimization_dt
     
@@ -353,13 +363,20 @@ def simulate_trajectory(quad, quad_opt, quad_nominal, x0, x_trajectory, simulati
     data['t_odom'] = t_odom
     data['x_pred_odom'] = x_pred_odom
 
+    if quad_opt.gpe is not None:
+        if quad_opt.gpe.type == 'RGP':
+            data['rgp_basis_vectors'] = rgp_basis_vectors
+            data['rgp_params'] = rgp_params
+
+
     
-    save_dict(data, save_filepath)
-    print(f'Saved simulated data to {save_filepath}')
+    #save_dict(data, logger.filepath_dict)
+    logger.save_log()
+    #print(f'Saved simulated data to {save_filepath}')
 
 
-
-
+    '''
+    
     if quad_opt.gpe is not None:
         if quad_opt.gpe.type == "RGP":
             print('Rendering animation...')
@@ -405,16 +422,9 @@ def simulate_trajectory(quad, quad_opt, quad_nominal, x0, x_trajectory, simulati
             pbar.close()
             #plt.show()
 
-            '''
-            # Plot the results
-            plt.figure(figsize=(10, 10), dpi=100)
-            plt.plot(range(Nopt), rgp_params)
-            plt.show()
 
-            plt.figure(figsize=(10, 10), dpi=100)
-            plt.scatter([v_body_list[i][0] for i in range(len(v_body_list))], [a_drag_list[i][0] for i in range(len(a_drag_list))])
-            plt.show()
-            '''
+    '''
+
 
 
     

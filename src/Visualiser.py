@@ -54,13 +54,38 @@ class Visualiser:
         self.pbar = tqdm(total=self.number_of_frames)
 
         ani = animation.FuncAnimation(self.fig, self.update, frames=self.number_of_frames, interval=interval)           
-        #pbar.close()
 
 
-        ani.save(result_animation_filename)
-        #ani.save('docs/drone_flight.gif')
+        ani.save(result_animation_filename + '.mp4', writer='ffmpeg', fps=10, dpi=100)
+        ani.save(result_animation_filename + '.gif', writer='imagemagick', fps=10, dpi=100)
 
 
+    def create_rgp_animation(self, result_animation_filename, desired_number_of_frames, use_color_map=True):
+        self.desired_number_of_frames = desired_number_of_frames
+        self.use_color_map = use_color_map
+        self.prepare_rgp_animation_data()
+        self.prepare_rgp_animation_figure()
+
+        interval = 20 # 50 fps    
+        self.number_of_frames = len(self.X)
+        print('Creating RGP animation...')
+        print(f'Number of frames: {self.number_of_frames}, fps: {1000/interval}, duration: {self.number_of_frames*interval/1000} s')
+
+        self.pbar = tqdm(total=self.number_of_frames)
+
+        def animate(i):   
+            for d in range(3):
+                self.scat_basis_vectors[d].set_offsets(np.array([self.X[i][d].ravel(), self.y[i][d].ravel()]).T)
+
+            self.pbar.update()
+
+        ani = animation.FuncAnimation(self.fig, animate, frames=self.number_of_frames, interval=interval)           
+        
+
+        ani.save(result_animation_filename + '.mp4', writer='ffmpeg', fps=10, dpi=100)
+        ani.save(result_animation_filename + '.gif', writer='imagemagick', fps=10, dpi=100)
+
+        
    
 
     def update(self, i):
@@ -193,6 +218,74 @@ class Visualiser:
         self.ax_speed.set_title('Velocity magnitude')
 
         self.fig.tight_layout()
+
+
+    def prepare_rgp_animation_figure(self):
+
+        animation.writer = animation.writers['ffmpeg']
+        plt.ioff() # Turn off interactive mode to hide rendering animations
+
+        # Color scheme convert from [0,255] to [0,1]
+        cs = [[x/256 for x in (8, 65, 92)], \
+                [x/256 for x in (204, 41, 54)], \
+                [x/256 for x in (118, 148, 159)], \
+                [x/256 for x in (232, 197, 71)]] 
+
+
+        plt.style.use('fast')
+        sns.set_style("whitegrid")
+
+        gs = gridspec.GridSpec(1, 3)
+        self.fig = plt.figure(figsize=(10,6), dpi=100)
+
+        labels = ['x', 'y', 'z']
+        self.ax = [None]*3
+        self.scat_basis_vectors = [None]*3
+
+        for d in range(3):
+            self.ax[d] = self.fig.add_subplot(gs[d])
+            self.scat_basis_vectors[d] = self.ax[d].scatter([], [], marker='o', label='Basis Vectors')
+            self.ax[d].set_xlim(self.x_lim)
+            self.ax[d].set_ylim(self.y_lim)
+
+            self.ax[d].set_xlabel('Velocity [ms-1]')
+            self.ax[d].set_ylabel('Drag acceleration [ms-2]')
+            self.ax[d].set_title(f'RGP basis vectors in {labels[d]}')
+
+        self.fig.tight_layout()
+
+
+    def prepare_rgp_animation_data(self):
+
+        # Calculates how many datapoints to skip to get the desired number of frames
+        skip = int(self.data_dict['x_odom'].shape[0]/self.desired_number_of_frames)
+
+        # Load data 
+        self.X_array = self.data_dict['rgp_basis_vectors'][::skip]
+        self.y_array = self.data_dict['rgp_params'][::skip]
+
+        n_basis = self.X_array.shape[1]//3
+        self.X = [None]*self.X_array.shape[0]
+        self.y = [None]*self.X_array.shape[0]
+
+        for i in range(self.X_array.shape[0]):
+
+            self.X[i] = [self.X_array[i][d*n_basis:(d+1)*n_basis] for d in range(3)]
+            self.y[i] = [self.y_array[i][d*n_basis:(d+1)*n_basis] for d in range(3)]
+
+        x_min = 100000
+        x_max = -100000
+        y_min = 100000
+        y_max = -100000
+        for i in range(len(self.X)):
+            x_min = min(x_min, min(min(self.X[i][0]), min(self.X[i][1]), min(self.X[i][2])))
+            x_max = max(x_max, max(max(self.X[i][0]), max(self.X[i][1]), max(self.X[i][2])))
+            y_max = max(y_max, max(max(self.y[i][0]), max(self.y[i][1]), max(self.y[i][2])))
+            y_min = min(y_min, min(min(self.y[i][0]), min(self.y[i][1]), min(self.y[i][2])))
+        
+        self.x_lim = (x_min, x_max)
+        self.y_lim = (y_min, y_max)
+
 
     @staticmethod
     def rms(x, axis=0):

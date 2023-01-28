@@ -57,10 +57,16 @@ class MPCROSWrapper:
         Initialize the quad optimizer with the quadrotor model and the GP ensemble.
         This method exists to be called inside the MPCROSWrapper constructor and also to be called when the mpc_controller_node retrains the GP ensemble.
         """
-        if self.use_gp:
+
+        if self.use_gp == 0:
+            print("Not using GPE")
+            gpe = None
+        elif self.use_gp == 1:
+            gpe = GPEnsemble.fromdir(self.ensemble_path, "GP")
+        elif self.use_gp == 2:
             gpe = GPEnsemble.fromdir(self.ensemble_path, "RGP")
         else:
-            gpe = None
+            raise ValueError("Invalid GPE argument")
 
         # Creates an optimizer object for the quad
         self.quad_opt = quad_optimizer(self.quad, t_horizon=self.t_lookahead, n_nodes=self.n_nodes, gpe=gpe) # computing optimal control over model of plant

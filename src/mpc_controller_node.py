@@ -57,9 +57,9 @@ import sys
 
 
 from MPCROSWrapper import MPCROSWrapper
-from RosLogger import RosLogger
+from mpc_quad.src.Logger import RosLogger
 
-from utils.utils import get_reference_chunk, v_dot_q, get_reference_chunk, quaternion_to_euler, rospy_time_to_float
+from utils.utils import get_reference_chunk, v_dot_q, get_reference_chunk, quaternion_to_euler, rospy_time_to_float, quaternion_inverse
 
 class MPC_controller:
         
@@ -243,7 +243,6 @@ class MPC_controller:
                 # That means I need to take only every 10th reference point # control freq factor
                 x_ref = get_reference_chunk(self.x_trajectory, self.idx_traj, self.mpc_ros_wrapper.quad_opt.n_nodes, self.control_freq_factor)
                 t_ref = get_reference_chunk(self.t_trajectory, self.idx_traj, self.mpc_ros_wrapper.quad_opt.n_nodes, self.control_freq_factor)
-
                 self.mpc_ros_wrapper.quad_opt.set_reference_trajectory(x_ref)
                 
                 # -------------- Solve the optimization problem --------------
@@ -258,6 +257,26 @@ class MPC_controller:
                 self.send_control_command(w, x_opt[1,10:13])
 
                 self.idx_traj += 1
+
+                # -------------- RGP regress --------------
+
+                if self.mpc_ros_wrapper.quad_opt.gpe.type == 'RGP':
+                    rgp_basis_vectors = np.concatenate([self.mpc_ros_wrapper.quad_opt.gpe.gp[d].X
+                            for d in range(len(self.mpc_ros_wrapper.quad_opt.gpe.gp))]) 
+                    if self.logger.dictionary:
+                        # Already have some data, so I can regress the RGP model
+                        self.regress_RGP_model(x)
+
+                        # Get the parameters of the RGP model from the RGP object
+                        rgp_params = np.concatenate([self.mpc_ros_wrapper.quad_opt.gpe.gp[d].mu_g_t 
+                                                    for d in range(len(self.mpc_ros_wrapper.quad_opt.gpe.gp))])
+
+
+                        self.update_RGP_model_inside_mpc(rgp_params)
+                    else:
+                        # Default parameters for the RGP model
+                        rgp_params = np.concatenate([self.mpc_ros_wrapper.quad_opt.gpe.gp[d].mu_g_t 
+                                    for d in range(len(self.mpc_ros_wrapper.quad_opt.gpe.gp))])
 
                 # ------- Publish visualisations to rviz -------
 
@@ -274,10 +293,12 @@ class MPC_controller:
                 # Predict the state at the next odometry message for logging purposes
                 x_pred = np.array(self.mpc_ros_wrapper.quad_opt.discrete_dynamics(x, w, self.odometry_dt)).ravel()
                 #x_pred = x_opt[1,:]
+
                 # ------- Log data -------
                 if self.logger is not None:
                     dict_to_log = {"x_odom": x, "x_pred_odom": x_pred, "x_ref": x_ref[0,:], "t_odom": timestamp_odometry, \
-                        'w_odom': w, 't_cpu': t_cpu, 'elapsed_during_mpc': elapsed_during_mpc, 'cost_solution': cost_solution}
+                        "w_odom": w, 't_cpu': t_cpu, "elapsed_during_mpc": elapsed_during_mpc, "cost_solution": cost_solution, \
+                            "rgp_basis_vectors" : rgp_basis_vectors, "rgp_params": rgp_params}
                     
                     self.logger.log(dict_to_log)
 
@@ -384,7 +405,32 @@ class MPC_controller:
         # Reinitialize MPC solver with the retrained GPE
         self.mpc_ros_wrapper.initialize()
         
+    def regress_RGP_model(self, x : np.ndarray):
+        """
+        Regresses the RGP model with current state and last predicted state. Updates the RGP instance in the quad_optimizer. 
+        The MPC solver needs to be updated with the new RGP parameters using update_RGP_model_inside_mpc().
+        """
 
+        # Get the drag force from the difference between the predicted and actual velocity
+        x_world = x
+        x_world_pred = self.logger.dictionary['x_pred_odom'][-1]
+        v_body = v_dot_q(x_world[7:10], quaternion_inverse(x_world[3:7]))
+        v_body_pred = v_dot_q(x_world_pred[7:10], quaternion_inverse(x_world_pred[3:7]))
+        a_drag = (v_body - v_body_pred)/self.mpc_ros_wrapper.quad_opt.optimization_dt
+
+        v_body = [np.array([v_body[i]]) for i in range(len(v_body))] # Convert to list of np arrays
+        a_drag = [np.array([a_drag[i]]) for i in range(len(a_drag))] # Convert to list of np arrays
+        mu, C = self.mpc_ros_wrapper.quad_opt.gpe.regress(v_body, a_drag)
+        return mu, C
+
+    def update_RGP_model_inside_mpc(self, p : np.ndarray):
+        """
+        Sets the MPC solver parameter p to the value of mu_g_t at the basis vectors for the RGP model.
+        :param p: np.ndarray of shape (n_dim * n_basis_vectors,)
+        """
+
+        for ii in range(self.mpc_ros_wrapper.quad_opt.n_nodes):
+            self.mpc_ros_wrapper.quad_opt.acados_ocp_solver.set(ii, 'p', p)
 
     def request_trajectory(self, x, trajectory_type):           
             """

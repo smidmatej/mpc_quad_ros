@@ -4,10 +4,12 @@ import os
 def main():
     dir_path = os.path.dirname(os.path.realpath(__file__))
 
-    
-    simulation_result_fname = os.path.join(dir_path, '..', 'outputs/python_simulation/data/trajectory_using_gp.pkl')
-    os.system('python execute_trajectory.py -o ' + simulation_result_fname + ' --gpe 2' + \
-                ' --trajectory 1 --v_max 20 --a_max 20 --show 1')
+    vmax = 15
+    amax = 5
+    gpe = 2
+    simulation_result_fname = os.path.join(dir_path, '..', f'outputs/python_simulation/data/trajectory_v{vmax}_a{amax}_gp{gpe}')
+    os.system('python execute_trajectory.py -o ' + simulation_result_fname + f' --gpe {gpe}' + \
+                f' --trajectory 1 --v_max {vmax} --a_max {amax} --show 1')
 
     
 

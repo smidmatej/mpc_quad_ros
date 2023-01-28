@@ -1,0 +1,31 @@
+<?xml version="1.0"?>
+<launch>
+
+<arg name="trajectory_type" default="random"/>
+<arg name="v_max" default="15.0"/>
+<arg name="a_max" default="5.0"/>
+<arg name="use_gp" default="2"/>
+<arg name="gp_path" default="../outputs/gazebo_simulation/gp_models"/>
+<arg name="training" default="1"/>
+<arg name="explore" default="0"/>
+<arg name="training_trajectories_count" default="5"/>
+<arg name="log_filename_base" default="trajectory"/>
+
+  <group ns="mpcros">
+      <node name="mpc_controller" pkg="mpcros" type="mpc_controller_node.py">
+        <param name="trajectory_type" value="$(arg trajectory_type)"/>
+        <param name="v_max" value="$(arg v_max)"/>
+        <param name="a_max" value="$(arg a_max)"/>
+        <param name="use_gp" value="$(arg use_gp)"/>
+        <param name="gp_path" value="$(arg gp_path)"/>
+        <param name="log_filename_base" value="$(arg log_filename_base)"/>
+        <param name="training" value="$(arg training)"/>
+        <param name="explore" value="$(arg explore)"/>
+        <param name="training_trajectories_count" value="$(arg training_trajectories_count)"/>
+      </node>
+      <node name="trajectory_generator" pkg="mpcros" type="trajectory_generator_node.py">
+        
+      </node>
+  </group>
+
+</launch>
