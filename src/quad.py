@@ -16,7 +16,8 @@
  #
 
 import numpy as np
-from utils.utils import skew_symmetric, quaternion_to_euler, unit_quat, v_dot_q, quaternion_inverse
+
+from utils.utils import skew_symmetric, quaternion_to_euler, unit_quat, v_dot_q, quaternion_inverse, parse_xacro_file
 
 
 
@@ -86,6 +87,8 @@ class Quadrotor3D:
 
 		self.payload_mass = 0.3  # kg
 		self.payload_mass = self.payload_mass * payload
+
+
 
 
 	def set_state(self, *args):
@@ -249,3 +252,39 @@ class Quadrotor3D:
 			1 / self.J[1] * (-f_thrust.dot(self.x_f) + t_d[1] + (self.J[2] - self.J[0]) * rate[2] * rate[0]),
 			1 / self.J[2] * (f_thrust.dot(self.z_l_tau) + t_d[2] + (self.J[0] - self.J[1]) * rate[0] * rate[1])
 		]).squeeze()
+
+
+	
+	def set_parameters_from_file(self, params_filepath : str, quad_name):
+		"""
+		Sets the parameters of this quad to those from the provided xarco file
+		:param params_filepath: path to the xacro file to load parameters from
+		:param quad_name: name of the quad in the xacro files
+		"""
+
+		# Get parameters for drone
+		attrib = parse_xacro_file(params_filepath)
+
+		self.mass = float(attrib['mass']) + float(attrib['mass_rotor']) * 4
+
+		self.J = np.array([float(attrib['body_inertia'][0]['ixx']),
+						float(attrib['body_inertia'][0]['iyy']),
+						float(attrib['body_inertia'][0]['izz'])])
+		self.length = float(attrib['arm_length'])
+
+		# Max thrust of 1 rotor
+		self.max_thrust = float(attrib["max_rot_velocity"]) ** 2 * float(attrib["motor_constant"])
+		self.c = float(attrib['moment_constant'])
+
+		# x configuration
+		if quad_name != "hummingbird":
+			h = np.cos(np.pi / 4) * self.length
+			self.x_f = np.array([h, -h, -h, h])
+			self.y_f = np.array([-h, -h, h, h])
+			self.z_l_tau = np.array([-self.c, self.c, -self.c, self.c])
+
+		# + configuration
+		else:
+			self.x_f = np.array([self.length, 0, -self.length, 0])
+			self.y_f = np.array([0, self.length, 0, -self.length])
+			self.z_l_tau = -np.array([-self.c, self.c, -self.c, self.c])

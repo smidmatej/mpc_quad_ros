@@ -64,7 +64,7 @@ class GPEnsemble:
         return cls(gp_list=gp_list, type=type)
 
     @classmethod
-    def frombasisvectors(cls, X : list, y : list):
+    def frombasisvectors(cls, X : list, y : list, C : list, theta : list):
         """
         Creates a GPEnsemble from a list of basis vectors and their corresponding y values
         :param X: List of np.ndarray with the basis vectors
@@ -72,11 +72,13 @@ class GPEnsemble:
         """
         assert len(X) == 3, "X must have length 3"
         assert len(y) == 3, "y must have length 3"
+        assert len(C) == 3, "C must have length 3"
+        assert len(theta) == 3, "theta must have length 3"
         
         type = 'RGP'
         gp_list = [None]*3
         for i in range(3):
-            gp_list[i] = RGP(X[i], y[i])
+            gp_list[i] = RGP(X[i], y[i], C[i], theta[i])
 
 
         return cls(gp_list=gp_list, type=type)
@@ -105,7 +107,35 @@ class GPEnsemble:
                 
         return cls(gp_list, type=type)
 
+    @classmethod
+    def fromemptybasisvectors(cls, X : 'list[np.ndarray]'):
+        """
+        Creates a GPEnsemble from a list of basis vectors and sets their corresponding y values to zero
+        :param X: List of np.ndarray with the basis vectors
+        """
+        assert len(X) == 3, "X must have length 3"
+        
+        type = 'RGP'
+        gp_list = [None]*3
+        for i in range(3):
+            y = np.zeros((X[i].shape[0], ))
+            gp_list[i] = RGP(X[i], y)
 
+
+        return cls(gp_list=gp_list, type=type)
+
+
+
+    def get_theta(self) -> list:
+        """
+        Returns the hyperparameters of the GPEnsemble
+        :return: List of hyperparameters
+        """
+        theta = [None]*len(self.gp)
+        for n in range(len(self.gp)):
+            theta[n] = self.gp[n].get_theta()
+
+        return theta
 
     def predict(self, X_t : list, std : bool = False) -> list:
         """
@@ -204,7 +234,7 @@ class GPEnsemble:
 
         # Do the regressions
         for n in range(len(self.gp)):
-                mu_dim[n], C_dim[n]  = self.gp[n].regress(X_t[n], y_t[n])
+            mu_dim[n], C_dim[n]  = self.gp[n].regress(X_t[n], y_t[n])
 
         #breakpoint()
         # Output formatting

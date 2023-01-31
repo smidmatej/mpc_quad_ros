@@ -50,11 +50,14 @@ class Logger:
         #pd.DataFrame(self.dictionary['odom']).to_csv(self.filepath_csv, header=csv_header, index=None)
 
         # dictinary to numpy array
+        '''
         output_dict = {}
         for key in self.dictionary:
             output_dict[key] = np.array(self.dictionary[key])
+        '''
+
 
         rospy.loginfo(f"Saving trajectory to {self.filepath_dict}")
         print(f"Saving trajectory to {self.filepath_dict}")
-        save_dict(output_dict, self.filepath_dict)
+        save_dict(self.dictionary, self.filepath_dict)
         #np.save(self.filepath_npy, self.dictionary['odom'])

@@ -298,7 +298,7 @@ class Visualiser:
         self.prepare_rgp_full_animation_figure()
 
         interval = 20 # 50 fps    
-        self.number_of_frames = len(self.X)
+        self.number_of_frames = len(self.X_basis)
         print('Creating RGP animation...')
         print(f'Number of frames: {self.number_of_frames}, fps: {1000/interval}, duration: {self.number_of_frames*interval/1000} s')
 
@@ -307,7 +307,7 @@ class Visualiser:
         def animate(i):
 
             for d in range(3):
-                self.scat_basis_vectors[d].set_offsets(np.array([self.X[i][d].ravel(), self.y[i][d].ravel()]).T)
+                self.scat_basis_vectors[d].set_offsets(np.array([self.X_basis[i][d], self.mu_g_t[i][d]]).T)
 
                 self.rgp_mean_plot[d].set_data(self.X_query[d], self.y_query[i][d])
                 self.fill_between_plots[d].remove()
@@ -358,13 +358,14 @@ class Visualiser:
             
             self.fill_between_plots[d] = self.ax[d].fill_between([],
                 [], 
-                [], color=self.cs[3], alpha=0.2)
+                [], color=self.cs[3], alpha=0.2, label="2std")
 
             self.ax[d].set_xlim(self.x_lim[d])
             self.ax[d].set_ylim(self.y_lim[d])
 
             self.ax[d].set_xlabel('Velocity [ms-1]')
             self.ax[d].set_ylabel('Drag acceleration [ms-2]')
+            self.ax[d].legend()
             self.ax[d].set_title(f'RGP basis vectors in {labels[d]}')
 
         self.fig.tight_layout()
@@ -374,54 +375,77 @@ class Visualiser:
         
         print("Preparing data...")
         # Calculates how many datapoints to skip to get the desired number of frames
-        skip = int(self.data_dict['x_odom'].shape[0]/self.desired_number_of_frames)
-
+        skip = len(self.data_dict['x_odom'])//self.desired_number_of_frames
+        
+        '''
+        breakpoint()
         # Load data 
-        self.X_array = self.data_dict['rgp_basis_vectors'][::skip]
-        self.y_array = self.data_dict['rgp_params'][::skip]
+        X_array = self.data_dict['rgp_basis_vectors'][::skip,:,:]
+        mu_array = self.data_dict['rgp_mu_g_t'][::skip,:,:]
+        C_array = self.data_dict['rgp_C_g_t'][::skip,:,:,:]
+        theta_array = self.data_dict['rgp_theta'][::skip,:,:]
+        breakpoint()
+        n_dims = 3
+        n_samples = X_array.shape[0]
+
+        self.X = [[None]*n_dims]*n_samples
+        self.mu_g_t = [[None]*n_dims]*n_samples
+        self.C_g_t = [[None]*n_dims]*n_samples
+        self.theta = [[None]*n_dims]*n_samples
+        self.y_query = [None]*n_samples
+        self.std_query = [None]*n_samples
+
+        for d in range(n_dims):
+            for i in range(n_samples):
+                self.X[i][d] = X_array[i, d, :]
+                self.mu_g_t[i][d] = mu_array[i, d, :]
+                self.C_g_t[i][d] = C_array[i, d, :, :]
+                self.theta[i][d] = theta_array[i, d, :]
+        '''
+        self.X_basis = self.data_dict['rgp_basis_vectors'][::skip]
+        self.mu_g_t = self.data_dict['rgp_mu_g_t'][::skip]
+        self.C_g_t = self.data_dict['rgp_C_g_t'][::skip]
+        self.theta = self.data_dict['rgp_theta'][::skip]
+
 
 
         n_dims = 3
-        n_basis = self.X_array.shape[1]//n_dims
-        n_samples = self.X_array.shape[0]
+        n_samples = len(self.X_basis)
 
-        self.X = [None]*n_samples
-        self.y = [None]*n_samples
         self.y_query = [None]*n_samples
         self.std_query = [None]*n_samples
 
         
-        for i in range(n_samples):
-            self.X[i] = [self.X_array[i][d*n_basis:(d+1)*n_basis] for d in range(n_dims)]
-            self.y[i] = [self.y_array[i][d*n_basis:(d+1)*n_basis] for d in range(n_dims)]
-
-            
-
         x_min = [100000]*n_dims
         x_max = [-100000]*n_dims
         for d in range(n_dims):
-            for i in range(len(self.X)):
-                x_min[d] = min(x_min[d], min(self.X[i][d]))
-                x_max[d] = max(x_max[d], max(self.X[i][d]))
+            for i in range(n_samples):
+                x_min[d] = min(x_min[d], min(self.X_basis[i][d]))
+                x_max[d] = max(x_max[d], max(self.X_basis[i][d]))
 
         self.X_query = [np.linspace(x_min[d], x_max[d], 100) for d in range(n_dims)]
 
-        for i in range(self.X_array.shape[0]):
-            self.rgpe = GPEnsemble.frombasisvectors(self.X[i], self.y[i])
+        print("Predicting...")
+        pbar = tqdm(total=n_samples)
+        for i in range(n_samples):
+            self.rgpe = GPEnsemble.frombasisvectors(self.X_basis[i], self.mu_g_t[i], self.C_g_t[i], self.theta[i])
             self.y_query[i], self.std_query[i] = self.rgpe.predict(self.X_query, std=True)
+            pbar.update(1)
+        pbar.close()
+
 
         y_min = [100000]*n_dims
         y_max = [-100000]*n_dims
         for d in range(n_dims):
-            for i in range(len(self.X)):
+            for i in range(n_samples):
 
-                y_min[d] = min(y_min[d], min(min(self.y[i][d]), min(self.y_query[i][d]), -2*min(self.std_query[i][d])))
-                y_max[d] = max(y_max[d], max(max(self.y[i][d]), max(self.y_query[i][d]), 2*max(self.std_query[i][d])))
+                y_min[d] = min(y_min[d], min(min(self.mu_g_t[i][d]), min(self.y_query[i][d]), -2*min(self.std_query[i][d])))
+                y_max[d] = max(y_max[d], max(max(self.mu_g_t[i][d]), max(self.y_query[i][d]), 2*max(self.std_query[i][d])))
         
 
         y_lim_dif = [y_max[d]-y_min[d] for d in range(n_dims)]
         self.x_lim = [(x_min[d], x_max[d]) for d in range(n_dims)]
-        self.y_lim = [(y_min[d] - np.sign(y_lim_dif[d])*y_lim_dif[d]/2, y_max[d] + np.sign(y_lim_dif[d])*y_lim_dif[d]/2) for d in range(n_dims)]
+        self.y_lim = [(y_min[d] - np.sign(y_lim_dif[d])*y_lim_dif[d]/10, y_max[d] + np.sign(y_lim_dif[d])*y_lim_dif[d]/10) for d in range(n_dims)]
 
 
     @staticmethod

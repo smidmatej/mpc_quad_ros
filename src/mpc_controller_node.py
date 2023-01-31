@@ -54,9 +54,10 @@ import numpy as np
 import os
 import sys
 
+from quad import Quadrotor3D 
+from quad_opt import quad_optimizer
+from gp.GPE import GPEnsemble
 
-
-from MPCROSWrapper import MPCROSWrapper
 from Logger import Logger
 
 from utils.utils import get_reference_chunk, v_dot_q, get_reference_chunk, quaternion_to_euler, rospy_time_to_float, quaternion_inverse
@@ -74,7 +75,14 @@ class MPC_controller:
         self.training_run = rospy.get_param('/mpcros/mpc_controller/training') # node_name/argsname
         self.training_trajectories_count = rospy.get_param('/mpcros/mpc_controller/training_trajectories_count') # node_name/argsname
         self.use_gp = rospy.get_param('/mpcros/mpc_controller/use_gp')
+        self.gp_path = rospy.get_param('/mpcros/mpc_controller/gp_path')
+        self.gp_from_file = rospy.get_param('/mpcros/mpc_controller/gp_from_file')
+        self.n_basis_vectors = rospy.get_param('/mpcros/mpc_controller/n_basis_vectors')
         self.explore = rospy.get_param('/mpcros/mpc_controller/explore')
+        self.t_lookahead = rospy.get_param('/mpcros/mpc_controller/t_lookahead')
+        self.n_nodes = rospy.get_param('/mpcros/mpc_controller/n_nodes')
+
+        self.dir_path = os.path.dirname(os.path.realpath(__file__))
         #rospy.logwarn(f"training_run: {self.training_run}")
         
         if self.training_run:
@@ -152,20 +160,24 @@ class MPC_controller:
         # This is a hack to not count the first trajectory into the number of finished trajectories
         self.doing_a_line = False
 
-        
-        self.mpc_ros_wrapper = MPCROSWrapper(quad_name=self.quad_name, use_gp=self.use_gp)
-        
+        '''
         if self.explore:
             # Let the explorer decide on the maximum velocity
-            self.explorer = Explorer(self.mpc_ros_wrapper.quad_opt.gpe)
+            self.explorer = Explorer(self.quad_opt.gpe)
             self.v_max = self.explorer.velocity_to_explore
             self.a_max = self.explorer.velocity_to_explore
+        '''
+
+
+
+        self.initialize_MPC()
+
 
                 
         # MPC steps at a different rate than the odometry
         # Trajectory steps at odometry rate
         # MPC takes trajectory steps as input -> I need to correct these steps to the MPC rate
-        self.control_freq_factor = int(self.mpc_ros_wrapper.quad_opt.optimization_dt / self.odometry_dt)
+        self.control_freq_factor = int(self.quad_opt.optimization_dt / self.odometry_dt)
         rospy.loginfo(f"Control frequency factor: {self.control_freq_factor}")
 
 
@@ -177,7 +189,38 @@ class MPC_controller:
         self.pose_subscriber = rospy.Subscriber(pose_topic, Odometry, self.pose_received_cb) # Pose is published by the simulator at 100 Hz!
         self.actuator_publisher = rospy.Publisher(control_topic, ControlCommand, queue_size=1, tcp_nodelay=True)
 
+    def initialize_MPC(self):
+        # --------------------- MPC controller ---------------------
+        rospy.logwarn("Initializing MPC controller")
 
+        # ---- Quadrotor model ----
+        # Instantiate quadrotor model with default parameters
+        quad = Quadrotor3D(payload=False, drag=True) # Controlled plant s
+        # Loads parameters of  a quad from a xarco file into quad object
+        dir_path = os.path.dirname(os.path.realpath(__file__))
+        params_filepath = os.path.join(dir_path, '..' , 'config', self.quad_name + '.xacro')
+        quad.set_parameters_from_file(params_filepath, self.quad_name)
+
+        # ---- GPE ----
+        self.ensemble_path = os.path.join(self.dir_path, self.gp_path)
+
+        if self.use_gp == 0:
+            print("Not using GPE")
+            gpe = None
+        elif self.use_gp == 1:
+            gpe = GPEnsemble.fromdir(self.ensemble_path, "GP")
+        elif self.use_gp == 2:
+            if self.gp_from_file:
+                gpe = GPEnsemble.fromdir(self.ensemble_path, "RGP")
+            else:
+                X_basis = [np.linspace(-self.v_max, self.v_max, self.n_basis_vectors) for _ in range(3)]
+                gpe = GPEnsemble.fromemptybasisvectors(X_basis)
+        else:
+            raise ValueError("Invalid GPE argument")
+
+        # Creates an optimizer object for the quad
+        self.quad_opt = quad_optimizer(quad, t_horizon=self.t_lookahead, n_nodes=self.n_nodes, gpe=gpe) # computing optimal control over model of plant
+        rospy.logwarn("MPC controller initilized")
 
     def pose_received_cb(self, msg):
         """
@@ -227,17 +270,17 @@ class MPC_controller:
                
                 # Get current state from gazebo
                 
-                self.mpc_ros_wrapper.quad_opt.set_quad_state(x) # This line is superfluous I think.
+                self.quad_opt.set_quad_state(x) # This line is superfluous I think.
 
                 # Reference is sampled with 100 Hz, but mpc step is 1s/10 = 0.1s
                 # That means I need to take only every 10th reference point # control freq factor
-                x_ref = get_reference_chunk(self.x_trajectory, self.idx_traj, self.mpc_ros_wrapper.quad_opt.n_nodes, self.control_freq_factor)
-                t_ref = get_reference_chunk(self.t_trajectory, self.idx_traj, self.mpc_ros_wrapper.quad_opt.n_nodes, self.control_freq_factor)
-                self.mpc_ros_wrapper.quad_opt.set_reference_trajectory(x_ref)
+                x_ref = get_reference_chunk(self.x_trajectory, self.idx_traj, self.quad_opt.n_nodes, self.control_freq_factor)
+                t_ref = get_reference_chunk(self.t_trajectory, self.idx_traj, self.quad_opt.n_nodes, self.control_freq_factor)
+                self.quad_opt.set_reference_trajectory(x_ref)
                 
                 # -------------- Solve the optimization problem --------------
                 time_before_mpc = time.time()
-                x_opt, w_opt, t_cpu, cost_solution = self.mpc_ros_wrapper.quad_opt.run_optimization(x)
+                x_opt, w_opt, t_cpu, cost_solution = self.quad_opt.run_optimization(x)
                 elapsed_during_mpc = time.time() - time_before_mpc
                 #rospy.loginfo(f"Elapsed time during MPC: \n\r {elapsed_during_mpc*1000:.3f} ms")
                 
@@ -249,19 +292,22 @@ class MPC_controller:
                 self.idx_traj += 1
 
                 # -------------- RGP regress --------------
-                if self.mpc_ros_wrapper.quad_opt.gpe.type == 'RGP':
-                    rgp_basis_vectors = np.concatenate([self.mpc_ros_wrapper.quad_opt.gpe.gp[d].X
-                            for d in range(len(self.mpc_ros_wrapper.quad_opt.gpe.gp))]) 
+                if self.quad_opt.gpe.type == 'RGP':
+                    rgp_basis_vectors = [self.quad_opt.gpe.gp[d].X
+                            for d in range(len(self.quad_opt.gpe.gp))]
                     if self.logger.dictionary:
                         x_pred_minus_1 = self.logger.dictionary['x_pred_odom'][-1]
                     else:
                         x_pred_minus_1 = x
- 
-                    rgp_params = self.mpc_ros_wrapper.quad_opt.regress_and_update_RGP_model(x, x_pred_minus_1)
+
+                    rgp_mu_g_t, rgp_C_g_t = self.quad_opt.regress_and_update_RGP_model(x, x_pred_minus_1)
+                    rgp_theta = self.quad_opt.gpe.get_theta()
                 else:
                     # If not using RGP, set these to None for logging
                     rgp_basis_vectors = None
-                    rgp_params = None
+                    rgp_mu_g_t = None
+                    rgp_C_g_t = None
+                    rgp_theta = None
 
                 # ------- Publish visualisations to rviz -------
 
@@ -276,14 +322,15 @@ class MPC_controller:
                 self.optimal_path_pub.publish(optimal_path)
 
                 # Predict the state at the next odometry message for logging purposes
-                x_pred = np.array(self.mpc_ros_wrapper.quad_opt.discrete_dynamics(x, w, self.odometry_dt)).ravel()
+                x_pred = np.array(self.quad_opt.discrete_dynamics(x, w, self.odometry_dt)).ravel()
                 #x_pred = x_opt[1,:]
 
                 # ------- Log data -------
+                
                 if self.logger is not None:
                     dict_to_log = {"x_odom": x, "x_pred_odom": x_pred, "x_ref": x_ref[0,:], "t_odom": timestamp_odometry, \
                         "w_odom": w, 't_cpu': t_cpu, "elapsed_during_mpc": elapsed_during_mpc, "cost_solution": cost_solution, \
-                            "rgp_basis_vectors" : rgp_basis_vectors, "rgp_params": rgp_params}
+                            "rgp_basis_vectors" : rgp_basis_vectors, "rgp_mu_g_t": rgp_mu_g_t, "rgp_C_g_t": rgp_C_g_t, "rgp_theta": rgp_theta}
                     
                     self.logger.log(dict_to_log)
 
@@ -347,7 +394,7 @@ class MPC_controller:
 
 
                                 # Decide what velocity to use for the next trajectory
-                                self.explorer = Explorer(self.mpc_ros_wrapper.quad_opt.gpe)
+                                self.explorer = Explorer(self.quad_opt.gpe)
                                 self.v_max = self.explorer.velocity_to_explore
                                 self.a_max = self.explorer.velocity_to_explore
 
@@ -371,19 +418,21 @@ class MPC_controller:
 
     def retrain_controller(self):
         """ 
+        # TODO: ! DOES NOT WORK !
         Trains the controller with the data collected so far. Then reinitializes the quad_optimizer inside the MPC wrapper with the new GPE. 
         """ 
         # Now I definitely have access to a gp
         self.use_gp = True
-        self.mpc_ros_wrapper.use_gp = True
+        self.use_gp = True
         dir_path = os.path.dirname(os.path.realpath(__file__))
 
         gpefit_plot_filepath = os.path.join(dir_path, '..', 'outputs', 'graphics', 'gpefit_' + "retrain" + '.pdf')
         gpesamples_plot_filepath = os.path.join(dir_path, '..', 'outputs', 'graphics', 'gpesamples_' + "retrain" + '.pdf')
-        train_gp(self.logger.filepath_dict, self.mpc_ros_wrapper.ensemble_path, n_training_samples=10, theta0=None, show_plots=False, gpefit_plot_filepath=gpefit_plot_filepath, gpesamples_plot_filepath=gpesamples_plot_filepath)
+        train_gp(self.logger.filepath_dict, self.ensemble_path, n_training_samples=10, theta0=None, show_plots=False, gpefit_plot_filepath=gpefit_plot_filepath, gpesamples_plot_filepath=gpesamples_plot_filepath)
 
         # Reinitialize MPC solver with the retrained GPE
-        self.mpc_ros_wrapper.initialize()
+        
+        #self.mpc_ros_wrapper.initialize()
 
 
 
@@ -526,9 +575,9 @@ class MPC_controller:
         control_msg.bodyrates.z = body_rates[2]
 
         # Autopilot needs desired thrust to set rotor speeds
-        control_msg.rotor_thrusts = thrust * self.mpc_ros_wrapper.quad.max_thrust / self.mpc_ros_wrapper.quad.mass
+        control_msg.rotor_thrusts = thrust * self.quad_opt.quad.max_thrust / self.quad_opt.quad.mass
         #np.sum(w_opt[:4]) * self.quad.max_thrust / self.quad.mass
-        control_msg.collective_thrust = np.sum(thrust) * self.mpc_ros_wrapper.quad.max_thrust / self.mpc_ros_wrapper.quad.mass
+        control_msg.collective_thrust = np.sum(thrust) * self.quad_opt.quad.max_thrust / self.quad_opt.quad.mass
 
         self.actuator_publisher.publish(control_msg)
 

@@ -18,6 +18,8 @@
 
 import numpy as np
 
+import rospy
+
 import casadi as cs
 import os
 from acados_template import AcadosOcp, AcadosOcpSolver, AcadosModel
@@ -367,26 +369,33 @@ class quad_optimizer:
         :param: x_now: Current state of the quadrotor
         :param: x_pred_minus_1: Last predicted state of the quadrotor
         :param: dt: Time step between the two states. If None, uses self.optimization_dt
-        :return: RGP parameters as a 1D numpy array
+        :return: (mu, C) at the basis vectors. 
         """
         assert x_now.shape == (13,)
         assert x_pred_minus_1.shape == (13,)
         assert self.gpe is not None, "RGP model has to be initialized before calling this method"
         assert self.gpe.type == 'RGP', "Only RGP models are supported for online regression"
 
+
         if dt is None:
             dt = self.optimization_dt
 
         v_body, a_drag = compute_a_drag(x_now, x_pred_minus_1, dt)
-        mu, C = self.gpe.regress(v_body, a_drag)
+
+        # Regress the RGP model and return the new parameters
+        mu_g_t, C_g_t = self.gpe.regress(v_body, a_drag)
 
         # Get the parameters of the RGP model from the RGP object
-        rgp_params = np.concatenate([self.gpe.gp[d].mu_g_t 
-                                    for d in range(len(self.gpe.gp))])
+        #mu_g_t = [self.gpe.gp[d].mu_g_t for d in range(len(self.gpe.gp))]
+        #C_g_t = [self.gpe.gp[d].C_g_t for d in range(len(self.gpe.gp))]
+
+
+        # Update the parameters of the RGP model in the MPC solver
+        rgp_params = np.concatenate(mu_g_t)
         for ii in range(self.n_nodes):
             self.acados_ocp_solver.set(ii, 'p', rgp_params)
 
-        return rgp_params
+        return mu_g_t, C_g_t
 
 
        

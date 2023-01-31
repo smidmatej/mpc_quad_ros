@@ -103,12 +103,13 @@ class RBF:
         
 
 class RGP:
-    def __init__(self, X : np.array, y_ : np.array, theta : list = [1.,1.,0.1]) -> None:
+    def __init__(self, X : np.ndarray, y_ : np.ndarray, C : np.ndarray = None, theta : list = [0.5,0.1,0.1]) -> None:
         """
         Recursive Gaussian Process (RGP) class. Initialize with n basis vectors and n measurements and hyperparameters theta. 
         Recursively update the RGP with new measurements using regress(). Update and predict the hyperparameters using learn().
-        :param: X: (n,) np.array, where n is the number of basis vectors
-        :param: y_: (n,) np.array, where n is the number of basis vectors
+        :param: X: (n,) np.ndarray, where n is the number of basis vectors
+        :param: y_: (n,) np.ndarray, where n is the number of basis vectors
+        :param: C: (n,n) np.ndarray, where n is the number of basis vectors. If None, C is initialized as the identity matrix
         :theta: theta: list of hyperparameters [L, sigma_f, sigma_n]
         """
 
@@ -117,6 +118,10 @@ class RGP:
         assert X.ndim == 1, "X must be a 1D array"
         assert y_.ndim == 1, "y_ must be a 1D array"
         assert X.shape[0] == y_.shape[0], "X and y_ must have the same number of rows"
+        assert len(theta) == 3, "theta must be a list of 3 hyperparameters [L, sigma_f, sigma_n]"
+        if C is not None:
+            assert C.shape[0] == C.shape[1], "C must be a square matrix"
+            assert C.shape[0] == X.shape[0], "C must have the same number of rows as X and y_"
 
         self.X = X
         self.y_ = y_
@@ -133,8 +138,11 @@ class RGP:
         # WARNING: Dont confuse the estimate g at X with the estimate g_t at X_t 
         # p(g|y_t-1)
         self.mu_g_t = y_ # The a priori mean is the measurement with no y_t 
-        self.C_g_t = self.K.calculate_covariance_matrix(X, X) + self.sigma_n**2 * np.eye(self.X.shape[0]) # The a priori covariance is the covariance with no y_t
-
+        if C is not None:
+            self.C_g_t = C # Use the provided covariance matrix
+        else:
+            self.C_g_t = self.K.calculate_covariance_matrix(X, X) + self.sigma_n**2 * np.eye(self.X.shape[0]) # The a priori covariance is the covariance with no y_t
+        
         # Hyperparameter estimates for RGP*
         # np.log to transform L into strictly positive values for training, inverse transformation is done at the end of learning
         #self.mu_eta_t = np.concatenate([np.log(np.diagonal(L)), [np.log(sigma_f)], [np.log(self.sigma_n)]])  # The a priori mean of the hyperparameters is the hyperparameters
@@ -150,8 +158,14 @@ class RGP:
 
 
         
-        
-    def predict(self, X_t_star : np.array, cov : bool = False, var : bool = False, std : bool = False, return_Jt : bool = False) -> np.array:
+    def get_theta(self) -> list:
+        """
+        Get the hyperparameters of the RGP
+        :return: list of hyperparameters [L, sigma_f, sigma_n]
+        """
+        return [self.K.L, self.K.sigma_f, self.sigma_n]
+
+    def predict(self, X_t_star : np.ndarray, cov : bool = False, var : bool = False, std : bool = False, return_Jt : bool = False) -> np.ndarray:
         """
         Predict the value of the response at X_t_star given the data GP.
         :param: X_t_star: (m,) np.array or cs.MX, where m is the number of points to predict
@@ -177,6 +191,7 @@ class RGP:
                 C_p_t = B + cs.mtimes(Jt, cs.mtimes(self.C_g_t, Jt.T)) # The a posteriori covariance of p(g_t|y_t)
                 var_p_t = cs.diag(C_p_t) # The variance of p(g_t|y_t)
                 std_p_t = cs.sqrt(var_p_t) # The standard deviation of p(g_t|y_t)
+                
         else:
             # Numpy implementation
             assert X_t_star.ndim == 1, "X_t_star must be a 1D array"
@@ -217,7 +232,7 @@ class RGP:
 
 
 
-    def predict_using_y(self, X_t_star : np.array, y : np.array, cov : bool = False, var : bool = False, std : bool = False, return_Jt : bool = False) -> np.array:
+    def predict_using_y(self, X_t_star : np.ndarray, y : np.ndarray, cov : bool = False, var : bool = False, std : bool = False, return_Jt : bool = False) -> np.ndarray:
         """
         Predict the value of the response at X_t_star given the vector y corresponding to the response of the regressed function at X.
         :param: X_t_star: (m,) np.array or cs.MX, where m is the number of points to predict
@@ -285,7 +300,7 @@ class RGP:
                 return mu_p_t
 
 
-    def regress(self, Xt : np.array, yt : np.array) -> np.array:
+    def regress(self, Xt : np.ndarray, yt : np.ndarray) -> np.ndarray:
         """
         Modify the RGP mean and covariance to account for new data Xt and yt.
         :param: Xt: (k,) np.array, where k is the number of new data points
@@ -314,7 +329,7 @@ class RGP:
 
         return self.mu_g_t, self.C_g_t
 
-    def learn(self, Xt : np.array, yt : np.array) -> np.array:
+    def learn(self, Xt : np.ndarray, yt : np.ndarray) -> np.ndarray:
         """
         Performs both the updating of the basis vectors, but also the hyperparameter optimization
         """
@@ -465,7 +480,7 @@ class RGP:
         return mu_z_t, C_z_t
 
 
-    def __draw_sigma_points(self, mu : np.array, C : np.array) -> np.array:
+    def __draw_sigma_points(self, mu : np.ndarray, C : np.ndarray) -> np.ndarray:
         """
         Draws sigma points from a Gaussian distribution using the unscented transform
         """
@@ -514,7 +529,7 @@ class RGP:
         """
         data_dict = joblib.load(load_path)
 
-        rgp = RGP(data_dict['X'], data_dict['y'], data_dict['theta'])
+        rgp = RGP(data_dict['X'], data_dict['y'], theta=data_dict['theta'])
         #self.initialize(data_dict['X'], data_dict['y'], KernelFunction, data_dict['theta'])
         return rgp
 
