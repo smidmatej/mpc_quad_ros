@@ -53,6 +53,7 @@ import std_msgs
 import numpy as np
 import os
 import sys
+from typing import Tuple
 
 from quad import Quadrotor3D 
 from quad_opt import quad_optimizer
@@ -83,8 +84,9 @@ class MPC_controller:
         self.n_nodes = rospy.get_param('/mpcros/mpc_controller/n_nodes')
 
         self.dir_path = os.path.dirname(os.path.realpath(__file__))
-        #rospy.logwarn(f"training_run: {self.training_run}")
-        
+
+
+        # --------------------- Logging ---------------------
         if self.training_run:
             self.trajectory_type = 'random'
             log_filename = f"training_v{self.v_max:.0f}_a{self.a_max:.0f}_gp{self.use_gp}"
@@ -92,73 +94,42 @@ class MPC_controller:
                 log_filename = "explore" 
         else:
             log_filename = f"test_{self.trajectory_type}_v{self.v_max:.0f}_a{self.a_max:.0f}_gp{self.use_gp}"
-            
-        #assert self.explore and self.use_gp, "Exploration is only supported with GP"
-
-        # Topics
-        reference_trajectory_topic = "reference/trajectory"
-        self.new_trajectory_request_topic = "reference/new_trajectory_request"
-
-
-        pose_topic = "/" + self.quad_name + "/ground_truth/odometry"
-        autopilot_pose_topic = "/" + self.quad_name  +'/autopilot/pose_command'
-        control_topic = "/" + self.quad_name + "/autopilot/control_command_input"
-
-        marker_topic = "rviz/marker"
-        reference_path_chunk_topic = "rviz/reference_chunk"
-        optimal_path_topic = "rviz/optimal_path"
-
-        _force_hover__topic = "/" + self.quad_name + "/autopilot/force_hover"
-
-
         
         self.logger = Logger(log_filename)
 
-
-
+        
+        # --------------------- Constants ---------------------
         # Odometry is published with a average frequency of 100 Hz
         # TODO: check if this is the case, sometimes it is delayed a bit
-        self.odometry_dt = 1/100
+        self.ODOMETRY_DT = 1/100
         # TODO: Gazebo runs with a variable rate, this changes the odometry dt, but the trajectories are still sampled the same. This is clearly wrong.
-
-        self.EPSILON_TRAJECTORY_FINISHED = 1 # m
-        self.trajectory_ready = False
-
-        # Counts the number of finished trajectories
-        self.number_of_trajectories_finished = 0
-
-        # Publishers
-        self.optimal_path_pub = rospy.Publisher(optimal_path_topic, Path, queue_size=1) # Path from current quad position onto the path
-        self.reference_path_chunk_pub = rospy.Publisher(reference_path_chunk_topic, Path, queue_size=1) # Chunk of the reference path that is used for MPC
-        self.markerPub = rospy.Publisher(marker_topic, Marker, queue_size=10)      
-        self.new_trajectory_request_pub = rospy.Publisher(self.new_trajectory_request_topic, Trajectory_request, queue_size=1)
-
-        self._go_to_pose_pub = rospy.Publisher(
-            autopilot_pose_topic, PoseStamped,
-            queue_size=1)
+        self.EPSILON_TRAJECTORY_FINISHED = 1 # Distance to consider a trajectory finished [m]
+        self.HOVER_POS = np.array([0.0, 0.0, 3.0])
 
 
-        self._force_hover_pub = rospy.Publisher(
-            _force_hover__topic, Empty,
-            queue_size=1)
-        # Subscribers
-        self.trajectory_sub = rospy.Subscriber(reference_trajectory_topic, Trajectory, self.trajectory_received_cb) # Reference trajectory
+        # --------------------- Variables ---------------------
+        self.trajectory_ready = False # Flag for the trajectory request callback
+        self.need_trajectory_to_hover = True # Flag for request new trajectory to hover
+        self.number_of_trajectories_finished = 0 # Counts the number of finished trajectories
 
-        # At controller start, the quad requests a new trajectory from current pos to hover_pos.
-        # This flag signals for the trajectory request in the odometry callback
-        self.need_trajectory_to_hover = True
+        self.doing_a_line = False # This is a hack to not count the first trajectory into the number of finished trajectories
+        
+        self.rebooting_controller = False # Flag for rebooting the controller
+        self.rebooted_controller = False # Flag for rebooting the controller
+        self.last_reboot_timestamp = -1.0 # Timestamp of the last reboot
+        self.pbar = None # Progress bar for trajectory following
 
-        # Wait a while for the subscribers to connect
-        r = rospy.Rate(10)
-        r.sleep()
-
-
-        self.hover_height = 3.0
-        self.hover_pos = np.array([0, 0, self.hover_height])
-        # Rise to hover height
-
-        # This is a hack to not count the first trajectory into the number of finished trajectories
-        self.doing_a_line = False
+   
+        # --------------------- Topics ---------------------
+        self.reference_trajectory_topic = "reference/trajectory"
+        self.new_trajectory_request_topic = "reference/new_trajectory_request"
+        self.pose_topic = "/" + self.quad_name + "/ground_truth/odometry"
+        self.autopilot_pose_topic = "/" + self.quad_name  +'/autopilot/pose_command'
+        self.control_topic = "/" + self.quad_name + "/autopilot/control_command_input"
+        self.marker_topic = "rviz/marker"
+        self.reference_path_chunk_topic = "rviz/reference_chunk"
+        self.optimal_path_topic = "rviz/optimal_path"
+        self._force_hover__topic = "/" + self.quad_name + "/autopilot/force_hover"
 
         '''
         if self.explore:
@@ -168,30 +139,30 @@ class MPC_controller:
             self.a_max = self.explorer.velocity_to_explore
         '''
 
-
+        rospy.logwarn("Initializing MPC controller")
 
         self.initialize_MPC()
 
+        # --------------------- Publishers ---------------------
+        self.optimal_path_pub = rospy.Publisher(self.optimal_path_topic, Path, queue_size=1) # Path from current quad position onto the path
+        self.reference_path_chunk_pub = rospy.Publisher(self.reference_path_chunk_topic, Path, queue_size=1) # Chunk of the reference path that is used for MPC
+        self.markerPub = rospy.Publisher(self.marker_topic, Marker, queue_size=10)      
+        self.new_trajectory_request_pub = rospy.Publisher(self.new_trajectory_request_topic, Trajectory_request, queue_size=1)
+        self._go_to_pose_pub = rospy.Publisher(self.autopilot_pose_topic, PoseStamped, queue_size=1)
+        self._force_hover_pub = rospy.Publisher(self._force_hover__topic, Empty,queue_size=1)
+        self.actuator_publisher = rospy.Publisher(self.control_topic, ControlCommand, queue_size=1, tcp_nodelay=True)
+        # --------------------- Subscribers ---------------------
+        self.trajectory_sub = rospy.Subscriber(self.reference_trajectory_topic, Trajectory, self.trajectory_received_cb) # Reference trajectory
+        self.pose_subscriber = rospy.Subscriber(self.pose_topic, Odometry, self.pose_received_cb) # Pose is published by the simulator at 100 Hz!
+            
+        rospy.logwarn("MPC controller initilized")
 
-                
-        # MPC steps at a different rate than the odometry
-        # Trajectory steps at odometry rate
-        # MPC takes trajectory steps as input -> I need to correct these steps to the MPC rate
-        self.control_freq_factor = int(self.quad_opt.optimization_dt / self.odometry_dt)
-        rospy.loginfo(f"Control frequency factor: {self.control_freq_factor}")
 
-
-        self.rebooting_controller = False
-        self.rebooted_controller = False
-        self.last_reboot_timestamp = -1.0
-        self.pbar = None
-
-        self.pose_subscriber = rospy.Subscriber(pose_topic, Odometry, self.pose_received_cb) # Pose is published by the simulator at 100 Hz!
-        self.actuator_publisher = rospy.Publisher(control_topic, ControlCommand, queue_size=1, tcp_nodelay=True)
 
     def initialize_MPC(self):
-        # --------------------- MPC controller ---------------------
-        rospy.logwarn("Initializing MPC controller")
+        '''
+        Initializes the MPC controller from the current self parameters
+        '''
 
         # ---- Quadrotor model ----
         # Instantiate quadrotor model with default parameters
@@ -220,9 +191,16 @@ class MPC_controller:
 
         # Creates an optimizer object for the quad
         self.quad_opt = quad_optimizer(quad, t_horizon=self.t_lookahead, n_nodes=self.n_nodes, gpe=gpe) # computing optimal control over model of plant
-        rospy.logwarn("MPC controller initilized")
 
-    def pose_received_cb(self, msg):
+        # MPC steps at a different rate than the odometry
+        # Trajectory steps at odometry rate
+        self.control_freq_factor = int(self.quad_opt.optimization_dt / self.ODOMETRY_DT) # MPC takes trajectory steps as input -> I need to correct these steps to the MPC rate
+
+
+
+
+
+    def pose_received_cb(self, msg : Odometry):
         """
         Callback function for pose subscriber. When new odometry message is received, the controller is used to calculate new inputs.
         Publishes calculated inputs to the autopilot
@@ -251,7 +229,7 @@ class MPC_controller:
             self.trajectory_ready = False
             #sx, _ = self.pose_to_state_world(msg)
             
-            if np.linalg.norm(x[0:3] - self.hover_pos) > self.EPSILON_TRAJECTORY_FINISHED:
+            if np.linalg.norm(x[0:3] - self.HOVER_POS) > self.EPSILON_TRAJECTORY_FINISHED:
                 # I am not at the hover height, so I need to request a trajectory to the hover height
                 start_pos = np.array([x[0], x[1], x[2]])
                 
@@ -259,7 +237,7 @@ class MPC_controller:
                 # Used to skip counting this line trajectory as a finished trajectory, since its only for initial alignment
                 self.doing_a_line = True
                 # Take me from here to the hover position
-                self.publish_trajectory_request("line", start_pos, self.hover_pos, v_max=self.v_max, a_max=self.a_max)
+                self.publish_trajectory_request("line", start_pos, self.HOVER_POS, v_max=self.v_max, a_max=self.a_max)
             else:
                 # I am at the hover height, so I can request a new trajectory
                 self.request_trajectory(x, self.trajectory_type)
@@ -322,7 +300,7 @@ class MPC_controller:
                 self.optimal_path_pub.publish(optimal_path)
 
                 # Predict the state at the next odometry message for logging purposes
-                x_pred = np.array(self.quad_opt.discrete_dynamics(x, w, self.odometry_dt)).ravel()
+                x_pred = np.array(self.quad_opt.discrete_dynamics(x, w, self.ODOMETRY_DT)).ravel()
                 #x_pred = x_opt[1,:]
 
                 # ------- Log data -------
@@ -346,10 +324,6 @@ class MPC_controller:
                     
                     # The trajectory is finished
                     rospy.loginfo("Trajectory finished")
-
-
-                    
-                        
 
                     if self.number_of_trajectories_finished >= self.training_trajectories_count:
                         # Shutdown the node after making the required number of trajectories
@@ -436,37 +410,45 @@ class MPC_controller:
 
 
 
-    def request_trajectory(self, x, trajectory_type):           
-            """
-            Wrapper for the publish request which uses preset endpoints and velocities
-            """
-            if trajectory_type == "static":
-                self.publish_trajectory_request("static", \
-                    start_point=None, end_point=None, \
-                        v_max=self.v_max, a_max=self.a_max)
-            
-            if trajectory_type == "random":
-                self.publish_trajectory_request("random", \
-                    start_point=np.array([x[0], x[1], x[2]]), end_point=None, \
-                        v_max=self.v_max, a_max=self.a_max)
-
-            
-            if trajectory_type == "circle":
-                radius = 10.0
-                end_point = np.array([x[0]+radius, x[1], x[2]]) # Circle trajectory radius is calculated as the distance between start and end
-                self.publish_trajectory_request("circle", \
-                    start_point=np.array([x[0], x[1], x[2]]), end_point=end_point, \
-                        v_max=self.v_max, a_max=self.a_max)
-
-
-    def publish_trajectory_request(self, type, start_point=np.array([0, 0, 0]), end_point=np.array([0, 0, 0]), v_max=1.0, a_max=1.0):
-        r = rospy.Rate(1)
+    def request_trajectory(self, x : np.ndarray, trajectory_type : str):           
+        """
+        Wrapper for publish_trajectory_request which uses preset endpoints and velocities.
+        :param x: Current state of the quadrotor that is possibly used in the trajectory request
+        :param trajectory_type: Type of trajectory to request
+        """
+        if trajectory_type == "static":
+            self.publish_trajectory_request("static", \
+                start_point=None, end_point=None, \
+                    v_max=self.v_max, a_max=self.a_max)
         
+        if trajectory_type == "random":
+            self.publish_trajectory_request("random", \
+                start_point=np.array([x[0], x[1], x[2]]), end_point=None, \
+                    v_max=self.v_max, a_max=self.a_max)
 
+        
+        if trajectory_type == "circle":
+            radius = 10.0
+            end_point = np.array([x[0]+radius, x[1], x[2]]) # Circle trajectory radius is calculated as the distance between start and end
+            self.publish_trajectory_request("circle", \
+                start_point=np.array([x[0], x[1], x[2]]), end_point=end_point, \
+                    v_max=self.v_max, a_max=self.a_max)
+
+
+    def publish_trajectory_request(self, type : str, start_point : np.ndarray = np.array([0, 0, 0]), end_point : np.ndarray = np.array([0, 0, 0]), v_max : float = None, a_max : float = None):
+        """
+        Publishes a trajectory request of type Trajectory_request to the trajectory generator node.
+        :param: type: Type of the trajectory that is requested. Can be "static", "random", "circle" or "line"
+        :param: start_point: Start point of the trajectory. If None, send its absence in the message
+        :param: end_point: End point of the trajectory. If None, send its absence in the message
+        :param: v_max: Maximum velocity of the trajectory. If None, uses self.v_max
+        :param: a_max: Maximum acceleration of the trajectory. If None, uses self.a_max
+        """
+        r = rospy.Rate(1)
         msg = Trajectory_request()
         msg.type = String(type)
         
-
+        # -------- Start and end point handling --------
         if start_point is None:
             # If no end point is given, send that information in the message. end_point has to be instantiated in the message. 
             # Dont want to look up if I can maybe fill with NaNs
@@ -484,8 +466,17 @@ class MPC_controller:
         else:
             msg.end_point_enabled = Bool(True)
             msg.end_point = Point(end_point[0], end_point[1], end_point[2])
-        msg.v_max = Float32(v_max)
-        msg.a_max = Float32(a_max)
+        
+        # -------- Velocity and acceleration handling --------
+        if v_max is None:
+            msg.v_max = Float32(self.v_max)
+        else:
+            msg.v_max = Float32(v_max)
+
+        if a_max is None:
+            msg.a_max = Float32(self.a_max)
+        else:
+            msg.a_max = Float32(a_max)
 
         self.new_trajectory_request_pub.publish(msg)
         
@@ -494,17 +485,21 @@ class MPC_controller:
         
 
 
-    def trajectory_received_cb(self, msg):
+    def trajectory_received_cb(self, msg : Trajectory):
         """
-        Callback function for trajectory subscriber. New path is received. Reset idx_traj to 0 and set x_trajectory to new path for following
+        Callback function for trajectory subscriber. New path is received. Reset idx_traj to 0 and set x_trajectory to new path for following.
+        :param: msg: Trajectory message
         """
 
+        samples_in_trajectory = len(msg.timeStamps)
         self.idx_traj = 0
 
-        self.x_trajectory = np.empty((len(msg.timeStamps), 13)) # x, y, z, w, x, y, z, vx, vy, vz, wx, wy, wz
-        self.t_trajectory = np.empty((len(msg.timeStamps), 1)) # t
-        for i in range(0, len(msg.timeStamps)):
-            self.t_trajectory[i] = msg.timeStamps[i].stamp.secs + msg.timeStamps[i].stamp.nsecs * 1e-9
+        self.x_trajectory = np.empty((samples_in_trajectory, 13)) # x, y, z, w, x, y, z, vx, vy, vz, wx, wy, wz
+        self.t_trajectory = np.empty((samples_in_trajectory, 1)) # t
+
+        # -------- Parse message --------
+        for i in range(samples_in_trajectory):
+            self.t_trajectory[i] = msg.timeStamps[i].stamp.secs + msg.timeStamps[i].stamp.nsecs * 1e-9 # Convert to seconds
 
             self.x_trajectory[i, 0] = msg.positions[i].x
             self.x_trajectory[i, 1] = msg.positions[i].y
@@ -526,12 +521,16 @@ class MPC_controller:
 
         self.trajectory_ready = True
         self.wait_for_trajectory = False
-        self.pbar = tqdm(total=self.t_trajectory.shape[0]) 
+        self.pbar = tqdm(total=samples_in_trajectory) 
         rospy.logwarn("Received new trajectory with duration {}s".format(self.t_trajectory[-1] - self.t_trajectory[0]))
         
         
 
-    def send_go_to_pose_autopilot_command(self, x):
+    def send_go_to_pose_autopilot_command(self, x : np.ndarray):
+        """
+        Send a go to pose command to the autopilot
+        :param: x: 13D vector. Sends the position, and simple orientation (yaw) in plane to the autopilot
+        """
         go_to_pose_msg = PoseStamped()
         go_to_pose_msg.pose.position.x = float(x[0])
         go_to_pose_msg.pose.position.y = float(x[1])
@@ -546,7 +545,9 @@ class MPC_controller:
         self._go_to_pose_pub.publish(go_to_pose_msg)
 
     def send_control_command_hover(self):
-        
+        """
+        Relinquish control to the autopilot
+        """
         # Control input command to the autopilot
         control_msg = ControlCommand()
         control_msg.header = std_msgs.msg.Header()
@@ -556,7 +557,7 @@ class MPC_controller:
 
         self.actuator_publisher.publish(control_msg)
 
-    def send_control_command(self, thrust, body_rates):
+    def send_control_command(self, thrust : np.ndarray, body_rates : np.ndarray):
         """
         Creates a ControlCommand message and sends it to the autopilot
         :param thrust: 4x1 array with the thrust for each rotors in range [0-1]
@@ -581,7 +582,13 @@ class MPC_controller:
 
         self.actuator_publisher.publish(control_msg)
 
-    def trajectory_chunk_to_path(self, x_ref, t_ref):
+    def trajectory_chunk_to_path(self, x_ref : np.ndarray, t_ref : np.ndarray):
+        """
+        Converts a trajectory chunk to a ROS Path message for visualization
+        :param x_ref: 13D array with the trajectory
+        :param t_ref: 1D array with the time stamps
+        :return: ROS Path message
+        """
 
         path = Path()
         path.poses = [PoseStamped()]*len(t_ref)
@@ -612,23 +619,27 @@ class MPC_controller:
         
 
 
-    def pose_to_state(self, msg):
+    def pose_to_state(self, msg : Odometry) -> Tuple[np.ndarray, float]:
         """
         Convert pose message to state vector with velocity in body frame
+        :param msg: ROS Odometry message
+        :return: (state, timestamp)
         """
         p = msg.pose.pose.position # position # 3 x float64
         q = msg.pose.pose.orientation # quaternion # 4 x float64
         v = msg.twist.twist.linear # linear velocity # 3 x float64
         r = msg.twist.twist.angular # angular velocity # 3 x float64
-        #timestamp = (msg.header.stamp.secs * 1e9 + msg.header.stamp.nsecs) * 1e-9 # time stamp # float64
+
         timestamp = rospy_time_to_float(msg.header.stamp)
 
         state = np.array([p.x, p.y, p.z, q.w, q.x, q.y, q.z, v.x, v.y, v.z, r.x, r.y, r.z])
         return state, timestamp
         
-    def pose_to_state_world(self, msg):
+    def pose_to_state_world(self, msg : Odometry) -> Tuple[np.ndarray, float]:
         '''
         Convert pose message to state vector in world frame
+        :param msg: ROS Odometry message
+        :return: (state, timestamp)
         '''
         x, timestamp = self.pose_to_state(msg)
         q = x[3:7]
@@ -636,7 +647,8 @@ class MPC_controller:
         v_world = v_dot_q(v, q)
         return np.array([x[0], x[1], x[2], q[0], q[1], q[2], q[3], v_world[0], v_world[1], v_world[2], x[10], x[11], x[12]]), timestamp
 
-    def publish_marker_to_rviz(self, p):
+
+    def publish_marker_to_rviz(self, p : np.ndarray):
         """
         Publish a marker to rviz for visualization
         :param p: reference position on the trajectory
