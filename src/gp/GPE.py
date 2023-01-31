@@ -50,12 +50,34 @@ class GPEnsemble:
 
     @classmethod
     def fromlist(cls, gp_list : list = []):
+        """
+        Creates a GPEnsemble from a list of GP objects
+        :param gp_list: List of GP objects
+        """
         if all([isinstance(g, GP) for g in gp_list]):
             type = 'GP'
         elif all([isinstance(g, RGP) for g in gp_list]):
             type = 'RGP'
         else:
             raise ValueError("All GP objects in the list must be of the same type")
+
+        return cls(gp_list=gp_list, type=type)
+
+    @classmethod
+    def frombasisvectors(cls, X : list, y : list):
+        """
+        Creates a GPEnsemble from a list of basis vectors and their corresponding y values
+        :param X: List of np.ndarray with the basis vectors
+        :param y: List of np.ndarray with the corresponding y values
+        """
+        assert len(X) == 3, "X must have length 3"
+        assert len(y) == 3, "y must have length 3"
+        
+        type = 'RGP'
+        gp_list = [None]*3
+        for i in range(3):
+            gp_list[i] = RGP(X[i], y[i])
+
 
         return cls(gp_list=gp_list, type=type)
 
@@ -85,7 +107,7 @@ class GPEnsemble:
 
 
 
-    def predict(self, X_t : list, std : bool = False) -> np.ndarray:
+    def predict(self, X_t : list, std : bool = False) -> list:
         """
         Predicts the output of the GPEnsemble at X_t
         :param X_t: list of np.ndarray to the GPEnsemble
@@ -109,9 +131,9 @@ class GPEnsemble:
 
         # Output formatting
         if all([isinstance(mu_dim[n], np.ndarray) for n in range(len(mu_dim))]):
-            mu = np.concatenate(mu_dim, axis=1)
+            mu = mu_dim
             if std:
-                std = np.concatenate(std_dim, axis=1)
+                std = std_dim
                 return mu, std
         elif all([isinstance(mu_dim[n], cs.MX) for n in range(len(mu_dim))]):
             mu = cs.horzcat(*mu_dim)

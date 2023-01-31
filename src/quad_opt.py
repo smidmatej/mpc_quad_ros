@@ -17,6 +17,7 @@
 
 
 import numpy as np
+
 import casadi as cs
 import os
 from acados_template import AcadosOcp, AcadosOcpSolver, AcadosModel
@@ -25,7 +26,7 @@ import mpl_toolkits.mplot3d.axes3d as p3
 from matplotlib import animation
 
 from quad import Quadrotor3D
-from utils.utils import skew_symmetric, quaternion_to_euler, unit_quat, v_dot_q, quaternion_inverse
+from utils.utils import skew_symmetric, quaternion_to_euler, unit_quat, v_dot_q, quaternion_inverse, compute_a_drag
 
 import pdb
 
@@ -219,7 +220,8 @@ class quad_optimizer:
                 self.params = cs.horzcat(*p_y) # n x 3 matrix
                 gp_means = self.gpe.predict_using_y(v_body, p_y).T
             elif self.gpe.type == "GP":
-                gp_means = self.gpe.predict(v_body).T
+                gpe_predict = self.gpe.predict(v_body)
+                gp_means = np.concatenate(gpe_predict, axis=1).T
             else:
                 raise ValueError("Unknown GPE type")
 
@@ -357,6 +359,36 @@ class quad_optimizer:
                     v_b[0], v_b[1], v_b[2], x_out[10], x_out[11], x_out[12]])
             #print(x_out)
             return x_out
+
+    def regress_and_update_RGP_model(self, x_now : np.ndarray, x_pred_minus_1 : np.ndarray, dt : float = None):
+        """
+        Regresses the internal RGP model with provided (current state, last predicted state) pair. 
+        Then updates the MPC solver with the new RGP parameters. 
+        :param: x_now: Current state of the quadrotor
+        :param: x_pred_minus_1: Last predicted state of the quadrotor
+        :param: dt: Time step between the two states. If None, uses self.optimization_dt
+        :return: RGP parameters as a 1D numpy array
+        """
+        assert x_now.shape == (13,)
+        assert x_pred_minus_1.shape == (13,)
+        assert self.gpe is not None, "RGP model has to be initialized before calling this method"
+        assert self.gpe.type == 'RGP', "Only RGP models are supported for online regression"
+
+        if dt is None:
+            dt = self.optimization_dt
+
+        v_body, a_drag = compute_a_drag(x_now, x_pred_minus_1, dt)
+        mu, C = self.gpe.regress(v_body, a_drag)
+
+        # Get the parameters of the RGP model from the RGP object
+        rgp_params = np.concatenate([self.gpe.gp[d].mu_g_t 
+                                    for d in range(len(self.gpe.gp))])
+        for ii in range(self.n_nodes):
+            self.acados_ocp_solver.set(ii, 'p', rgp_params)
+
+        return rgp_params
+
+
        
 
 

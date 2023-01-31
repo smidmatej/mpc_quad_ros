@@ -57,7 +57,7 @@ import sys
 
 
 from MPCROSWrapper import MPCROSWrapper
-from mpc_quad.src.Logger import RosLogger
+from Logger import Logger
 
 from utils.utils import get_reference_chunk, v_dot_q, get_reference_chunk, quaternion_to_euler, rospy_time_to_float, quaternion_inverse
 
@@ -104,7 +104,7 @@ class MPC_controller:
 
 
         
-        self.logger = RosLogger(log_filename)
+        self.logger = Logger(log_filename)
 
 
 
@@ -186,23 +186,13 @@ class MPC_controller:
         :param msg: Odometry message of type nav_msgs/Odometry
         """
         #!IMPORTANT: This function runs FIFO, not from the most recent message.
-        #!IMPORTANT: This function runs FIFO, not from the most recent message.
-        #!IMPORTANT: This function runs FIFO, not from the most recent message.
-        #!IMPORTANT: This function runs FIFO, not from the most recent message.
 
         # I ignore odometry unless I have a trajectory. This is to avoid the controller to start before the trajectory is received
         # Trajectory is received in the trajectory_received_cb function
         # New trajectory is requested elsewhere
         x, timestamp_odometry = self.pose_to_state_world(msg)
 
-        """
-        if self.rebooted_controller:
-            # I am rebooting the controller, so I ignore the pose messages
-            #self.send_control_command_hover()
-            self.request_trajectory(x, self.trajectory_type)
-            self.rebooted_controller = False
-            return
-        """
+
 
         if timestamp_odometry < self.last_reboot_timestamp:
             # Dump the accumulated odometry messages that came before the reboot was finished
@@ -259,24 +249,19 @@ class MPC_controller:
                 self.idx_traj += 1
 
                 # -------------- RGP regress --------------
-
                 if self.mpc_ros_wrapper.quad_opt.gpe.type == 'RGP':
                     rgp_basis_vectors = np.concatenate([self.mpc_ros_wrapper.quad_opt.gpe.gp[d].X
                             for d in range(len(self.mpc_ros_wrapper.quad_opt.gpe.gp))]) 
                     if self.logger.dictionary:
-                        # Already have some data, so I can regress the RGP model
-                        self.regress_RGP_model(x)
-
-                        # Get the parameters of the RGP model from the RGP object
-                        rgp_params = np.concatenate([self.mpc_ros_wrapper.quad_opt.gpe.gp[d].mu_g_t 
-                                                    for d in range(len(self.mpc_ros_wrapper.quad_opt.gpe.gp))])
-
-
-                        self.update_RGP_model_inside_mpc(rgp_params)
+                        x_pred_minus_1 = self.logger.dictionary['x_pred_odom'][-1]
                     else:
-                        # Default parameters for the RGP model
-                        rgp_params = np.concatenate([self.mpc_ros_wrapper.quad_opt.gpe.gp[d].mu_g_t 
-                                    for d in range(len(self.mpc_ros_wrapper.quad_opt.gpe.gp))])
+                        x_pred_minus_1 = x
+ 
+                    rgp_params = self.mpc_ros_wrapper.quad_opt.regress_and_update_RGP_model(x, x_pred_minus_1)
+                else:
+                    # If not using RGP, set these to None for logging
+                    rgp_basis_vectors = None
+                    rgp_params = None
 
                 # ------- Publish visualisations to rviz -------
 
@@ -379,11 +364,6 @@ class MPC_controller:
 
                             self.request_trajectory(x, self.trajectory_type)
 
-                        
-
-                    
-                    
-
 
         elapsed_during_cb = time.time() - time_at_cb_start
         #rospy.loginfo(f"Elapsed time during callback: \n\r {elapsed_during_cb*1000:.3f} ms")
@@ -404,33 +384,8 @@ class MPC_controller:
 
         # Reinitialize MPC solver with the retrained GPE
         self.mpc_ros_wrapper.initialize()
-        
-    def regress_RGP_model(self, x : np.ndarray):
-        """
-        Regresses the RGP model with current state and last predicted state. Updates the RGP instance in the quad_optimizer. 
-        The MPC solver needs to be updated with the new RGP parameters using update_RGP_model_inside_mpc().
-        """
 
-        # Get the drag force from the difference between the predicted and actual velocity
-        x_world = x
-        x_world_pred = self.logger.dictionary['x_pred_odom'][-1]
-        v_body = v_dot_q(x_world[7:10], quaternion_inverse(x_world[3:7]))
-        v_body_pred = v_dot_q(x_world_pred[7:10], quaternion_inverse(x_world_pred[3:7]))
-        a_drag = (v_body - v_body_pred)/self.mpc_ros_wrapper.quad_opt.optimization_dt
 
-        v_body = [np.array([v_body[i]]) for i in range(len(v_body))] # Convert to list of np arrays
-        a_drag = [np.array([a_drag[i]]) for i in range(len(a_drag))] # Convert to list of np arrays
-        mu, C = self.mpc_ros_wrapper.quad_opt.gpe.regress(v_body, a_drag)
-        return mu, C
-
-    def update_RGP_model_inside_mpc(self, p : np.ndarray):
-        """
-        Sets the MPC solver parameter p to the value of mu_g_t at the basis vectors for the RGP model.
-        :param p: np.ndarray of shape (n_dim * n_basis_vectors,)
-        """
-
-        for ii in range(self.mpc_ros_wrapper.quad_opt.n_nodes):
-            self.mpc_ros_wrapper.quad_opt.acados_ocp_solver.set(ii, 'p', p)
 
     def request_trajectory(self, x, trajectory_type):           
             """

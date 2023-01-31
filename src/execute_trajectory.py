@@ -315,6 +315,9 @@ def simulate_trajectory(quad, quad_opt, quad_nominal, x0, x_trajectory, simulati
         simulation_time += quad_opt.optimization_dt
     
 
+    '''
+    
+    
     t = np.linspace(0, simulation_length, len(x_sim))
 
     # Convert lists to numpy arrays
@@ -337,19 +340,12 @@ def simulate_trajectory(quad, quad_opt, quad_nominal, x0, x_trajectory, simulati
 
     rmse_pos = np.sqrt(np.mean((yref_now[:3] - x[:3])**2))
     #rmse_pos = np.append(rmse_pos, rmse_pos_now)
-
     data['x_sim'] = x_sim
-   
     data['gpe'] = quad_opt.gpe is not None
-
-
     data['rmse_pos'] = rmse_pos
-
     data['u'] = u_sim
     data['aero_drag'] = aero_drag_sim
-
     data['x_pred_sim'] = x_pred_sim
-
     # need the dt to calculate a_error
     data['dt'] = simulation_dt
     data['t'] = t
@@ -368,7 +364,7 @@ def simulate_trajectory(quad, quad_opt, quad_nominal, x0, x_trajectory, simulati
             data['rgp_basis_vectors'] = rgp_basis_vectors
             data['rgp_params'] = rgp_params
 
-
+    '''
     
     #save_dict(data, logger.filepath_dict)
     logger.save_log()

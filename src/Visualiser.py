@@ -31,6 +31,7 @@ import seaborn as sns
 import os
 from utils.save_dataset import load_dict
 from functools import partial
+from gp.GPE import GPEnsemble
 
 class Visualiser:
     def __init__(self, trajectory_filename):
@@ -40,7 +41,7 @@ class Visualiser:
         
 
 
-    def create_animation(self, result_animation_filename, desired_number_of_frames, use_color_map=True):
+    def create_animation(self, result_animation_filename, desired_number_of_frames, use_color_map=True, gif=False):
         self.desired_number_of_frames = desired_number_of_frames
         self.use_color_map = use_color_map
         self.prepare_animation_data()
@@ -53,14 +54,44 @@ class Visualiser:
 
         self.pbar = tqdm(total=self.number_of_frames)
 
-        ani = animation.FuncAnimation(self.fig, self.update, frames=self.number_of_frames, interval=interval)           
+        def animate(i):
+            # Current position
+            
+            #print(f'Frame: {i}')
+            self.particle.set_data_3d(self.position[i,0], self.position[i,1], self.position[i,2])
+
+            if self.use_color_map:
+                # Plots the visited trajectory based on color. Computationaly expensive
+                self.traj, = self.ax.plot(self.position[i:i+2,0], self.position[i:i+2,1], self.position[i:i+2,2], \
+                                            color=plt.cm.jet(self.speed[i]/max(self.speed)), linewidth=0.8)
+                
+            # orientation
+            self.vector_up.set_data_3d(np.array([self.position[i,0], self.position[i,0] + self.body_up[i,0]]), \
+                    np.array([self.position[i,1], self.position[i,1] + self.body_up[i,1]]), \
+                    np.array([self.position[i,2], self.position[i,2] + self.body_up[i,2]]))
+
+            # Norm of veloctity to plot to a different ax
+            self.v_traj.set_data(self.t[:i+1], self.speed[:i+1])
+
+            if i < self.number_of_frames-1:
+                # dp_norm is a diff, missing the last value
+                self.dp_traj.set_data(self.t[:i+1], self.dp_norm[:i+1])
 
 
+            for j in range(self.control.shape[1]):
+                self.control_traj[j].set_data(self.t[:i+1], self.control[:i+1,j])
+            
+            self.pbar.update()
+
+
+        ani = animation.FuncAnimation(self.fig, animate, frames=self.number_of_frames, interval=interval)          
         ani.save(result_animation_filename + '.mp4', writer='ffmpeg', fps=10, dpi=100)
-        ani.save(result_animation_filename + '.gif', writer='imagemagick', fps=10, dpi=100)
+        if gif:
+            ani.save(result_animation_filename + '.gif', writer='imagemagick', fps=10, dpi=100)
 
 
-    def create_rgp_animation(self, result_animation_filename, desired_number_of_frames, use_color_map=True):
+
+    def create_rgp_animation(self, result_animation_filename, desired_number_of_frames, use_color_map=True, gif=False):
         self.desired_number_of_frames = desired_number_of_frames
         self.use_color_map = use_color_map
         self.prepare_rgp_animation_data()
@@ -79,44 +110,15 @@ class Visualiser:
 
             self.pbar.update()
 
+
         ani = animation.FuncAnimation(self.fig, animate, frames=self.number_of_frames, interval=interval)           
-        
-
         ani.save(result_animation_filename + '.mp4', writer='ffmpeg', fps=10, dpi=100)
-        ani.save(result_animation_filename + '.gif', writer='imagemagick', fps=10, dpi=100)
+        if gif:
+            ani.save(result_animation_filename + '.gif', writer='imagemagick', fps=10, dpi=100)
 
-        
+
+    
    
-
-    def update(self, i):
-        # Current position
-        
-        #print(f'Frame: {i}')
-        self.particle.set_data_3d(self.position[i,0], self.position[i,1], self.position[i,2])
-
-        if self.use_color_map:
-            # Plots the visited trajectory based on color. Computationaly expensive
-            self.traj, = self.ax.plot(self.position[i:i+2,0], self.position[i:i+2,1], self.position[i:i+2,2], \
-                                        color=plt.cm.jet(self.speed[i]/max(self.speed)), linewidth=0.8)
-            
-        # orientation
-        self.vector_up.set_data_3d(np.array([self.position[i,0], self.position[i,0] + self.body_up[i,0]]), \
-                np.array([self.position[i,1], self.position[i,1] + self.body_up[i,1]]), \
-                np.array([self.position[i,2], self.position[i,2] + self.body_up[i,2]]))
-
-        # Norm of veloctity to plot to a different ax
-        self.v_traj.set_data(self.t[:i+1], self.speed[:i+1])
-
-        if i < self.number_of_frames-1:
-            # dp_norm is a diff, missing the last value
-            self.dp_traj.set_data(self.t[:i+1], self.dp_norm[:i+1])
-
-
-        for j in range(self.control.shape[1]):
-            self.control_traj[j].set_data(self.t[:i+1], self.control[:i+1,j])
-        
-        self.pbar.update()
-
 
 
     def prepare_animation_data(self):
@@ -156,7 +158,7 @@ class Visualiser:
 
 
         # Color scheme convert from [0,255] to [0,1]
-        cs = [[x/256 for x in (8, 65, 92)], \
+        self.cs = [[x/256 for x in (8, 65, 92)], \
                 [x/256 for x in (204, 41, 54)], \
                 [x/256 for x in (118, 148, 159)], \
                 [x/256 for x in (232, 197, 71)]] 
@@ -180,9 +182,9 @@ class Visualiser:
         self.ax.yaxis.pane.set_edgecolor('k')
         self.ax.zaxis.pane.set_edgecolor('k')
 
-        self.particle, = plt.plot([],[], marker='o', color=cs[1])
-        self.vector_up, = plt.plot([],[], color=cs[3])
-        self.traj, = plt.plot([],[], color=cs[0], alpha=0.5)
+        self.particle, = plt.plot([],[], marker='o', color=self.cs[1])
+        self.vector_up, = plt.plot([],[], color=self.cs[3])
+        self.traj, = plt.plot([],[], color=self.cs[0], alpha=0.5)
 
 
 
@@ -199,7 +201,7 @@ class Visualiser:
         self.ax_control = self.fig.add_subplot(gs[0,1])
         self.control_traj = [None]*4
         for i in range(self.control.shape[1]):
-            self.control_traj[i], = self.ax_control.plot([], [], label='u'+str(i), c=cs[i])
+            self.control_traj[i], = self.ax_control.plot([], [], label='u'+str(i), c=self.cs[i])
 
         self.ax_control.set_xlim((min(self.t), max(self.t)))
         self.ax_control.set_ylim((0, 1))
@@ -209,8 +211,8 @@ class Visualiser:
         self.ax_control.legend(('u0', 'u1', 'u2', 'u3'), loc='upper right')
 
         self.ax_speed = self.fig.add_subplot(gs[1,1])
-        self.v_traj, = plt.plot([],[], color=cs[0])
-        self.dp_traj, = plt.plot([],[], color=cs[0])
+        self.v_traj, = plt.plot([],[], color=self.cs[0])
+        self.dp_traj, = plt.plot([],[], color=self.cs[0])
         self.ax_speed.set_xlim((min(self.t), max(self.t)))
         self.ax_speed.set_ylim((0, max(self.speed)))
         self.ax_speed.set_xlabel('Time [s]')
@@ -226,7 +228,7 @@ class Visualiser:
         plt.ioff() # Turn off interactive mode to hide rendering animations
 
         # Color scheme convert from [0,255] to [0,1]
-        cs = [[x/256 for x in (8, 65, 92)], \
+        self.cs = [[x/256 for x in (8, 65, 92)], \
                 [x/256 for x in (204, 41, 54)], \
                 [x/256 for x in (118, 148, 159)], \
                 [x/256 for x in (232, 197, 71)]] 
@@ -287,6 +289,141 @@ class Visualiser:
         self.y_lim = (y_min, y_max)
 
 
+    def create_rgp_full_animation(self, result_animation_filename, desired_number_of_frames, use_color_map=True, gif=False):
+
+
+        self.desired_number_of_frames = desired_number_of_frames
+        self.use_color_map = use_color_map
+        self.prepare_rgp_full_animation_data()
+        self.prepare_rgp_full_animation_figure()
+
+        interval = 20 # 50 fps    
+        self.number_of_frames = len(self.X)
+        print('Creating RGP animation...')
+        print(f'Number of frames: {self.number_of_frames}, fps: {1000/interval}, duration: {self.number_of_frames*interval/1000} s')
+
+        self.pbar = tqdm(total=self.number_of_frames)
+
+        def animate(i):
+
+            for d in range(3):
+                self.scat_basis_vectors[d].set_offsets(np.array([self.X[i][d].ravel(), self.y[i][d].ravel()]).T)
+
+                self.rgp_mean_plot[d].set_data(self.X_query[d], self.y_query[i][d])
+                self.fill_between_plots[d].remove()
+                self.fill_between_plots[d] = self.ax[d].fill_between(self.X_query[d].reshape(-1),
+                    self.y_query[i][d].reshape(-1) - 2*self.std_query[i][d], 
+                    self.y_query[i][d].reshape(-1) + 2*self.std_query[i][d], color=self.cs[1], alpha=0.2)
+            self.pbar.update()
+
+
+        ani = animation.FuncAnimation(self.fig, animate, frames=self.number_of_frames, interval=interval)           
+        ani.save(result_animation_filename + '.mp4', writer='ffmpeg', fps=10, dpi=100)
+        if gif:
+            ani.save(result_animation_filename + '.gif', writer='imagemagick', fps=10, dpi=100)
+
+
+
+    def prepare_rgp_full_animation_figure(self):
+
+        animation.writer = animation.writers['ffmpeg']
+        plt.ioff() # Turn off interactive mode to hide rendering animations
+
+        # Color scheme convert from [0,255] to [0,1]
+        self.cs = [[x/256 for x in (8, 65, 92)], \
+                [x/256 for x in (204, 41, 54)], \
+                [x/256 for x in (118, 148, 159)], \
+                [x/256 for x in (232, 197, 71)]] 
+
+
+        plt.style.use('fast')
+        sns.set_style("whitegrid")
+
+        gs = gridspec.GridSpec(1, 3)
+        self.fig = plt.figure(figsize=(10,6), dpi=100)
+
+        labels = ['x', 'y', 'z']
+
+        self.ax = [None]*3
+        self.scat_basis_vectors = [None]*3
+        self.rgp_mean_plot = [None]*3
+        self.fill_between_plots = [None]*3
+
+
+        for d in range(3):
+            self.ax[d] = self.fig.add_subplot(gs[d])
+
+            self.scat_basis_vectors[d] = self.ax[d].scatter([], [], marker='o', label='Basis Vectors')
+            self.rgp_mean_plot[d], = self.ax[d].plot([], [], '--', color=self.cs[0], label='E[g(x)]')
+            
+            self.fill_between_plots[d] = self.ax[d].fill_between([],
+                [], 
+                [], color=self.cs[3], alpha=0.2)
+
+            self.ax[d].set_xlim(self.x_lim[d])
+            self.ax[d].set_ylim(self.y_lim[d])
+
+            self.ax[d].set_xlabel('Velocity [ms-1]')
+            self.ax[d].set_ylabel('Drag acceleration [ms-2]')
+            self.ax[d].set_title(f'RGP basis vectors in {labels[d]}')
+
+        self.fig.tight_layout()
+
+
+    def prepare_rgp_full_animation_data(self):
+        
+        print("Preparing data...")
+        # Calculates how many datapoints to skip to get the desired number of frames
+        skip = int(self.data_dict['x_odom'].shape[0]/self.desired_number_of_frames)
+
+        # Load data 
+        self.X_array = self.data_dict['rgp_basis_vectors'][::skip]
+        self.y_array = self.data_dict['rgp_params'][::skip]
+
+
+        n_dims = 3
+        n_basis = self.X_array.shape[1]//n_dims
+        n_samples = self.X_array.shape[0]
+
+        self.X = [None]*n_samples
+        self.y = [None]*n_samples
+        self.y_query = [None]*n_samples
+        self.std_query = [None]*n_samples
+
+        
+        for i in range(n_samples):
+            self.X[i] = [self.X_array[i][d*n_basis:(d+1)*n_basis] for d in range(n_dims)]
+            self.y[i] = [self.y_array[i][d*n_basis:(d+1)*n_basis] for d in range(n_dims)]
+
+            
+
+        x_min = [100000]*n_dims
+        x_max = [-100000]*n_dims
+        for d in range(n_dims):
+            for i in range(len(self.X)):
+                x_min[d] = min(x_min[d], min(self.X[i][d]))
+                x_max[d] = max(x_max[d], max(self.X[i][d]))
+
+        self.X_query = [np.linspace(x_min[d], x_max[d], 100) for d in range(n_dims)]
+
+        for i in range(self.X_array.shape[0]):
+            self.rgpe = GPEnsemble.frombasisvectors(self.X[i], self.y[i])
+            self.y_query[i], self.std_query[i] = self.rgpe.predict(self.X_query, std=True)
+
+        y_min = [100000]*n_dims
+        y_max = [-100000]*n_dims
+        for d in range(n_dims):
+            for i in range(len(self.X)):
+
+                y_min[d] = min(y_min[d], min(min(self.y[i][d]), min(self.y_query[i][d]), -2*min(self.std_query[i][d])))
+                y_max[d] = max(y_max[d], max(max(self.y[i][d]), max(self.y_query[i][d]), 2*max(self.std_query[i][d])))
+        
+
+        y_lim_dif = [y_max[d]-y_min[d] for d in range(n_dims)]
+        self.x_lim = [(x_min[d], x_max[d]) for d in range(n_dims)]
+        self.y_lim = [(y_min[d] - np.sign(y_lim_dif[d])*y_lim_dif[d]/2, y_max[d] + np.sign(y_lim_dif[d])*y_lim_dif[d]/2) for d in range(n_dims)]
+
+
     @staticmethod
     def rms(x, axis=0):
         return np.sqrt(np.mean(x**2, axis=axis))
@@ -314,12 +451,12 @@ class Visualiser:
 
 
         # Color scheme convert from [0,255] to [0,1]
-        cs_u = [[x/256 for x in (8, 65, 92)], \
+        self.cs_u = [[x/256 for x in (8, 65, 92)], \
                 [x/256 for x in (204, 41, 54)], \
                 [x/256 for x in (118, 148, 159)], \
                 [x/256 for x in (232, 197, 71)]] 
 
-        cs_rgb = [[x/256 for x in (205, 70, 49)], \
+        self.cs_rgb = [[x/256 for x in (205, 70, 49)], \
                 [x/256 for x in (105, 220, 158)], \
                 [x/256 for x in (102, 16, 242)], \
                 [x/256 for x in (7, 59, 58)]]
@@ -348,109 +485,109 @@ class Visualiser:
 
 
 
-        ax[0].plot(self.data_dict['t_odom'], self.data_dict['x_odom'][:,0], label='x', color=cs_rgb[0])
-        ax[0].plot(self.data_dict['t_odom'], self.data_dict['x_odom'][:,1], label='y', color=cs_rgb[1])
-        ax[0].plot(self.data_dict['t_odom'], self.data_dict['x_odom'][:,2], label='z', color=cs_rgb[2])
-        ax[0].plot(self.data_dict['t_odom'], self.data_dict['x_ref'][:,0], label='x_ref', color=cs_rgb[0], linestyle='dashed')
-        ax[0].plot(self.data_dict['t_odom'], self.data_dict['x_ref'][:,1], label='y_ref', color=cs_rgb[1], linestyle='dashed')
-        ax[0].plot(self.data_dict['t_odom'], self.data_dict['x_ref'][:,2], label='z_ref', color=cs_rgb[2], linestyle='dashed')
+        ax[0].plot(self.data_dict['t_odom'], self.data_dict['x_odom'][:,0], label='x', color=self.cs_rgb[0])
+        ax[0].plot(self.data_dict['t_odom'], self.data_dict['x_odom'][:,1], label='y', color=self.cs_rgb[1])
+        ax[0].plot(self.data_dict['t_odom'], self.data_dict['x_odom'][:,2], label='z', color=self.cs_rgb[2])
+        ax[0].plot(self.data_dict['t_odom'], self.data_dict['x_ref'][:,0], label='x_ref', color=self.cs_rgb[0], linestyle='dashed')
+        ax[0].plot(self.data_dict['t_odom'], self.data_dict['x_ref'][:,1], label='y_ref', color=self.cs_rgb[1], linestyle='dashed')
+        ax[0].plot(self.data_dict['t_odom'], self.data_dict['x_ref'][:,2], label='z_ref', color=self.cs_rgb[2], linestyle='dashed')
         ax[0].set_xlabel('Time [s]')
         ax[0].set_ylabel('Position [m]')
         ax[0].set_title('Position')
 
-        ax[1].plot(self.data_dict['t_odom'], self.data_dict['x_odom'][:,3], label='qw', color=cs_rgb[0])
-        ax[1].plot(self.data_dict['t_odom'], self.data_dict['x_odom'][:,4], label='qx', color=cs_rgb[1])
-        ax[1].plot(self.data_dict['t_odom'], self.data_dict['x_odom'][:,5], label='qy', color=cs_rgb[2])
-        ax[1].plot(self.data_dict['t_odom'], self.data_dict['x_odom'][:,6], label='qz', color=cs_rgb[3])
-        ax[1].plot(self.data_dict['t_odom'], self.data_dict['x_ref'][:,3], label='qw_ref', color=cs_rgb[0], linestyle='dashed')
-        ax[1].plot(self.data_dict['t_odom'], self.data_dict['x_ref'][:,4], label='qx_ref', color=cs_rgb[1], linestyle='dashed')
-        ax[1].plot(self.data_dict['t_odom'], self.data_dict['x_ref'][:,5], label='qy_ref', color=cs_rgb[2], linestyle='dashed')
-        ax[1].plot(self.data_dict['t_odom'], self.data_dict['x_ref'][:,6], label='qz_ref', color=cs_rgb[3], linestyle='dashed')
+        ax[1].plot(self.data_dict['t_odom'], self.data_dict['x_odom'][:,3], label='qw', color=self.cs_rgb[0])
+        ax[1].plot(self.data_dict['t_odom'], self.data_dict['x_odom'][:,4], label='qx', color=self.cs_rgb[1])
+        ax[1].plot(self.data_dict['t_odom'], self.data_dict['x_odom'][:,5], label='qy', color=self.cs_rgb[2])
+        ax[1].plot(self.data_dict['t_odom'], self.data_dict['x_odom'][:,6], label='qz', color=self.cs_rgb[3])
+        ax[1].plot(self.data_dict['t_odom'], self.data_dict['x_ref'][:,3], label='qw_ref', color=self.cs_rgb[0], linestyle='dashed')
+        ax[1].plot(self.data_dict['t_odom'], self.data_dict['x_ref'][:,4], label='qx_ref', color=self.cs_rgb[1], linestyle='dashed')
+        ax[1].plot(self.data_dict['t_odom'], self.data_dict['x_ref'][:,5], label='qy_ref', color=self.cs_rgb[2], linestyle='dashed')
+        ax[1].plot(self.data_dict['t_odom'], self.data_dict['x_ref'][:,6], label='qz_ref', color=self.cs_rgb[3], linestyle='dashed')
         ax[1].set_xlabel('Time [s]')
         ax[1].set_ylabel('Quaternion')
         ax[1].set_title('Orientation')
 
-        ax[2].plot(self.data_dict['t_odom'], self.data_dict['x_odom'][:,7], label='vx', color=cs_rgb[0])
-        ax[2].plot(self.data_dict['t_odom'], self.data_dict['x_odom'][:,8], label='vy', color=cs_rgb[1])
-        ax[2].plot(self.data_dict['t_odom'], self.data_dict['x_odom'][:,9], label='vz', color=cs_rgb[2])
-        ax[2].plot(self.data_dict['t_odom'], self.data_dict['x_ref'][:,7], label='vx_ref', color=cs_rgb[0], linestyle='dashed')
-        ax[2].plot(self.data_dict['t_odom'], self.data_dict['x_ref'][:,8], label='vy_ref', color=cs_rgb[1], linestyle='dashed')
-        ax[2].plot(self.data_dict['t_odom'], self.data_dict['x_ref'][:,9], label='vz_ref', color=cs_rgb[2], linestyle='dashed')
+        ax[2].plot(self.data_dict['t_odom'], self.data_dict['x_odom'][:,7], label='vx', color=self.cs_rgb[0])
+        ax[2].plot(self.data_dict['t_odom'], self.data_dict['x_odom'][:,8], label='vy', color=self.cs_rgb[1])
+        ax[2].plot(self.data_dict['t_odom'], self.data_dict['x_odom'][:,9], label='vz', color=self.cs_rgb[2])
+        ax[2].plot(self.data_dict['t_odom'], self.data_dict['x_ref'][:,7], label='vx_ref', color=self.cs_rgb[0], linestyle='dashed')
+        ax[2].plot(self.data_dict['t_odom'], self.data_dict['x_ref'][:,8], label='vy_ref', color=self.cs_rgb[1], linestyle='dashed')
+        ax[2].plot(self.data_dict['t_odom'], self.data_dict['x_ref'][:,9], label='vz_ref', color=self.cs_rgb[2], linestyle='dashed')
 
-        ax[2].plot(self.data_dict['t_odom'], v_norm, label='v_norm', color=cs_rgb[3])
-        ax[2].plot(self.data_dict['t_odom'], v_ref_norm, label='v_ref_norm', color=cs_rgb[3], linestyle='dashed')
+        ax[2].plot(self.data_dict['t_odom'], v_norm, label='v_norm', color=self.cs_rgb[3])
+        ax[2].plot(self.data_dict['t_odom'], v_ref_norm, label='v_ref_norm', color=self.cs_rgb[3], linestyle='dashed')
         ax[2].set_title('Velocity')
         ax[2].set_xlabel('Time [s]')
         ax[2].set_ylabel('Velocity [m/s]')
 
-        ax[3].plot(self.data_dict['t_odom'], self.data_dict['x_odom'][:,10], label='wx', color=cs_rgb[0])
-        ax[3].plot(self.data_dict['t_odom'], self.data_dict['x_odom'][:,11], label='wy', color=cs_rgb[1])
-        ax[3].plot(self.data_dict['t_odom'], self.data_dict['x_odom'][:,12], label='wz', color=cs_rgb[2])
-        ax[3].plot(self.data_dict['t_odom'], self.data_dict['x_ref'][:,10], label='wx_ref', color=cs_rgb[0], linestyle='dashed')
-        ax[3].plot(self.data_dict['t_odom'], self.data_dict['x_ref'][:,11], label='wy_ref', color=cs_rgb[1], linestyle='dashed')
-        ax[3].plot(self.data_dict['t_odom'], self.data_dict['x_ref'][:,12], label='wz_ref', color=cs_rgb[2], linestyle='dashed')
+        ax[3].plot(self.data_dict['t_odom'], self.data_dict['x_odom'][:,10], label='wx', color=self.cs_rgb[0])
+        ax[3].plot(self.data_dict['t_odom'], self.data_dict['x_odom'][:,11], label='wy', color=self.cs_rgb[1])
+        ax[3].plot(self.data_dict['t_odom'], self.data_dict['x_odom'][:,12], label='wz', color=self.cs_rgb[2])
+        ax[3].plot(self.data_dict['t_odom'], self.data_dict['x_ref'][:,10], label='wx_ref', color=self.cs_rgb[0], linestyle='dashed')
+        ax[3].plot(self.data_dict['t_odom'], self.data_dict['x_ref'][:,11], label='wy_ref', color=self.cs_rgb[1], linestyle='dashed')
+        ax[3].plot(self.data_dict['t_odom'], self.data_dict['x_ref'][:,12], label='wz_ref', color=self.cs_rgb[2], linestyle='dashed')
         ax[3].set_title('Angular Velocity')
         ax[3].set_xlabel('Time [s]')
         ax[3].set_ylabel('Angular Velocity [rad/s]')
 
 
-        ax[4].plot(self.data_dict['t_odom'], e_pos_ref[:,0], label='e_x', color=cs_rgb[0])
-        ax[4].plot(self.data_dict['t_odom'], e_pos_ref[:,1], label='e_y', color=cs_rgb[1])
-        ax[4].plot(self.data_dict['t_odom'], e_pos_ref[:,2], label='e_z', color=cs_rgb[2])
-        ax[4].plot(self.data_dict['t_odom'], rms_pos_ref, label="rms", color=cs_rgb[3])
+        ax[4].plot(self.data_dict['t_odom'], e_pos_ref[:,0], label='e_x', color=self.cs_rgb[0])
+        ax[4].plot(self.data_dict['t_odom'], e_pos_ref[:,1], label='e_y', color=self.cs_rgb[1])
+        ax[4].plot(self.data_dict['t_odom'], e_pos_ref[:,2], label='e_z', color=self.cs_rgb[2])
+        ax[4].plot(self.data_dict['t_odom'], rms_pos_ref, label="rms", color=self.cs_rgb[3])
         ax[4].set_title(f"RMS Position Error, Total: {self.rms(rms_pos_ref, 0)*1e3:.2f}mm")
         ax[4].set_xlabel('Time [s]')
         ax[4].set_ylabel('RMS Position Error [m]')
         ax[4].legend()
 
 
-        ax[5].plot(self.data_dict['t_odom'], rms_quat_ref, label='rms', color=cs_rgb[0])
+        ax[5].plot(self.data_dict['t_odom'], rms_quat_ref, label='rms', color=self.cs_rgb[0])
         ax[5].set_title(f'RMS Quaternion Error')
         ax[5].set_xlabel('Time [s]')
         ax[5].set_ylabel('RMS Quaternion Error [m/s]')
 
-        ax[6].plot(self.data_dict['t_odom'], e_vel_ref[:,0], label='e_vx', color=cs_rgb[0])
-        ax[6].plot(self.data_dict['t_odom'], e_vel_ref[:,1], label='e_vy', color=cs_rgb[1])
-        ax[6].plot(self.data_dict['t_odom'], e_vel_ref[:,2], label='e_vz', color=cs_rgb[2])
-        ax[6].plot(self.data_dict['t_odom'], rms_vel_ref, label='rms', color=cs_rgb[3])
+        ax[6].plot(self.data_dict['t_odom'], e_vel_ref[:,0], label='e_vx', color=self.cs_rgb[0])
+        ax[6].plot(self.data_dict['t_odom'], e_vel_ref[:,1], label='e_vy', color=self.cs_rgb[1])
+        ax[6].plot(self.data_dict['t_odom'], e_vel_ref[:,2], label='e_vz', color=self.cs_rgb[2])
+        ax[6].plot(self.data_dict['t_odom'], rms_vel_ref, label='rms', color=self.cs_rgb[3])
         ax[6].set_title(f'RMS Velocity Error, Total: {self.rms(rms_vel_ref, 0)*1000:.2f}mm/s')
         ax[6].set_xlabel('Time [s]')
         ax[6].set_ylabel('RMS Velocity Error [m/s]')
         ax[6].legend()
 
-        ax[7].plot(self.data_dict['t_odom'], e_rate_ref[:,0], label='e_vx', color=cs_rgb[0])
-        ax[7].plot(self.data_dict['t_odom'], e_rate_ref[:,1], label='e_vy', color=cs_rgb[1])
-        ax[7].plot(self.data_dict['t_odom'], e_rate_ref[:,2], label='e_vz', color=cs_rgb[2])
-        ax[7].plot(self.data_dict['t_odom'], rms_rate_ref, label='rms', color=cs_rgb[3])
+        ax[7].plot(self.data_dict['t_odom'], e_rate_ref[:,0], label='e_vx', color=self.cs_rgb[0])
+        ax[7].plot(self.data_dict['t_odom'], e_rate_ref[:,1], label='e_vy', color=self.cs_rgb[1])
+        ax[7].plot(self.data_dict['t_odom'], e_rate_ref[:,2], label='e_vz', color=self.cs_rgb[2])
+        ax[7].plot(self.data_dict['t_odom'], rms_rate_ref, label='rms', color=self.cs_rgb[3])
         ax[7].set_title(f'RMS Angular Velocity Error')
         ax[7].set_xlabel('Time [s]')
         ax[7].set_ylabel('RMS Angular Velocity Error [rad/s]')
         ax[7].legend()
 
 
-        ax[8].plot(self.data_dict['x_odom'][:,7], e_pos_ref[:,0], label='e_vx', color=cs_rgb[0])
-        ax[8].plot(self.data_dict['x_odom'][:,8], e_pos_ref[:,1], label='e_vy', color=cs_rgb[1])
-        ax[8].plot(self.data_dict['x_odom'][:,9], e_pos_ref[:,2], label='e_vz', color=cs_rgb[2])
-        ax[8].plot(v_norm, rms_pos_ref, label='rms', color=cs_rgb[3])
+        ax[8].plot(self.data_dict['x_odom'][:,7], e_pos_ref[:,0], label='e_vx', color=self.cs_rgb[0])
+        ax[8].plot(self.data_dict['x_odom'][:,8], e_pos_ref[:,1], label='e_vy', color=self.cs_rgb[1])
+        ax[8].plot(self.data_dict['x_odom'][:,9], e_pos_ref[:,2], label='e_vz', color=self.cs_rgb[2])
+        ax[8].plot(v_norm, rms_pos_ref, label='rms', color=self.cs_rgb[3])
         ax[8].set_xlabel('Velocity [m/s]')
         ax[8].set_ylabel('Position Error [m]')
         ax[8].set_title('Position error as a function of velocity')
         ax[8].legend()
 
-        ax[9].plot(self.data_dict['t_odom'], self.data_dict['w_odom'][:,0], label='u1', color=cs_u[0])
-        ax[9].plot(self.data_dict['t_odom'], self.data_dict['w_odom'][:,1], label='u2', color=cs_u[1])
-        ax[9].plot(self.data_dict['t_odom'], self.data_dict['w_odom'][:,2], label='u3', color=cs_u[2])
-        ax[9].plot(self.data_dict['t_odom'], self.data_dict['w_odom'][:,3], label='u4', color=cs_u[3])
+        ax[9].plot(self.data_dict['t_odom'], self.data_dict['w_odom'][:,0], label='u1', color=self.cs_u[0])
+        ax[9].plot(self.data_dict['t_odom'], self.data_dict['w_odom'][:,1], label='u2', color=self.cs_u[1])
+        ax[9].plot(self.data_dict['t_odom'], self.data_dict['w_odom'][:,2], label='u3', color=self.cs_u[2])
+        ax[9].plot(self.data_dict['t_odom'], self.data_dict['w_odom'][:,3], label='u4', color=self.cs_u[3])
         ax[9].set_xlabel('Time [s]')
         ax[9].set_ylabel('Control Input')
         ax[9].set_title('Control Input')
 
-        ax[10].plot(self.data_dict['t_odom'], self.data_dict['t_cpu'][:]*1e3, label='t_cpu', color=cs_rgb[0])
+        ax[10].plot(self.data_dict['t_odom'], self.data_dict['t_cpu'][:]*1e3, label='t_cpu', color=self.cs_rgb[0])
         ax[10].set_xlabel('Time [s]')
         ax[10].set_ylabel('CPU Time [ms]')
         ax[10].set_title('MPC CPU Time')
 
-        ax[11].plot(self.data_dict['t_odom'], self.data_dict['cost_solution'][:], label='solution_cost', color=cs_rgb[0])
+        ax[11].plot(self.data_dict['t_odom'], self.data_dict['cost_solution'][:], label='solution_cost', color=self.cs_rgb[0])
         ax[11].set_xlabel('Time [s]')
         ax[11].set_ylabel('Solution Cost')
         ax[11].set_title('Solution Cost')

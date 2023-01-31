@@ -929,4 +929,22 @@ def get_reference_chunk(reference_trajectory, current_idx, control_nodes, skip=1
 
     return reference_chunk
 
+    
+def compute_a_drag(x_now : np.ndarray, x_pred_minus_1 : np.ndarray, dt : float):
+    """
+    Computes the drag force from the difference between the current state velocity and the last predicted state velocity.
+    :param x_now: Current state
+    :param x_pred_minus_1: Last predicted state
+    :param dt: Time step
+    :return: (v_body, a_drag) Lists of np.ndarrays, elements of the lists for each axis
+    """
+    
+    v_body = v_dot_q(x_now[7:10], quaternion_inverse(x_now[3:7]))
+    v_body_pred = v_dot_q(x_pred_minus_1[7:10], quaternion_inverse(x_pred_minus_1[3:7]))
+    a_drag = (v_body - v_body_pred)/dt
+
+    v_body = [np.array([v_body[i]]) for i in range(len(v_body))] # Convert to list of np arrays
+    a_drag = [np.array([a_drag[i]]) for i in range(len(a_drag))] # Convert to list of np arrays
+
+    return v_body, a_drag
 
