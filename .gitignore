@@ -5,4 +5,6 @@ img/
 **/.ipynb_checkpoints/
 **/__pycache__/
 **/c_generated_code/
-
+**/src/trajectory_generation/waypoints/
+**/src/trajectory_generation/trajectories/
+**/src/trajectory_generation/polynomial_trajectory/
