@@ -134,7 +134,7 @@ def main():
         # Generate trajectory as reference for the quadrotor
         # new trajectory
         hsize = 10
-        num_waypoints = 10
+        num_waypoints = 4
         trajectory_generator.generate_random_waypoints(hsize, num_waypoints)
         trajectory_generator.sample_trajectory('random', v_max, a_max, quad_opt.optimization_dt)
 
@@ -215,8 +215,10 @@ def simulate_trajectory(quad, quad_opt, quad_nominal, x0, x_trajectory, simulati
         elapsed_during_mpc = time.time() - time_before_mpc
         w = w_opt_acados[0,:].ravel() # control to be applied to quad
 
-        x_pred = quad.one_step_forward_predict(x, w, quad_opt.optimization_dt) # Predict next state of quad using optimal control 
+        x_pred = quad_nominal.discrete_dynamics(x, w, quad_opt.optimization_dt) # Predict next state of quad using optimal control
 
+        #print(f'x_pred={x_pred}')
+        #print(f'x_pred2={x_pred2}')
 
 
         # Save nlp solution diagnostics

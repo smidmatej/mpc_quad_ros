@@ -157,7 +157,7 @@ class Quadrotor3D:
 		return self.u
 
 
-	def one_step_forward_predict(self, x : np.ndarray, u : np.ndarray, dt : float, f_d : np.ndarray = np.zeros((3,)), t_d : np.ndarray = np.zeros((3,))) -> np.ndarray:
+	def one_step_forward(self, x : np.ndarray, u : np.ndarray, dt : float, f_d : np.ndarray = np.zeros((3,)), t_d : np.ndarray = np.zeros((3,))) -> np.ndarray:
 		"""
 		Runge-Kutta 4th order dynamics integration
 		:param x: 13-dimensional state vector
@@ -179,7 +179,7 @@ class Quadrotor3D:
 		k4 = self.f_nominal(x + dt * k3, u, f_d, t_d)
 		x_out = x + dt / 6 * (k1 + 2 * k2 + 2 * k3 + k4)
 
-		x_out[3:7] = unit_quat(x_out[3:7]) # Normalize quaternion
+		#x_out[3:7] = unit_quat(x_out[3:7]) # Normalize quaternion
 
 		return x_out
 
@@ -237,7 +237,7 @@ class Quadrotor3D:
 		self.u = u # Update control input
 		x = self.get_state(quaternion=True, stacked=True) # Get current state
 
-		x_next = self.one_step_forward_predict(x, u, dt) # Runge-Kutta 4th order integration
+		x_next = self.one_step_forward(x, u, dt) # Runge-Kutta 4th order integration
 		self.set_state(x_next)
 
 

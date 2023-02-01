@@ -300,7 +300,7 @@ class MPC_controller:
                 self.optimal_path_pub.publish(optimal_path)
 
                 # Predict the state at the next odometry message for logging purposes
-                x_pred = np.array(self.quad_opt.discrete_dynamics(x, w, self.ODOMETRY_DT)).ravel()
+                x_pred = self.quad_opt.discrete_dynamics(x, w, self.ODOMETRY_DT)
                 #x_pred = x_opt[1,:]
 
                 # ------- Log data -------

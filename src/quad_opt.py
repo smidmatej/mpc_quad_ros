@@ -187,8 +187,8 @@ class quad_optimizer:
 
         # d velocity
         f_thrust = self.u * self.quad.max_thrust
-        a_thrust = cs.vertcat(0, 0, f_thrust[0] + f_thrust[1] + f_thrust[2] + f_thrust[3]) / self.quad.mass
-        self.g = cs.vertcat(0,0,9.81)
+        a_thrust = cs.vertcat(0.0, 0.0, f_thrust[0] + f_thrust[1] + f_thrust[2] + f_thrust[3]) / self.quad.mass
+        self.g = cs.vertcat(self.quad.g[0], self.quad.g[1], self.quad.g[2])
         f_v = v_dot_q(a_thrust, self.q) - self.g # velocity dynamics
 
         # d rate
@@ -202,7 +202,7 @@ class quad_optimizer:
             (cs.mtimes(f_thrust.T, c_f) + (self.quad.J[0] - self.quad.J[1]) * self.r[0] * self.r[1]) / self.quad.J[2])
         
         # concatenated dynamics
-        f_dyn = cs.vertcat(f_p, f_q, f_v, f_r)
+        f_nominal = cs.vertcat(f_p, f_q, f_v, f_r)
 
         if self.gpe is not None:
 
@@ -236,14 +236,14 @@ class quad_optimizer:
 
             
             # Dynamics correction using learned GP
-            f_corrected = f_dyn + f_augment
+            f_corrected = f_nominal + f_augment
 
 
             # Dynamics corrected using the gpe 
             return cs.Function('x_dot', [self.x, self.u, self.params], [f_corrected], ['x', 'u', 'p'], ['f'])
 
         # Dynamics w/o the gpe augmentation
-        return cs.Function('x_dot', [self.x,self.u], [f_dyn], ['x','u'], ['f'])
+        return cs.Function('x_dot', [self.x,self.u], [f_nominal], ['x','u'], ['f'])
 
     
     def set_quad_state(self, x):
@@ -350,13 +350,13 @@ class quad_optimizer:
         k4 = self.dynamics(x=x + dt * k3, u=u)['f']
         x_out = x + dt / 6 * (k1 + 2 * k2 + 2 * k3 + k4)
 
+        x_out = np.array(x_out).ravel() # self.dynamics returns a DM array. Convert to np array
         if body_frame:
             # Transform velocity to body frame
             v_b = v_dot_q(x_out[7:10], quaternion_inverse(x_out[3:7]))
             x_out = np.array([x_out[0], x_out[1], x_out[2], x_out[3], x_out[4], x_out[5], x_out[6],
                     v_b[0], v_b[1], v_b[2], x_out[10], x_out[11], x_out[12]])
         
-        breakpoint()
         assert x_out.shape == (self.nx,), f"x_out has to be of shape ({self.nx},)"
         return x_out
 
