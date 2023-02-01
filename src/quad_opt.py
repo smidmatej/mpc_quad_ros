@@ -308,7 +308,6 @@ class quad_optimizer:
         """
         if x_init is None:
             raise ValueError("x_init has to be set before running the optimization")
-
         # set initial conditions
         self.acados_ocp_solver.set(0, 'lbx', x_init) # not sure what these two lines do. Set the lower and upper bound for x to the same value?
         self.acados_ocp_solver.set(0, 'ubx', x_init)
@@ -335,14 +334,15 @@ class quad_optimizer:
         return x_opt_acados, w_opt_acados, self.acados_ocp_solver.get_stats('time_tot'), self.acados_ocp_solver.get_cost()
 
 
-    def discrete_dynamics(self, x, u, dt, body_frame=False):
-        # 
+    def discrete_dynamics(self, x : np.ndarray, u : np.ndarray, dt : float, body_frame : bool = False) -> np.ndarray:
         """
         Fixed step Runge-Kutta 4 of the dynamic equation in self.dynamics
         :param: x: State 1 x nx to discretize around
         :param: u: Conrol 1 x nu to discretize around
         :param: dt: Time step for dicretization
         """
+        assert x.shape == (self.nx,), f"x has to be of shape ({self.nx},)"
+        assert u.shape == (self.nu,), f"u has to be of shape ({self.nu},)"
     
         k1 = self.dynamics(x=x, u=u)['f']
         k2 = self.dynamics(x=x + dt / 2 * k1, u=u)['f']
@@ -350,17 +350,16 @@ class quad_optimizer:
         k4 = self.dynamics(x=x + dt * k3, u=u)['f']
         x_out = x + dt / 6 * (k1 + 2 * k2 + 2 * k3 + k4)
 
-        #print(x_out)
-        if not body_frame:
-            return x_out
-        else:
-            # velocity is transformed to bodyframe
+        if body_frame:
+            # Transform velocity to body frame
             v_b = v_dot_q(x_out[7:10], quaternion_inverse(x_out[3:7]))
-            #print(x_out)
             x_out = np.array([x_out[0], x_out[1], x_out[2], x_out[3], x_out[4], x_out[5], x_out[6],
                     v_b[0], v_b[1], v_b[2], x_out[10], x_out[11], x_out[12]])
-            #print(x_out)
-            return x_out
+        
+        breakpoint()
+        assert x_out.shape == (self.nx,), f"x_out has to be of shape ({self.nx},)"
+        return x_out
+
 
     def regress_and_update_RGP_model(self, x_now : np.ndarray, x_pred_minus_1 : np.ndarray, dt : float = None):
         """

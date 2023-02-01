@@ -206,22 +206,22 @@ def simulate_trajectory(quad, quad_opt, quad_nominal, x0, x_trajectory, simulati
         x_ref = utils.get_reference_chunk(x_trajectory, i, quad_opt.n_nodes)
         yref, yref_N = quad_opt.set_reference_trajectory(x_ref)
 
-
+        x = quad.get_state(quaternion=True, stacked=True) # Get current state of quad
+        
         # I dont think I need to run optimization more times as with the case of new opt
         # TODO: Figure out why OCP gives different solutions both times it is run. warm start?
         time_before_mpc = time.time()
         x_opt_acados, w_opt_acados, t_cpu, cost_solution = quad_opt.run_optimization(x)
         elapsed_during_mpc = time.time() - time_before_mpc
-        w = w_opt_acados[0,:] # control to be applied to quad
+        w = w_opt_acados[0,:].ravel() # control to be applied to quad
 
-        # Predicted state w/o using the RGP model
-        x_pred = np.array(quad_nominal.discrete_dynamics(x, w, quad_opt.optimization_dt)).ravel() 
-        #x_pred = x_opt_acados[1,:] # This uses the RGP model too.
+        x_pred = quad.one_step_forward_predict(x, w, quad_opt.optimization_dt) # Predict next state of quad using optimal control 
+
+
 
         # Save nlp solution diagnostics
         solution_times.append(t_cpu)
         cost_solutions.append(cost_solution)
-
         # Odometry every MPC timestep (100ms)    
         x_odom.append(x)
         x_ref_odom.append(yref[0,:13])
@@ -236,11 +236,11 @@ def simulate_trajectory(quad, quad_opt, quad_nominal, x0, x_trajectory, simulati
         while control_time < quad_opt.optimization_dt: 
             # ----------- Simulate ----------------
             # Uses the optimization model to predict one step ahead, used for gp fitting
-            x_pred = quad_opt.discrete_dynamics(x, w, simulation_dt, body_frame=True)
+            #x_pred = quad_opt.discrete_dynamics(x, w, simulation_dt, body_frame=True)
             # Control the quad with the most recent u for the whole control period (multiple simulation steps for one optimization)
             quad.update(w, simulation_dt)
 
-
+            '''
             # ----------- Save simulation results ----------------
             x = np.array(quad.get_state(quaternion=True, stacked=True)) # state at the next optim step
 
@@ -252,6 +252,9 @@ def simulate_trajectory(quad, quad_opt, quad_nominal, x0, x_trajectory, simulati
             x_world = np.array(quad.get_state(quaternion=True, stacked=True, body_frame=False)) # World frame referential
             x_body = np.array(quad.get_state(quaternion=True, stacked=True, body_frame=True)) # Body frame referential
 
+            '''
+
+            '''
             # Save simulation results
             # Add current simulation results to list for dataset creation and visualisation
             x_sim.append(x_world)
@@ -262,6 +265,8 @@ def simulate_trajectory(quad, quad_opt, quad_nominal, x0, x_trajectory, simulati
             yref_now = yref[0,:]
             yref_sim.append(yref_now)
             aero_drag_sim.append(a_drag_body)
+            '''
+
 
 
 
@@ -272,43 +277,27 @@ def simulate_trajectory(quad, quad_opt, quad_nominal, x0, x_trajectory, simulati
         # ----------------- Regress RGP -----------------
         if quad_opt.gpe is not None:
             if quad_opt.gpe.type == 'RGP':
-                if i > 0:
-                    # Ignore first step
-                    #breakpoint()
-                    # Get the drag force from the difference between the predicted and actual velocity
-                    x_world = x
-                    x_world_pred = x_pred_odom[-1]
+                rgp_basis_vectors = [quad_opt.gpe.gp[d].X
+                        for d in range(len(quad_opt.gpe.gp))]
+                if logger.dictionary:
+                    x_pred_minus_1 = logger.dictionary['x_pred_odom'][-1]
+                else:
+                    x_pred_minus_1 = x
 
-                    v_body = utils.v_dot_q(x_world[7:10], utils.quaternion_inverse(x_world[3:7]))
-                    v_body_pred = utils.v_dot_q(x_world_pred[7:10], utils.quaternion_inverse(x_world_pred[3:7]))
-                    a_drag_list.append((v_body - v_body_pred)/quad_opt.optimization_dt)
-
-                    a_drag_body = quad.get_aero_drag(x_body_for_drag, body_frame=True).ravel()
-                    #breakpoint()
-                    a_dif.append(a_drag_body - a_drag_list[-1])
-                    
-                    v_body_list.append(v_body)
-                    # Convert to list of arrays for gpe 
-                    v_body = [np.array([v_body_list[-1][i]]) for i in range(3)]
-                    a_drag = [np.array([a_drag_list[-1][i]]) for i in range(3)]
-
-                    
-                    #breakpoint()
-                    
-                    mu, C = quad_opt.gpe.regress(v_body, a_drag)
-                    mu_regress.append(mu)
-                
-                rgp_basis_vectors = np.concatenate([quad_opt.gpe.gp[d].X for d in range(len(quad_opt.gpe.gp))])
-                rgp_params = np.concatenate([quad_opt.gpe.gp[d].mu_g_t for d in range(len(quad_opt.gpe.gp))])
-
-                for ii in range(quad_opt.n_nodes):
-                    quad_opt.acados_ocp_solver.set(ii, 'p', rgp_params)
+                rgp_mu_g_t, rgp_C_g_t = quad_opt.regress_and_update_RGP_model(x, x_pred_minus_1)
+                rgp_theta = quad_opt.gpe.get_theta()
+            else:
+                # If not using RGP, set these to None for logging
+                rgp_basis_vectors = None
+                rgp_mu_g_t = None
+                rgp_C_g_t = None
+                rgp_theta = None
         
         # ------- Log data -------
         if logger is not None:
             dict_to_log = {"x_odom": x, "x_pred_odom": x_pred, "x_ref": x_ref[0,:], "t_odom": simulation_time, \
                 "w_odom": w, 't_cpu': t_cpu, "cost_solution": cost_solution, \
-                    "rgp_basis_vectors" : rgp_basis_vectors, "rgp_params": rgp_params}
+                    "rgp_basis_vectors" : rgp_basis_vectors, "rgp_mu_g_t": rgp_mu_g_t, "rgp_C_g_t": rgp_C_g_t, "rgp_theta": rgp_theta}
             
             logger.log(dict_to_log)
         # Counts until simulation is finished

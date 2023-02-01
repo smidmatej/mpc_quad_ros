@@ -490,8 +490,9 @@ class MPC_controller:
         Callback function for trajectory subscriber. New path is received. Reset idx_traj to 0 and set x_trajectory to new path for following.
         :param: msg: Trajectory message
         """
-
+        
         samples_in_trajectory = len(msg.timeStamps)
+        rospy.loginfo(f"Parsing new trajectory with {samples_in_trajectory} samples")
         self.idx_traj = 0
 
         self.x_trajectory = np.empty((samples_in_trajectory, 13)) # x, y, z, w, x, y, z, vx, vy, vz, wx, wy, wz
@@ -683,11 +684,8 @@ class MPC_controller:
     def shutdown_hook(self):
         rospy.loginfo("Shutting down MPC node")
 
+
 if __name__ == '__main__':
-
-    
-
     np.set_printoptions(precision=2)
     controller = MPC_controller()
-    rospy.loginfo("controller initialized")
     rospy.spin()
