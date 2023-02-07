@@ -361,25 +361,19 @@ class quad_optimizer:
         return x_out
 
 
-    def regress_and_update_RGP_model(self, x_now : np.ndarray, x_pred_minus_1 : np.ndarray, dt : float = None):
+    def regress_and_update_RGP_model(self, v_body : list, a_drag : list):
         """
         Regresses the internal RGP model with provided (current state, last predicted state) pair. 
         Then updates the MPC solver with the new RGP parameters. 
-        :param: x_now: Current state of the quadrotor
-        :param: x_pred_minus_1: Last predicted state of the quadrotor
-        :param: dt: Time step between the two states. If None, uses self.optimization_dt
+        :param: v_body: Current state of the quadrotor
+        :param: a_drag: Last predicted state of the quadrotor
         :return: (mu, C) at the basis vectors. 
         """
-        assert x_now.shape == (13,)
-        assert x_pred_minus_1.shape == (13,)
+        assert len(v_body) == 3, "v_body has to be a list of length 3"
+        assert len(a_drag) == 3, "a_drag has to be a list of length 3"
         assert self.gpe is not None, "RGP model has to be initialized before calling this method"
         assert self.gpe.type == 'RGP', "Only RGP models are supported for online regression"
 
-
-        if dt is None:
-            dt = self.optimization_dt
-
-        v_body, a_drag = compute_a_drag(x_now, x_pred_minus_1, dt)
 
         # Regress the RGP model and return the new parameters
         mu_g_t, C_g_t = self.gpe.regress(v_body, a_drag)

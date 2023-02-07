@@ -62,6 +62,7 @@ from gp.GPE import GPEnsemble
 from Logger import Logger
 
 from utils.utils import get_reference_chunk, v_dot_q, get_reference_chunk, quaternion_to_euler, rospy_time_to_float, quaternion_inverse
+import utils.utils as utils
 
 class MPC_controller:
         
@@ -194,7 +195,7 @@ class MPC_controller:
 
         # Creates an optimizer object for the quad
         self.quad_opt = quad_optimizer(quad, t_horizon=self.t_lookahead, n_nodes=self.n_nodes, gpe=gpe) # computing optimal control over model of plant
-
+        self.quad_nominal = quad_optimizer(quad, t_horizon=self.t_lookahead, n_nodes=self.n_nodes, gpe=None) # For making predictions
         # MPC steps at a different rate than the odometry
         # Trajectory steps at odometry rate
         self.control_freq_factor = int(self.quad_opt.optimization_dt / self.ODOMETRY_DT) # MPC takes trajectory steps as input -> I need to correct these steps to the MPC rate
@@ -279,7 +280,10 @@ class MPC_controller:
                     else:
                         x_pred_minus_1 = x
 
-                    rgp_mu_g_t, rgp_C_g_t = self.quad_opt.regress_and_update_RGP_model(x, x_pred_minus_1)
+                    # TODO: Use dynamicaly computed opt dt here
+                    v_body, a_drag = utils.compute_a_drag(x, x_pred_minus_1, self.quad_opt.optimization_dt)
+                    rgp_mu_g_t, rgp_C_g_t = self.quad_opt.regress_and_update_RGP_model(v_body, a_drag)
+                    
                     rgp_theta = self.quad_opt.gpe.get_theta()
                 else:
                     # If not using RGP, set these to None for logging
@@ -300,9 +304,9 @@ class MPC_controller:
                 self.publish_marker_to_rviz(x_ref[0,0:3])
                 self.optimal_path_pub.publish(optimal_path)
 
-                # Predict the state at the next odometry message for logging purposes
-                x_pred = self.quad_opt.discrete_dynamics(x, w, self.ODOMETRY_DT)
-                #x_pred = x_opt[1,:]
+                # Predict next state of quad using optimal control and the nominal model
+                x_pred = self.quad_nominal.discrete_dynamics(x, w, self.ODOMETRY_DT) 
+                #x_pred = self.quad_opt.discrete_dynamics(x, w, self.ODOMETRY_DT)
 
                 # ------- Log data -------
                 

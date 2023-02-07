@@ -103,7 +103,7 @@ class RBF:
         
 
 class RGP:
-    def __init__(self, X : np.ndarray, y_ : np.ndarray, C : np.ndarray = None, theta : list = [0.5,0.1,0.1]) -> None:
+    def __init__(self, X : np.ndarray, y_ : np.ndarray, C : np.ndarray = None, theta : list = [1.0,0.1,0.1]) -> None:
         """
         Recursive Gaussian Process (RGP) class. Initialize with n basis vectors and n measurements and hyperparameters theta. 
         Recursively update the RGP with new measurements using regress(). Update and predict the hyperparameters using learn().
