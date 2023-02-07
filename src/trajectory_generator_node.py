@@ -97,7 +97,7 @@ class TrajectoryBuilder:
 
 
     def new_trajectory_request_cb(self, msg):
-
+        rospy.loginfo("New trajectory request received")
         type = msg.type.data
         
         if msg.start_point_enabled.data == True:

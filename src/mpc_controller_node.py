@@ -139,28 +139,27 @@ class MPC_controller:
             self.a_max = self.explorer.velocity_to_explore
         '''
 
-        rospy.logwarn("Initializing MPC controller")
 
-        self.initialize_MPC()
-
-        r = rospy.Rate(1) # 10 Hz
-        r.sleep()
-        # --------------------- Publishers ---------------------
+        rospy.logwarn("Initializing subscribers and publishers")
+        # --------------------- Auxiliary Publishers and Subscribers ---------------------
         self.optimal_path_pub = rospy.Publisher(self.optimal_path_topic, Path, queue_size=1) # Path from current quad position onto the path
         self.reference_path_chunk_pub = rospy.Publisher(self.reference_path_chunk_topic, Path, queue_size=1) # Chunk of the reference path that is used for MPC
         self.markerPub = rospy.Publisher(self.marker_topic, Marker, queue_size=10)      
         self.new_trajectory_request_pub = rospy.Publisher(self.new_trajectory_request_topic, Trajectory_request, queue_size=1)
         self._go_to_pose_pub = rospy.Publisher(self.autopilot_pose_topic, PoseStamped, queue_size=1)
         self._force_hover_pub = rospy.Publisher(self._force_hover__topic, Empty,queue_size=1)
-        self.actuator_publisher = rospy.Publisher(self.control_topic, ControlCommand, queue_size=1, tcp_nodelay=True)
-        # --------------------- Subscribers ---------------------
         self.trajectory_sub = rospy.Subscriber(self.reference_trajectory_topic, Trajectory, self.trajectory_received_cb) # Reference trajectory
-        self.pose_subscriber = rospy.Subscriber(self.pose_topic, Odometry, self.pose_received_cb) # Pose is published by the simulator at 100 Hz!
+
             
-        r = rospy.Rate(1) # 10 Hz
-        r.sleep()
+        rospy.logwarn("Initializing MPC controller")
+        self.initialize_MPC()
         rospy.logwarn("MPC controller initilized")
 
+        
+        # ---------------------  Primary Publishers and Subscribers  ---------------------
+        # These should be initialized after the MPC controller is initialized
+        self.pose_subscriber = rospy.Subscriber(self.pose_topic, Odometry, self.pose_received_cb) # Pose is published by the simulator at 100 Hz!
+        self.actuator_publisher = rospy.Publisher(self.control_topic, ControlCommand, queue_size=1, tcp_nodelay=True)
 
 
     def initialize_MPC(self):
@@ -216,7 +215,6 @@ class MPC_controller:
         # Trajectory is received in the trajectory_received_cb function
         # New trajectory is requested elsewhere
         x, timestamp_odometry = self.pose_to_state_world(msg)
-        rospy.loginfo(f"{self.need_trajectory_to_hover}, {self.trajectory_ready}")
 
         if timestamp_odometry < self.last_reboot_timestamp:
             # Dump the accumulated odometry messages that came before the reboot was finished
@@ -470,7 +468,11 @@ class MPC_controller:
             msg.end_point_enabled = Bool(True)
             msg.end_point = Point(end_point[0], end_point[1], end_point[2])
         
-        # -------- Velocity and acceleration handling --------
+
+        msg.v_max = Float32(v_max)
+        msg.a_max = Float32(a_max)
+        '''
+            # -------- Velocity and acceleration handling --------
         if v_max is None:
             msg.v_max = Float32(self.v_max)
         else:
@@ -480,6 +482,8 @@ class MPC_controller:
             msg.a_max = Float32(self.a_max)
         else:
             msg.a_max = Float32(a_max)
+        '''
+
 
         self.new_trajectory_request_pub.publish(msg)
         
