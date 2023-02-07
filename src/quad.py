@@ -23,7 +23,7 @@ from utils.utils import skew_symmetric, quaternion_to_euler, unit_quat, v_dot_q,
 
 class Quadrotor3D:
 
-	def __init__(self, payload=False, drag=False):
+	def __init__(self, payload : bool = False, drag : bool = False):
 		"""
 		Initialization of the 3D quadrotor class
 		:param noisy: Whether noise is used in the simulation
@@ -69,7 +69,7 @@ class Quadrotor3D:
 		self.z_l_tau = np.array([-self.c, self.c, -self.c, self.c])
 
 		# Gravity vector
-		self.g = np.array([[0], [0], [9.81]])  # m s^-2
+		self.g = np.array([0, 0, 9.81])  # m s^-2
 
 		# Actuation thrusts
 		self.u = np.array([0.0, 0.0, 0.0, 0.0])  # N
@@ -81,7 +81,7 @@ class Quadrotor3D:
 		self.rotor_drag_z = 0.0  # No rotor drag in the z dimension
 		#self.rotor_drag_z = 0.0  # No rotor drag in the z dimension
 		
-		self.rotor_drag = np.array([self.rotor_drag_xy, self.rotor_drag_xy, self.rotor_drag_z])[:, np.newaxis]
+		self.rotor_drag = np.array([self.rotor_drag_xy, self.rotor_drag_xy, self.rotor_drag_z])
 		#self.aero_drag = 0.08
 		self.aero_drag = 0.8
 
@@ -91,167 +91,281 @@ class Quadrotor3D:
 
 
 
-	def set_state(self, *args):
-		assert len(args) == 1 and len(args[0]) == 13
-		self.pos[0], self.pos[1], self.pos[2], \
-		self.angle[0], self.angle[1], self.angle[2], self.angle[3], \
-		self.vel[0], self.vel[1], self.vel[2], \
-		self.a_rate[0], self.a_rate[1], self.a_rate[2] \
-			= args[0]
+	def set_state(self, x : np.ndarray):
+		"""
+		Set the state of the quadrotor
+		:param x: 13-element state vector
+		"""
+		self.pos = x[0:3]
+		self.angle = x[3:7]
+		self.vel = x[7:10]
+		self.a_rate = x[10:13]
 
 
-	def get_state(self, quaternion=False, stacked=False, body_frame=False):
-
+	def get_state(self, quaternion : bool = False, stacked : bool = False, body_frame : bool = False) -> 'np.ndarray | list':
+		"""
+		Get the state of the quadrotor
+		:param quaternion: Whether to return the state in quaternion format or in Euler angles
+		:param stacked: Whether to return the state as a 13-element vector or as a 4-element list of vectors
+		:param body_frame: Whether to return the velocity in the body frame or in the inertial frame
+		:return: The state of the quadrotor as a 13-element vector if stacked or as a 4-element list of vectors if not stacked
+		"""
 
 		if body_frame:
 			v_b = v_dot_q(self.vel, quaternion_inverse(self.angle)) # body frame velocity
+			if quaternion:
+				if stacked:
+					return np.array([self.pos[0], self.pos[1], self.pos[2], self.angle[0], self.angle[1], self.angle[2], self.angle[3],
+						v_b[0], v_b[1], v_b[2], self.a_rate[0], self.a_rate[1], self.a_rate[2]])
+				else: # Not stacked
+					return [self.pos, self.angle, v_b, self.a_rate]
 
-			if quaternion and not stacked:
-				return [self.pos, self.angle, v_b, self.a_rate]
+			else: # Not quaternion
+				angle = quaternion_to_euler(self.angle) # Euler angles
+				if stacked:
+					return np.array([self.pos[0], self.pos[1], self.pos[2], angle[0], angle[1], angle[2],
+						v_b[0], v_b[1], v_b[2], self.a_rate[0], self.a_rate[1], self.a_rate[2]])
 
-			if quaternion and stacked:
-				return [self.pos[0], self.pos[1], self.pos[2], self.angle[0], self.angle[1], self.angle[2], self.angle[3],
-				v_b[0], v_b[1], v_b[2], self.a_rate[0], self.a_rate[1], self.a_rate[2]]
+				else: # Not stacked
+					return [self.pos, angle, v_b, self.a_rate]
 
-		else:
+		else: # Not body frame
+			if quaternion:
+				if stacked:
+					return np.array([self.pos[0], self.pos[1], self.pos[2], self.angle[0], self.angle[1], self.angle[2], self.angle[3],
+						self.vel[0], self.vel[1], self.vel[2], self.a_rate[0], self.a_rate[1], self.a_rate[2]])
 
+				else:
+					return [self.pos, self.angle, self.vel, self.a_rate]
+			else: # Not quaternion
+				angle = quaternion_to_euler(self.angle) # Euler angles
+				if stacked:
+					return np.array([self.pos[0], self.pos[1], self.pos[2], angle[0], angle[1], angle[2],
+						self.vel[0], self.vel[1], self.vel[2], self.a_rate[0], self.a_rate[1], self.a_rate[2]])
 
-			if quaternion and not stacked:
-				return [self.pos, self.angle, self.vel, self.a_rate]
-
-			if quaternion and stacked:
-				return [self.pos[0], self.pos[1], self.pos[2], self.angle[0], self.angle[1], self.angle[2], self.angle[3],
-						self.vel[0], self.vel[1], self.vel[2], self.a_rate[0], self.a_rate[1], self.a_rate[2]]
-
-			angle = quaternion_to_euler(self.angle) # Euler angles
-			if not quaternion and stacked :
-				return [self.pos[0], self.pos[1], self.pos[2], angle[0], angle[1], angle[2],
-					self.vel[0], self.vel[1], self.vel[2], self.a_rate[0], self.a_rate[1], self.a_rate[2]]
-
-			if not quaternion and not stacked:
-				return [self.pos, angle, self.vel, self.a_rate]
+				else: # Not stacked	
+					return [self.pos, angle, self.vel, self.a_rate]
+			
 
 		
 
 	def get_control(self):
-
+		"""
+		Get the control input of the quadrotor
+		:return: 4-element control input vector
+		"""
 		return self.u
 
-	def update(self, u, dt):
+
+	def one_step_forward(self, x : np.ndarray, u : np.ndarray, dt : float, f_d : np.ndarray = np.zeros((3,)), t_d : np.ndarray = np.zeros((3,))) -> np.ndarray:
 		"""
 		Runge-Kutta 4th order dynamics integration
-
+		:param x: 13-dimensional state vector
 		:param u: 4-dimensional vector with components between [0.0, 1.0] that represent the activation of each motor.
 		:param dt: time differential
+		:param f_d: 3-dimensional disturbance force vector
+		:param t_d: 3-dimensional disturbance torque vector
 		"""
-		f_d = np.zeros((3, 1))
-		t_d = np.zeros((3, 1))
+		assert x.shape == (13,)
+		assert u.shape == (4,)
+		assert f_d.shape == (3,)
+		assert t_d.shape == (3,)
+		assert np.all(u >= 0.0) and np.all(u <= 1.0)
 
-		self.u = u
+		# ---- RK4 integration ----
+		k1 = self.f_nominal(x, u, f_d, t_d)
+		k2 = self.f_nominal(x + dt / 2 * k1, u, f_d, t_d)
+		k3 = self.f_nominal(x + dt / 2 * k2, u, f_d, t_d)
+		k4 = self.f_nominal(x + dt * k3, u, f_d, t_d)
+		x_out = x + dt / 6 * (k1 + 2 * k2 + 2 * k3 + k4)
 
-		x = self.get_state(quaternion=True, stacked=False)
-		#print('u: ' + str(self.u))
-		#print('dv: ' + str(self.f_vel(x, self.u, f_d)))
+		#x_out[3:7] = unit_quat(x_out[3:7]) # Normalize quaternion
+
+		return x_out
+
+
+	'''
+	def one_step_forward_predict(self, x : 'np.ndarray | list', u : np.ndarray, dt : float, f_d : np.ndarray = np.zeros((3,)), t_d : np.ndarray = np.zeros((3,))) -> np.ndarray:
+		"""
+		Runge-Kutta 4th order dynamics integration
+		:param x: 13-dimensional state vector
+		:param u: 4-dimensional vector with components between [0.0, 1.0] that represent the activation of each motor.
+		:param dt: time differential
+		:param f_d: 3-dimensional disturbance force vector
+		:param t_d: 3-dimensional disturbance torque vector
+		"""
+		assert type(x) == np.ndarray or type(x) == list
+		
+		if type(x) == np.ndarray:
+			# Unpack state vector into a list
+			x_list = [None]*4
+			x_list[0] = x[0:3]
+			x_list[1] = x[3:7]
+			x_list[2] = x[7:10]
+			x_list[3] = x[10:13]
+			x = x_list
+
 		# RK4 integration
-		k1 = [self.f_pos(x), self.f_att(x), self.f_vel(x, self.u, f_d), self.f_rate(x, self.u, t_d)]
+		k1 = np.concatenate([self.f_pos(x), self.f_att(x), self.f_vel(x, self.u, f_d), self.f_rate(x, self.u, t_d)])
 		x_aux = [x[i] + dt / 2 * k1[i] for i in range(4)]
 		k2 = [self.f_pos(x_aux), self.f_att(x_aux), self.f_vel(x_aux, self.u, f_d), self.f_rate(x_aux, self.u, t_d)]
 		x_aux = [x[i] + dt / 2 * k2[i] for i in range(4)]
 		k3 = [self.f_pos(x_aux), self.f_att(x_aux), self.f_vel(x_aux, self.u, f_d), self.f_rate(x_aux, self.u, t_d)]
 		x_aux = [x[i] + dt * k3[i] for i in range(4)]
 		k4 = [self.f_pos(x_aux), self.f_att(x_aux), self.f_vel(x_aux, self.u, f_d), self.f_rate(x_aux, self.u, t_d)]
-		x = [x[i] + dt * (1.0 / 6.0 * k1[i] + 2.0 / 6.0 * k2[i] + 2.0 / 6.0 * k3[i] + 1.0 / 6.0 * k4[i]) for i in
+		x_out = [x[i] + dt * (1.0 / 6.0 * k1[i] + 2.0 / 6.0 * k2[i] + 2.0 / 6.0 * k3[i] + 1.0 / 6.0 * k4[i]) for i in
 		     range(4)]
 
-
 		# Ensure unit quaternion
-		x[1] = unit_quat(x[1])
+		x_out[1] = unit_quat(x_out[1])
 
-		self.pos, self.angle, self.vel, self.a_rate = x
-		#print(self.pos)
+		x_out = np.array([x_out[0], x_out[1], x_out[2], x_out[3], x_out[4], x_out[5], x_out[6],
+		x_out[0], x_out[1], x_out[2], x_out[10], x_out[11], x_out[12]])
+
+		return x_out		
+	'''
+
+	def update(self, u : np.ndarray, dt : float):
+		"""
+		Runs the one_step_forward_predict function and from the current state updates the state of the quadrotor
+		:param u: 4-dimensional vector with components between [0.0, 1.0] that represent the activation of each motor.
+		:param dt: time differential
+		"""
+		assert u.shape == (4,)
+		assert np.all(u >= 0.0) and np.all(u <= 1.0)
+
+		self.u = u # Update control input
+		x = self.get_state(quaternion=True, stacked=True) # Get current state
+
+		x_next = self.one_step_forward(x, u, dt) # Runge-Kutta 4th order integration
+		self.set_state(x_next)
 
 
-	def get_aero_drag(self, x, body_frame=False):
+	def get_aero_drag(self, x : np.ndarray, body_frame : bool = False):
 		"""
 		Aerodynamic drag affecting the quad
-		:param x: 4-length array of input state with components: 3D pos, quaternion angle, 3D vel, 3D rate
-		:return: acceleration vector length 3
+		:param x: 13-length array state vector
+		:return: 3-length acceleration vector 
 		"""
+		assert x.shape == (13,)
 		if self.drag:
 			# Transform velocity to body frame
-			v_b = v_dot_q(x[2], quaternion_inverse(x[1]))[:, np.newaxis]
+			v_b = v_dot_q(x[7:10], quaternion_inverse(x[3:7]))
 			# Compute aerodynamic drag acceleration in world frame
 			a_drag = -self.aero_drag * v_b ** 2 * np.sign(v_b) / self.mass
 			# Add rotor drag
 			a_drag -= self.rotor_drag * v_b / self.mass
+
 			if not body_frame:
 				# Transform drag acceleration to world frame
-				a_drag = v_dot_q(a_drag, x[1])
+				a_drag = v_dot_q(a_drag, x[3:7])
 		else:
 			a_drag = np.zeros((3, 1))
+
 		return a_drag
 
 
-	def f_pos(self, x):
+	def f_nominal(self, x : np.ndarray, u : np.ndarray, f_d : np.ndarray = np.zeros((3,)), t_d : np.ndarray = np.zeros((3,))) -> np.ndarray:
+		"""
+		Computes the nominal dynamics of the quadrotor
+		:param x: 13-dimensional state vector
+		:param u: 4-dimensional control vector
+		:param f_d: 3-dimensional disturbance force vector
+		:param t_d: 3-dimensional disturbance torque vector
+		:return: 13-dimensional state derivative vector
+		"""
+		assert x.shape == (13, ), 'x must be a 13-length array'
+		assert u.shape == (4, ), 'u must be a 4-length array'
+		assert f_d.shape == (3, ), 'f_d must be a 3-length array'
+		assert t_d.shape == (3, ), 't_d must be a 4-length array'
+
+		dpos = self.f_pos(x)
+		datt = self.f_att(x)
+		dvel = self.f_vel(x, u, f_d)
+		drate = self.f_rate(x, u, t_d)
+
+		dx = np.concatenate([dpos, datt, dvel, drate])
+		assert dx.shape == (13, ), 'dx must be a 13-length array'
+		return dx
+
+
+
+	def f_pos(self, x : np.ndarray) -> np.ndarray:
 		"""
 		Time-derivative of the position vector
-		:param x: 4-length array of input state with components: 3D pos, quaternion angle, 3D vel, 3D rate
+		:param x: 13-length state array
 		:return: position differential increment (vector): d[pos_x; pos_y]/dt
 		"""
-
-		vel = x[2]
+		assert x.shape == (13, ), 'x must be a 13-length array'
+		vel = x[7:10]
 		return vel
 
-	def f_att(self, x):
+	def f_att(self, x : np.ndarray) -> np.ndarray:
 		"""
 		Time-derivative of the attitude in quaternion form
-		:param x: 4-length array of input state with components: 3D pos, quaternion angle, 3D vel, 3D rate
+		:param x: 13-length state array
 		:return: attitude differential increment (quaternion qw, qx, qy, qz): da/dt
 		"""
+		assert x.shape == (13, ), 'x must be a 13-length array'
+		rate = x[10:13]
+		angle_quaternion = x[3:7]
 
-		rate = x[3]
-		angle_quaternion = x[1]
+		dq = 1 / 2 * skew_symmetric(rate).dot(angle_quaternion)
+		assert dq.shape == (4, ), 'dq must be a 4-length array'
+		return dq
 
-		return 1 / 2 * skew_symmetric(rate).dot(angle_quaternion)
-
-	def f_vel(self, x, u, f_d):
+	def f_vel(self, x : np.ndarray, u : np.ndarray , f_d : np.ndarray) -> np.ndarray:
 		"""
 		Time-derivative of the velocity vector
-		:param x: 4-length array of input state with components: 3D pos, quaternion angle, 3D vel, 3D rate
-		:param u: control input vector (4-dimensional): [trust_motor_1, ..., thrust_motor_4]
+		:param x: 13-length state array
+		:param u: control input array (4-dimensional): [trust_motor_1, ..., thrust_motor_4]
 		:param f_d: disturbance force vector (3-dimensional)
 		:return: 3D velocity differential increment (vector): d[vel_x; vel_y; vel_z]/dt
 		"""
+		assert x.shape == (13, ), 'x must be a 13-length array'
+		assert u.shape == (4, ), 'u must be a 4-length array'
+		assert f_d.shape == (3, ), 'f_d must be a 3-length array'
+
+		angle_quaternion = x[3:7]
 
 		f_thrust = u * self.max_thrust
-		a_thrust = np.array([[0], [0], [np.sum(f_thrust)]]) / self.mass
+		a_thrust_body = np.array([0.0, 0.0, np.sum(f_thrust)]) / self.mass # Thrust acceleration in body frame
+		a_thrust_world = v_dot_q(a_thrust_body, angle_quaternion)
 
+		a_d_body = f_d / self.mass # Disturbance acceleration in body frame
+		a_d_world = v_dot_q(a_d_body, angle_quaternion)
 
+		a_drag_world = self.get_aero_drag(x, body_frame=False) # Aerodynamic drag acceleration in world frame
+		
+		a_payload = -self.payload_mass * self.g / self.mass # TODO : This is bullshit. The quad experiences the same acceleration regardless of the payload mass
 
-		a_drag = self.get_aero_drag(x)
-		#a_drag = np.zeros((3, 1))
+		dvel = -self.g + a_payload + a_drag_world + a_thrust_world + a_d_world
+		assert dvel.shape == (3, ), 'dvel must be a 3-length array'
+		return dvel
 
-		angle_quaternion = x[1]
-
-		a_payload = -self.payload_mass * self.g / self.mass
-
-		return np.squeeze(-self.g + a_payload + a_drag + v_dot_q(a_thrust + f_d / self.mass, angle_quaternion))
-
-	def f_rate(self, x, u, t_d):
+	def f_rate(self, x : np.ndarray, u : np.ndarray, t_d : np.ndarray) -> np.ndarray:
 		"""
 		Time-derivative of the angular rate
-		:param x: 4-length array of input state with components: 3D pos, quaternion angle, 3D vel, 3D rate
+		:param x: 13-length state array
 		:param u: control input vector (4-dimensional): [trust_motor_1, ..., thrust_motor_4]
 		:param t_d: disturbance torque (3D)
 		:return: angular rate differential increment (scalar): dr/dt
 		"""
+		assert x.shape == (13, ), 'x must be a 13-length array'
+		assert u.shape == (4, ), 'u must be a 4-length array'
+		assert t_d.shape == (3, ), 'f_d must be a 3-length array'
+
 		f_thrust = u*self.max_thrust
-		rate = x[3]
-		return np.array([
+		rate = x[10:13]
+
+		drate = np.array([
 			1 / self.J[0] * (f_thrust.dot(self.y_f) + t_d[0] + (self.J[1] - self.J[2]) * rate[1] * rate[2]),
 			1 / self.J[1] * (-f_thrust.dot(self.x_f) + t_d[1] + (self.J[2] - self.J[0]) * rate[2] * rate[0]),
 			1 / self.J[2] * (f_thrust.dot(self.z_l_tau) + t_d[2] + (self.J[0] - self.J[1]) * rate[0] * rate[1])
 		]).squeeze()
+
+		assert drate.shape == (3, ), 'drate must be a 3-length array'
+		return drate
 
 
 	

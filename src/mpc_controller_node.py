@@ -143,6 +143,8 @@ class MPC_controller:
 
         self.initialize_MPC()
 
+        r = rospy.Rate(1) # 10 Hz
+        r.sleep()
         # --------------------- Publishers ---------------------
         self.optimal_path_pub = rospy.Publisher(self.optimal_path_topic, Path, queue_size=1) # Path from current quad position onto the path
         self.reference_path_chunk_pub = rospy.Publisher(self.reference_path_chunk_topic, Path, queue_size=1) # Chunk of the reference path that is used for MPC
@@ -155,6 +157,8 @@ class MPC_controller:
         self.trajectory_sub = rospy.Subscriber(self.reference_trajectory_topic, Trajectory, self.trajectory_received_cb) # Reference trajectory
         self.pose_subscriber = rospy.Subscriber(self.pose_topic, Odometry, self.pose_received_cb) # Pose is published by the simulator at 100 Hz!
             
+        r = rospy.Rate(1) # 10 Hz
+        r.sleep()
         rospy.logwarn("MPC controller initilized")
 
 
@@ -212,8 +216,7 @@ class MPC_controller:
         # Trajectory is received in the trajectory_received_cb function
         # New trajectory is requested elsewhere
         x, timestamp_odometry = self.pose_to_state_world(msg)
-
-
+        rospy.loginfo(f"{self.need_trajectory_to_hover}, {self.trajectory_ready}")
 
         if timestamp_odometry < self.last_reboot_timestamp:
             # Dump the accumulated odometry messages that came before the reboot was finished
@@ -300,7 +303,7 @@ class MPC_controller:
                 self.optimal_path_pub.publish(optimal_path)
 
                 # Predict the state at the next odometry message for logging purposes
-                x_pred = np.array(self.quad_opt.discrete_dynamics(x, w, self.ODOMETRY_DT)).ravel()
+                x_pred = self.quad_opt.discrete_dynamics(x, w, self.ODOMETRY_DT)
                 #x_pred = x_opt[1,:]
 
                 # ------- Log data -------
@@ -490,8 +493,9 @@ class MPC_controller:
         Callback function for trajectory subscriber. New path is received. Reset idx_traj to 0 and set x_trajectory to new path for following.
         :param: msg: Trajectory message
         """
-
+        
         samples_in_trajectory = len(msg.timeStamps)
+        rospy.loginfo(f"Parsing new trajectory with {samples_in_trajectory} samples")
         self.idx_traj = 0
 
         self.x_trajectory = np.empty((samples_in_trajectory, 13)) # x, y, z, w, x, y, z, vx, vy, vz, wx, wy, wz
@@ -683,11 +687,8 @@ class MPC_controller:
     def shutdown_hook(self):
         rospy.loginfo("Shutting down MPC node")
 
+
 if __name__ == '__main__':
-
-    
-
     np.set_printoptions(precision=2)
     controller = MPC_controller()
-    rospy.loginfo("controller initialized")
     rospy.spin()

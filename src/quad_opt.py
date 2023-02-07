@@ -187,8 +187,8 @@ class quad_optimizer:
 
         # d velocity
         f_thrust = self.u * self.quad.max_thrust
-        a_thrust = cs.vertcat(0, 0, f_thrust[0] + f_thrust[1] + f_thrust[2] + f_thrust[3]) / self.quad.mass
-        self.g = cs.vertcat(0,0,9.81)
+        a_thrust = cs.vertcat(0.0, 0.0, f_thrust[0] + f_thrust[1] + f_thrust[2] + f_thrust[3]) / self.quad.mass
+        self.g = cs.vertcat(self.quad.g[0], self.quad.g[1], self.quad.g[2])
         f_v = v_dot_q(a_thrust, self.q) - self.g # velocity dynamics
 
         # d rate
@@ -202,7 +202,7 @@ class quad_optimizer:
             (cs.mtimes(f_thrust.T, c_f) + (self.quad.J[0] - self.quad.J[1]) * self.r[0] * self.r[1]) / self.quad.J[2])
         
         # concatenated dynamics
-        f_dyn = cs.vertcat(f_p, f_q, f_v, f_r)
+        f_nominal = cs.vertcat(f_p, f_q, f_v, f_r)
 
         if self.gpe is not None:
 
@@ -236,14 +236,14 @@ class quad_optimizer:
 
             
             # Dynamics correction using learned GP
-            f_corrected = f_dyn + f_augment
+            f_corrected = f_nominal + f_augment
 
 
             # Dynamics corrected using the gpe 
             return cs.Function('x_dot', [self.x, self.u, self.params], [f_corrected], ['x', 'u', 'p'], ['f'])
 
         # Dynamics w/o the gpe augmentation
-        return cs.Function('x_dot', [self.x,self.u], [f_dyn], ['x','u'], ['f'])
+        return cs.Function('x_dot', [self.x,self.u], [f_nominal], ['x','u'], ['f'])
 
     
     def set_quad_state(self, x):
@@ -308,7 +308,6 @@ class quad_optimizer:
         """
         if x_init is None:
             raise ValueError("x_init has to be set before running the optimization")
-
         # set initial conditions
         self.acados_ocp_solver.set(0, 'lbx', x_init) # not sure what these two lines do. Set the lower and upper bound for x to the same value?
         self.acados_ocp_solver.set(0, 'ubx', x_init)
@@ -335,14 +334,15 @@ class quad_optimizer:
         return x_opt_acados, w_opt_acados, self.acados_ocp_solver.get_stats('time_tot'), self.acados_ocp_solver.get_cost()
 
 
-    def discrete_dynamics(self, x, u, dt, body_frame=False):
-        # 
+    def discrete_dynamics(self, x : np.ndarray, u : np.ndarray, dt : float, body_frame : bool = False) -> np.ndarray:
         """
         Fixed step Runge-Kutta 4 of the dynamic equation in self.dynamics
         :param: x: State 1 x nx to discretize around
         :param: u: Conrol 1 x nu to discretize around
         :param: dt: Time step for dicretization
         """
+        assert x.shape == (self.nx,), f"x has to be of shape ({self.nx},)"
+        assert u.shape == (self.nu,), f"u has to be of shape ({self.nu},)"
     
         k1 = self.dynamics(x=x, u=u)['f']
         k2 = self.dynamics(x=x + dt / 2 * k1, u=u)['f']
@@ -350,17 +350,16 @@ class quad_optimizer:
         k4 = self.dynamics(x=x + dt * k3, u=u)['f']
         x_out = x + dt / 6 * (k1 + 2 * k2 + 2 * k3 + k4)
 
-        #print(x_out)
-        if not body_frame:
-            return x_out
-        else:
-            # velocity is transformed to bodyframe
+        x_out = np.array(x_out).ravel() # self.dynamics returns a DM array. Convert to np array
+        if body_frame:
+            # Transform velocity to body frame
             v_b = v_dot_q(x_out[7:10], quaternion_inverse(x_out[3:7]))
-            #print(x_out)
             x_out = np.array([x_out[0], x_out[1], x_out[2], x_out[3], x_out[4], x_out[5], x_out[6],
                     v_b[0], v_b[1], v_b[2], x_out[10], x_out[11], x_out[12]])
-            #print(x_out)
-            return x_out
+        
+        assert x_out.shape == (self.nx,), f"x_out has to be of shape ({self.nx},)"
+        return x_out
+
 
     def regress_and_update_RGP_model(self, x_now : np.ndarray, x_pred_minus_1 : np.ndarray, dt : float = None):
         """

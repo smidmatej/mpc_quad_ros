@@ -5,6 +5,10 @@ img/
 **/.ipynb_checkpoints/
 **/__pycache__/
 **/c_generated_code/
-**/src/trajectory_generation/waypoints/
-**/src/trajectory_generation/trajectories/
-**/src/trajectory_generation/polynomial_trajectory/
+<<<<<<< HEAD
+=======
+
+src/trajectory_generation/waypoints/waypoints.csv
+src/trajectory_generation/trajectories/trajectory_sampled.csv
+src/trajectory_generation/polynomial_trajectory/polynomial_representation.csv
+>>>>>>> reworking-quad.py

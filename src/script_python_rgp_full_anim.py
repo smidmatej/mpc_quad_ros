@@ -12,4 +12,4 @@ result_animation_filename = os.path.join(dir_path, '..', 'outputs', 'graphics', 
 assert "gp2" in data_filename, "data_filename must contain 'gp2' to be a training data file."
 
 visualiser = Visualiser(trajectory_filename)
-visualiser.create_rgp_full_animation(result_animation_filename, 100, True)
+visualiser.create_rgp_full_animation(result_animation_filename, 10, True)
