@@ -45,7 +45,7 @@ class DataLoaderGP:
         # ---------------- Open filepath and save its contents internally ---------------- 
         self.data_dict = load_dict(self.filepath)
         print(f'Loaded data from {self.filepath}')
-        print(f'Number of samples: {self.data_dict["x_odom"].shape[0]}')
+        print(f'Number of samples: {len(self.data_dict["x_odom"])}')
 
         print(f'Number of collocation points: {self.number_of_training_samples}')
         # ---------------- Make the appropriate transformations to extract X, y  ---------------- 
@@ -68,16 +68,18 @@ class DataLoaderGP:
         Selects the v_body as a X feature vector and the acceleration error as y
         :returns: X, y 
         """
-        v_world = self.data_dict['x_odom'][:,7:10]
-        v_world_pred = self.data_dict['x_pred_odom'][:,7:10]
 
-        q = self.data_dict['x_odom'][:,3:7]
-        q_pred = self.data_dict['x_pred_odom'][:,3:7]
+        v_world = np.stack(self.data_dict['x_odom'], axis=0)[:,7:10]
+        v_world_pred = np.stack(self.data_dict['x_pred_odom'], axis=0)[:,7:10]
+
+        q = np.stack(self.data_dict['x_odom'], axis=0)[:,3:7]
+        q_pred = np.stack(self.data_dict['x_pred_odom'], axis=0)[:,3:7]
 
         # ---------------- Transform to body frame ----------------
         self.v_body = np.empty(v_world.shape)
         self.v_body_pred = np.empty(v_world_pred.shape)
         for i in range(v_world.shape[0]):
+            #breakpoint()
             self.v_body[i,:] = v_dot_q(v_world[i,:].reshape((-1,)), quaternion_inverse(q[i,:].reshape((-1,))))
             self.v_body_pred[i,:] = v_dot_q(v_world_pred[i,:].reshape((-1,)), quaternion_inverse(q_pred[i,:].reshape((-1,))))
 

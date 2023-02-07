@@ -195,7 +195,7 @@ class MPC_controller:
 
         # Creates an optimizer object for the quad
         self.quad_opt = quad_optimizer(quad, t_horizon=self.t_lookahead, n_nodes=self.n_nodes, gpe=gpe) # computing optimal control over model of plant
-        self.quad_nominal = quad_optimizer(quad, t_horizon=self.t_lookahead, n_nodes=self.n_nodes, gpe=None) # For making predictions
+        self.quad_nominal = quad_optimizer(quad, t_horizon=self.t_lookahead*10, n_nodes=self.n_nodes*10, gpe=None) # For making predictions. t_horizo and n_nodes are irrelevant here
         # MPC steps at a different rate than the odometry
         # Trajectory steps at odometry rate
         self.control_freq_factor = int(self.quad_opt.optimization_dt / self.ODOMETRY_DT) # MPC takes trajectory steps as input -> I need to correct these steps to the MPC rate
@@ -269,22 +269,28 @@ class MPC_controller:
                 # Last three elements of x_opt are the body rates
                 self.send_control_command(w, x_opt[1,10:13])
 
+                # Predict next state of quad using optimal control and the nominal model
+                x_pred = self.quad_nominal.discrete_dynamics(x, w, self.ODOMETRY_DT) 
+                #x_pred = self.quad_opt.discrete_dynamics(x, w, self.ODOMETRY_DT)
+
                 self.idx_traj += 1
 
                 # -------------- RGP regress --------------
-                if self.quad_opt.gpe.type == 'RGP':
-                    rgp_basis_vectors = [self.quad_opt.gpe.gp[d].X
-                            for d in range(len(self.quad_opt.gpe.gp))]
-                    if self.logger.dictionary:
-                        x_pred_minus_1 = self.logger.dictionary['x_pred_odom'][-1]
-                    else:
-                        x_pred_minus_1 = x
+                if self.quad_opt.gpe: 
+                    # gpe needs to be initialized to check its type
+                    if self.quad_opt.gpe.type == 'RGP':
+                        rgp_basis_vectors = [self.quad_opt.gpe.gp[d].X
+                                for d in range(len(self.quad_opt.gpe.gp))]
+                        if self.logger.dictionary:
+                            x_pred_minus_1 = self.logger.dictionary['x_pred_odom'][-1]
+                        else:
+                            x_pred_minus_1 = x
 
-                    # TODO: Use dynamicaly computed opt dt here
-                    v_body, a_drag = utils.compute_a_drag(x, x_pred_minus_1, self.ODOMETRY_DT)
-                    rgp_mu_g_t, rgp_C_g_t = self.quad_opt.regress_and_update_RGP_model(v_body, a_drag)
+                        # TODO: Use dynamicaly computed opt dt here
+                        v_body, a_drag = utils.compute_a_drag(x, x_pred_minus_1, self.ODOMETRY_DT)
+                        rgp_mu_g_t, rgp_C_g_t = self.quad_opt.regress_and_update_RGP_model(v_body, a_drag)
 
-                    rgp_theta = self.quad_opt.gpe.get_theta()
+                        rgp_theta = self.quad_opt.gpe.get_theta()
                 else:
                     # If not using RGP, set these to None for logging
                     v_body = None
@@ -307,9 +313,7 @@ class MPC_controller:
                 self.publish_marker_to_rviz(x_ref[0,0:3])
                 self.optimal_path_pub.publish(optimal_path)
 
-                # Predict next state of quad using optimal control and the nominal model
-                x_pred = self.quad_nominal.discrete_dynamics(x, w, self.ODOMETRY_DT) 
-                #x_pred = self.quad_opt.discrete_dynamics(x, w, self.ODOMETRY_DT)
+
 
                 # ------- Log data -------
                 

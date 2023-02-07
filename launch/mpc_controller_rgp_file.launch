@@ -1,15 +1,25 @@
 <?xml version="1.0"?>
 <launch>
 
+<?ignore  Trajectory parameters ?>
 <arg name="trajectory_type" default="random"/>
 <arg name="v_max" default="15.0"/>
 <arg name="a_max" default="5.0"/>
+<arg name="training" default="1"/>
+<arg name="training_trajectories_count" default="1"/>
+
+<?ignore  GP parameters ?>
 <arg name="use_gp" default="2"/>
 <arg name="gp_from_file" default="1"/>
 <arg name="gp_path" default="../outputs/gazebo_simulation/gp_models"/>
-<arg name="training" default="1"/>
+<arg name="n_basis_vectors" default="20"/>
+
+<?ignore  MPC parameters ?>
+<arg name="t_lookahead" default="1.0"/>
+<arg name="n_nodes" default="10"/>
+
+<?ignore  etc ?>
 <arg name="explore" default="0"/>
-<arg name="training_trajectories_count" default="1"/>
 <arg name="log_filename_base" default="trajectory"/>
 
   <group ns="mpcros">
@@ -20,8 +30,13 @@
         <param name="use_gp" value="$(arg use_gp)"/>
         <param name="gp_from_file" value="$(arg gp_from_file)"/>
         <param name="gp_path" value="$(arg gp_path)"/>
+        <param name="n_basis_vectors" value="$(arg n_basis_vectors)"/>
         <param name="log_filename_base" value="$(arg log_filename_base)"/>
         <param name="training" value="$(arg training)"/>
+
+        <param name="t_lookahead" value="$(arg t_lookahead)"/>
+        <param name="n_nodes" value="$(arg n_nodes)"/>
+
         <param name="explore" value="$(arg explore)"/>
         <param name="training_trajectories_count" value="$(arg training_trajectories_count)"/>
       </node>
@@ -31,3 +46,4 @@
   </group>
 
 </launch>
+

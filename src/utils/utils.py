@@ -933,8 +933,8 @@ def get_reference_chunk(reference_trajectory, current_idx, control_nodes, skip=1
 def compute_a_drag(x_now : np.ndarray, x_pred_minus_1 : np.ndarray, dt : float):
     """
     Computes the drag force from the difference between the current state velocity and the last predicted state velocity.
-    :param x_now: Current state
-    :param x_pred_minus_1: Last predicted state
+    :param x_now: Current state. WORLD frame
+    :param x_pred_minus_1: Last predicted state. WORLD frame
     :param dt: Time step
     :return: (v_body, a_drag) Lists of np.ndarrays, elements of the lists for each axis
     """
