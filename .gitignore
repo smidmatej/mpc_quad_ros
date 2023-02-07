@@ -6,3 +6,6 @@ img/
 **/__pycache__/
 **/c_generated_code/
 
+src/trajectory_generation/waypoints/waypoints.csv
+src/trajectory_generation/trajectories/trajectory_sampled.csv
+src/trajectory_generation/polynomial_trajectory/polynomial_representation.csv

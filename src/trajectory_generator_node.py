@@ -72,19 +72,16 @@ class TrajectoryBuilder:
         # The final trajectory is sampled and saved here
         self.output_trajectory_filename = 'trajectory_generation/trajectories/trajectory_sampled.csv'
 
-        # Topics
+        # ----------------- Topics -----------------
         self.trajectory_topic = "reference/trajectory"
         self.new_trajectory_request_topic = "reference/new_trajectory_request"
-
         self.marker_topic = "rviz/marker"
         self.path_rviz_topic = "rviz/path" 
         
 
-        
+        # ----------------- Publishers and Subscribers -----------------
         self.new_trajectory_request_sub = rospy.Subscriber(self.new_trajectory_request_topic, Trajectory_request, self.new_trajectory_request_cb)
-
         self.markerPub = rospy.Publisher(self.marker_topic, Marker, queue_size=10)
-
         self.path_rviz_Pub = rospy.Publisher(self.path_rviz_topic, Path, queue_size=10) # rviz vizualization of the trajectory
         self.trajectoryPub = rospy.Publisher(self.trajectory_topic, Trajectory, queue_size=1) # trajectory to be used by the controller
  
@@ -93,7 +90,7 @@ class TrajectoryBuilder:
 
         #self.set_new_trajectory(type='static')
 
-        rospy.loginfo("Trajectory publisher initialized")
+        rospy.loginfo("Trajectory generator node initialized")
 
  
 

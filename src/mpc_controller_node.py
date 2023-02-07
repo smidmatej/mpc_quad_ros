@@ -143,6 +143,8 @@ class MPC_controller:
 
         self.initialize_MPC()
 
+        r = rospy.Rate(1) # 10 Hz
+        r.sleep()
         # --------------------- Publishers ---------------------
         self.optimal_path_pub = rospy.Publisher(self.optimal_path_topic, Path, queue_size=1) # Path from current quad position onto the path
         self.reference_path_chunk_pub = rospy.Publisher(self.reference_path_chunk_topic, Path, queue_size=1) # Chunk of the reference path that is used for MPC
@@ -155,6 +157,8 @@ class MPC_controller:
         self.trajectory_sub = rospy.Subscriber(self.reference_trajectory_topic, Trajectory, self.trajectory_received_cb) # Reference trajectory
         self.pose_subscriber = rospy.Subscriber(self.pose_topic, Odometry, self.pose_received_cb) # Pose is published by the simulator at 100 Hz!
             
+        r = rospy.Rate(1) # 10 Hz
+        r.sleep()
         rospy.logwarn("MPC controller initilized")
 
 
@@ -212,8 +216,7 @@ class MPC_controller:
         # Trajectory is received in the trajectory_received_cb function
         # New trajectory is requested elsewhere
         x, timestamp_odometry = self.pose_to_state_world(msg)
-
-
+        rospy.loginfo(f"{self.need_trajectory_to_hover}, {self.trajectory_ready}")
 
         if timestamp_odometry < self.last_reboot_timestamp:
             # Dump the accumulated odometry messages that came before the reboot was finished
