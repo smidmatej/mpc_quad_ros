@@ -286,10 +286,14 @@ def simulate_trajectory(quad, quad_opt, quad_nominal, x0, x_trajectory, simulati
                 else:
                     x_pred_minus_1 = x
 
-                rgp_mu_g_t, rgp_C_g_t = quad_opt.regress_and_update_RGP_model(x, x_pred_minus_1)
+                v_body, a_drag = utils.compute_a_drag(x, x_pred_minus_1, quad_opt.optimization_dt)
+                rgp_mu_g_t, rgp_C_g_t = quad_opt.regress_and_update_RGP_model(v_body, a_drag)
+               # rgp_mu_g_t, rgp_C_g_t = quad_opt.regress_and_update_RGP_model(x, x_pred_minus_1)
                 rgp_theta = quad_opt.gpe.get_theta()
             else:
                 # If not using RGP, set these to None for logging
+                v_body = None
+                a_drag = None
                 rgp_basis_vectors = None
                 rgp_mu_g_t = None
                 rgp_C_g_t = None
@@ -299,7 +303,8 @@ def simulate_trajectory(quad, quad_opt, quad_nominal, x0, x_trajectory, simulati
         if logger is not None:
             dict_to_log = {"x_odom": x, "x_pred_odom": x_pred, "x_ref": x_ref[0,:], "t_odom": simulation_time, \
                 "w_odom": w, 't_cpu': t_cpu, "cost_solution": cost_solution, \
-                    "rgp_basis_vectors" : rgp_basis_vectors, "rgp_mu_g_t": rgp_mu_g_t, "rgp_C_g_t": rgp_C_g_t, "rgp_theta": rgp_theta}
+                    "rgp_basis_vectors" : rgp_basis_vectors, "rgp_mu_g_t": rgp_mu_g_t, "rgp_C_g_t": rgp_C_g_t, "rgp_theta": rgp_theta, \
+                        "v_body": v_body, "a_drag": a_drag}
             
             logger.log(dict_to_log)
         # Counts until simulation is finished

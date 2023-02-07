@@ -307,8 +307,16 @@ class Visualiser:
         def animate(i):
 
             for d in range(3):
+                #
                 self.scat_basis_vectors[d].set_offsets(np.array([self.X_basis[i][d], self.mu_g_t[i][d]]).T)
 
+                # Inneficient way to take a [:i][d] slice, should have used a array.
+                X_sample_array = np.array([float(self.X_sample[j][d]) for j in range(i+1)]).reshape(-1,1)
+                y_sample_array = np.array([float(self.y_sample[j][d]) for j in range(i+1)]).reshape(-1,1)
+                #breakpoint()
+                print(f'sample: ({self.X_sample[i][d]}, {self.y_sample[i][d]})')
+
+                self.scat_samples[d].set_offsets(np.concatenate((X_sample_array, y_sample_array), axis=1))
                 self.rgp_mean_plot[d].set_data(self.X_query[d], self.y_query[i][d])
                 self.fill_between_plots[d].remove()
                 self.fill_between_plots[d] = self.ax[d].fill_between(self.X_query[d].reshape(-1),
@@ -346,6 +354,7 @@ class Visualiser:
 
         self.ax = [None]*3
         self.scat_basis_vectors = [None]*3
+        self.scat_samples = [None]*3
         self.rgp_mean_plot = [None]*3
         self.fill_between_plots = [None]*3
 
@@ -353,7 +362,8 @@ class Visualiser:
         for d in range(3):
             self.ax[d] = self.fig.add_subplot(gs[d])
 
-            self.scat_basis_vectors[d] = self.ax[d].scatter([], [], marker='o', label='Basis Vectors')
+            self.scat_samples[d] = self.ax[d].scatter([], [], marker='.', color=self.cs[1], label='Samples')
+            self.scat_basis_vectors[d] = self.ax[d].scatter([], [], marker='o', color=self.cs[2], label='Basis Vectors')
             self.rgp_mean_plot[d], = self.ax[d].plot([], [], '--', color=self.cs[0], label='E[g(x)]')
             
             self.fill_between_plots[d] = self.ax[d].fill_between([],
@@ -407,6 +417,9 @@ class Visualiser:
         self.C_g_t = self.data_dict['rgp_C_g_t'][::skip]
         self.theta = self.data_dict['rgp_theta'][::skip]
 
+        self.X_sample = self.data_dict['v_body'][::skip]
+        self.y_sample = self.data_dict['a_drag'][::skip]
+
 
 
         n_dims = 3
@@ -423,7 +436,7 @@ class Visualiser:
                 x_min[d] = min(x_min[d], min(self.X_basis[i][d]))
                 x_max[d] = max(x_max[d], max(self.X_basis[i][d]))
 
-        self.X_query = [np.linspace(x_min[d], x_max[d], 100) for d in range(n_dims)]
+        self.X_query = [np.linspace(x_min[d], x_max[d], 10) for d in range(n_dims)]
 
         print("Predicting...")
         pbar = tqdm(total=n_samples)
@@ -439,8 +452,8 @@ class Visualiser:
         for d in range(n_dims):
             for i in range(n_samples):
 
-                y_min[d] = min(y_min[d], min(min(self.mu_g_t[i][d]), min(self.y_query[i][d]), -2*min(self.std_query[i][d])))
-                y_max[d] = max(y_max[d], max(max(self.mu_g_t[i][d]), max(self.y_query[i][d]), 2*max(self.std_query[i][d])))
+                y_min[d] = min(y_min[d], min(min(self.mu_g_t[i][d]), min(self.y_query[i][d]), min(self.y_sample[i][d]), -2*min(self.std_query[i][d])))
+                y_max[d] = max(y_max[d], max(max(self.mu_g_t[i][d]), max(self.y_query[i][d]), max(self.y_sample[i][d]), 2*max(self.std_query[i][d])))
         
 
         y_lim_dif = [y_max[d]-y_min[d] for d in range(n_dims)]
