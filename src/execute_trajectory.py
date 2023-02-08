@@ -242,42 +242,13 @@ def simulate_trajectory(quad, quad_opt, quad_nominal, x0, x_trajectory, simulati
             # Control the quad with the most recent u for the whole control period (multiple simulation steps for one optimization)
             quad.update(w, simulation_dt)
 
-            '''
-            # ----------- Save simulation results ----------------
-            x = np.array(quad.get_state(quaternion=True, stacked=True)) # state at the next optim step
-
-            # Save model aerodrag for GP validation, useful only when payload=False
-            x_body_for_drag = quad.get_state(quaternion=True, stacked=False, body_frame=False) # in world frame because get_aero_drag takes world frame velocity
-            a_drag_body = quad.get_aero_drag(x_body_for_drag, body_frame=True)
-            
-            # Save simulation results
-            x_world = np.array(quad.get_state(quaternion=True, stacked=True, body_frame=False)) # World frame referential
-            x_body = np.array(quad.get_state(quaternion=True, stacked=True, body_frame=True)) # Body frame referential
-
-            '''
-
-            '''
-            # Save simulation results
-            # Add current simulation results to list for dataset creation and visualisation
-            x_sim.append(x_world)
-            u_sim.append(w)
-            x_sim_body.append(x_body)
-            
-            x_pred_sim.append(x_pred)
-            yref_now = yref[0,:]
-            yref_sim.append(yref_now)
-            aero_drag_sim.append(a_drag_body)
-            '''
-
-
-
 
             # Counts until the next MPC optimization step is reached
             control_time += simulation_dt
         
 
         # ----------------- Regress RGP -----------------
-        if quad_opt.gpe is not None:
+        if quad_opt.gpe:
             if quad_opt.gpe.type == 'RGP':
                 rgp_basis_vectors = [quad_opt.gpe.gp[d].X
                         for d in range(len(quad_opt.gpe.gp))]
@@ -290,15 +261,15 @@ def simulate_trajectory(quad, quad_opt, quad_nominal, x0, x_trajectory, simulati
                 rgp_mu_g_t, rgp_C_g_t = quad_opt.regress_and_update_RGP_model(v_body, a_drag)
                # rgp_mu_g_t, rgp_C_g_t = quad_opt.regress_and_update_RGP_model(x, x_pred_minus_1)
                 rgp_theta = quad_opt.gpe.get_theta()
-            else:
-                # If not using RGP, set these to None for logging
-                v_body = None
-                a_drag = None
-                rgp_basis_vectors = None
-                rgp_mu_g_t = None
-                rgp_C_g_t = None
-                rgp_theta = None
-        
+        else:
+            # If not using RGP, set these to None for logging
+            v_body = None
+            a_drag = None
+            rgp_basis_vectors = None
+            rgp_mu_g_t = None
+            rgp_C_g_t = None
+            rgp_theta = None
+    
         # ------- Log data -------
         if logger is not None:
             dict_to_log = {"x_odom": x, "x_pred_odom": x_pred, "x_ref": x_ref[0,:], "t_odom": simulation_time, \
@@ -309,113 +280,8 @@ def simulate_trajectory(quad, quad_opt, quad_nominal, x0, x_trajectory, simulati
             logger.log(dict_to_log)
         # Counts until simulation is finished
         simulation_time += quad_opt.optimization_dt
+
     
-
-    '''
-    
-    
-    t = np.linspace(0, simulation_length, len(x_sim))
-
-    # Convert lists to numpy arrays
-    x_sim = np.squeeze(np.array(x_sim))
-    x_sim_body = np.squeeze(np.array(x_sim_body))
-    u_sim = np.squeeze(np.array(u_sim))
-    aero_drag_sim = np.squeeze(np.array(aero_drag_sim))
-    x_pred_sim = np.squeeze(np.array(x_pred_sim))
-
-    x_odom = np.squeeze(np.array(x_odom))
-    x_ref_odom = np.squeeze(np.array(x_ref_odom))  
-    w_odom = np.squeeze(np.array(w_odom))
-    solution_times = np.squeeze(np.array(solution_times))
-    cost_solutions = np.squeeze(np.array(cost_solutions))
-    t_odom = np.squeeze(np.array(t_odom))
-    x_pred_odom = np.squeeze(np.array(x_pred_odom))
-
-
-    data = dict()
-
-    rmse_pos = np.sqrt(np.mean((yref_now[:3] - x[:3])**2))
-    #rmse_pos = np.append(rmse_pos, rmse_pos_now)
-    data['x_sim'] = x_sim
-    data['gpe'] = quad_opt.gpe is not None
-    data['rmse_pos'] = rmse_pos
-    data['u'] = u_sim
-    data['aero_drag'] = aero_drag_sim
-    data['x_pred_sim'] = x_pred_sim
-    # need the dt to calculate a_error
-    data['dt'] = simulation_dt
-    data['t'] = t
-
-    # ----- These are identical to the gazebo dataset logger -----
-    data['x_odom'] = x_odom
-    data['x_ref'] = x_ref_odom
-    data['w_odom'] = w_odom
-    data['t_cpu'] = solution_times
-    data['cost_solution'] = cost_solutions
-    data['t_odom'] = t_odom
-    data['x_pred_odom'] = x_pred_odom
-
-    if quad_opt.gpe is not None:
-        if quad_opt.gpe.type == 'RGP':
-            data['rgp_basis_vectors'] = rgp_basis_vectors
-            data['rgp_params'] = rgp_params
-
-    '''
-    
-    #save_dict(data, logger.filepath_dict)
-    logger.save_log()
-    #print(f'Saved simulated data to {save_filepath}')
-
-
-    '''
-    
-    if quad_opt.gpe is not None:
-        if quad_opt.gpe.type == "RGP":
-            print('Rendering animation...')
-            
-            X_ = [None]*len(quad_opt.gpe.gp)
-            for d in range(len(quad_opt.gpe.gp)):
-                X_[d] = quad_opt.gpe.gp[d].X
-            
-            def animate(i):
-                
-                for d in range(len(quad_opt.gpe.gp)):
-                    scat_basis_vectors[d].set_offsets(np.array([X_[d].ravel(), mu_regress[i][d].ravel()]).T)
-                    pbar.update()
-
-            animation.writer = animation.writers['ffmpeg']
-            plt.ioff() # Turn off interactive mode to hide rendering animations
-
-            plt.style.use('fast')
-            sns.set_style("whitegrid")
-
-            #gs = gridspec.GridSpec(2, 2)
-            scat_basis_vectors = [None]*len(quad_opt.gpe.gp)
-            fig = plt.figure(figsize=(10,10), dpi=100)
-            for d in range(len(quad_opt.gpe.gp)): 
-                ax = fig.add_subplot(1,3,d+1)
-                scat_basis_vectors[d] = ax.scatter([], [], marker='o', label='Basis Vectors')
-                ax.set_xlim(( min(X_[d])) , max(X_[d]))
-                ax.set_ylim(( min([min(mu_regress[i][d]) for i in range(len(mu_regress))])) , max([max(mu_regress[i][d]) for i in range(len(mu_regress))]))
-                #ax.set_ylim((min((min(y_), min(y_t), min(y_true))) , max((max(y_), max(y_t), max(y_true)))))
-                #ax.set_ylim((-10,10))
-                ax.set_xlabel('x')
-                ax.set_ylabel('y')
-                ax.set_title('Recursive Gaussian Process')
-                ax.legend()
-
-
-            dir_path = os.path.dirname(os.path.realpath(__file__))
-            save_anim_path = os.path.join(dir_path, '..', 'outputs/graphics/regression_during_python_sim')
-            pbar = tqdm(total=len(mu_regress))
-            ani = animation.FuncAnimation(fig, animate, frames=len(mu_regress), interval=500)     
-            ani.save(save_anim_path + '.mp4', writer='ffmpeg', fps=10, dpi=100)
-            ani.save(save_anim_path + '.gif', writer='imagemagick', fps=10, dpi=100)
-            pbar.close()
-            #plt.show()
-
-
-    '''
 
 
 

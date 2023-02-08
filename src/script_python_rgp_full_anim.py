@@ -3,7 +3,7 @@ from Visualiser import Visualiser
 
 dir_path = os.path.dirname(os.path.realpath(__file__))
 environment = 'python_simulation'
-data_filename = 'trajectory_v15_a5_gp2'
+data_filename = 'trajectory_v15_a5_gp0'
 
 trajectory_filename = os.path.join(dir_path, '..', 'outputs', environment, 'data', data_filename + '.pkl')
 result_animation_filename = os.path.join(dir_path, '..', 'outputs', 'graphics', 'rgp_full_anim_' + environment + '_' + data_filename)

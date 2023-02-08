@@ -130,8 +130,8 @@ class Visualiser:
         self.position = self.data_dict['x_odom'][::skip,:3]
         self.orientation = self.data_dict['x_odom'][::skip, 3:7]
         self.velocity = self.data_dict['x_odom'][::skip,7:10]
-        self.control = self.data_dict['w_odom'][::skip,:]
-        self.t = self.data_dict['t_odom'][::skip]
+        self.control = w[::skip,:]
+        self.t = t[::skip]
 
 
         self.speed = np.linalg.norm(self.velocity, axis=1)
@@ -467,24 +467,33 @@ class Visualiser:
 
     def plot_data(self, filepath, show=True, save=True):
         
+        x_world = np.stack(self.data_dict['x_odom'], axis=0)
+        x_world_ref = np.stack(self.data_dict['x_ref'], axis=0)
 
-        v_norm = np.linalg.norm(self.data_dict['x_odom'][:,7:10], axis=1)
-        v_ref_norm = np.linalg.norm(self.data_dict['x_ref'][:,7:10], axis=1)
+        w = np.stack(self.data_dict['w_odom'], axis=0)
+        t = np.stack(self.data_dict['t_odom'], axis=0)
+        t_cpu = np.stack(self.data_dict['t_cpu'], axis=0)
+        cost = np.stack(self.data_dict['cost_solution'], axis=0)
 
-        e_pos_ref = self.data_dict['x_odom'][:,0:3] - self.data_dict['x_ref'][:,0:3]
+
+
+        v_norm = np.linalg.norm(x_world[:,7:10], axis=1)
+        v_ref_norm = np.linalg.norm(x_world_ref[:,7:10], axis=1)
+
+        e_pos_ref = x_world[:,0:3] - x_world_ref[:,0:3]
         #rms_pos_ref = np.sqrt(np.mean((e_pos_ref)**2, axis=1))
         rms_pos_ref = self.rms(e_pos_ref, 1)
-        e_quat_ref = self.data_dict['x_odom'][:,3:7] - self.data_dict['x_ref'][:,3:7]
+        e_quat_ref = x_world[:,3:7] - x_world_ref[:,3:7]
         #rms_quat_ref = np.sqrt(np.mean((e_quat_ref)**2, axis=1))
         rms_quat_ref = self.rms(e_quat_ref, 1)
-        e_vel_ref = self.data_dict['x_odom'][:,7:10] - self.data_dict['x_ref'][:,7:10]
+        e_vel_ref = x_world[:,7:10] - x_world_ref[:,7:10]
         #rms_vel_ref = np.sqrt(np.mean((e_vel_ref)**2, axis=1))
         rms_vel_ref = self.rms(e_vel_ref, 1)
-        e_rate_ref = self.data_dict['x_odom'][:,10:13] - self.data_dict['x_ref'][:,10:13]
+        e_rate_ref = x_world[:,10:13] - x_world_ref[:,10:13]
         #rms_rate_ref = np.sqrt(np.mean((e_rate_ref)**2, axis=1))
         rms_rate_ref = self.rms(e_rate_ref, 1)
 
-        rms_total_ref = np.sqrt(np.mean((self.data_dict['x_odom'] - self.data_dict['x_ref'])**2, axis=1))
+        rms_total_ref = np.sqrt(np.mean((x_world - x_world_ref)**2, axis=1))
 
 
         # Color scheme convert from [0,255] to [0,1]
@@ -522,109 +531,109 @@ class Visualiser:
 
 
 
-        ax[0].plot(self.data_dict['t_odom'], self.data_dict['x_odom'][:,0], label='x', color=self.cs_rgb[0])
-        ax[0].plot(self.data_dict['t_odom'], self.data_dict['x_odom'][:,1], label='y', color=self.cs_rgb[1])
-        ax[0].plot(self.data_dict['t_odom'], self.data_dict['x_odom'][:,2], label='z', color=self.cs_rgb[2])
-        ax[0].plot(self.data_dict['t_odom'], self.data_dict['x_ref'][:,0], label='x_ref', color=self.cs_rgb[0], linestyle='dashed')
-        ax[0].plot(self.data_dict['t_odom'], self.data_dict['x_ref'][:,1], label='y_ref', color=self.cs_rgb[1], linestyle='dashed')
-        ax[0].plot(self.data_dict['t_odom'], self.data_dict['x_ref'][:,2], label='z_ref', color=self.cs_rgb[2], linestyle='dashed')
+        ax[0].plot(t, x_world[:,0], label='x', color=self.cs_rgb[0])
+        ax[0].plot(t, x_world[:,1], label='y', color=self.cs_rgb[1])
+        ax[0].plot(t, x_world[:,2], label='z', color=self.cs_rgb[2])
+        ax[0].plot(t, x_world_ref[:,0], label='x_ref', color=self.cs_rgb[0], linestyle='dashed')
+        ax[0].plot(t, x_world_ref[:,1], label='y_ref', color=self.cs_rgb[1], linestyle='dashed')
+        ax[0].plot(t, x_world_ref[:,2], label='z_ref', color=self.cs_rgb[2], linestyle='dashed')
         ax[0].set_xlabel('Time [s]')
         ax[0].set_ylabel('Position [m]')
         ax[0].set_title('Position')
 
-        ax[1].plot(self.data_dict['t_odom'], self.data_dict['x_odom'][:,3], label='qw', color=self.cs_rgb[0])
-        ax[1].plot(self.data_dict['t_odom'], self.data_dict['x_odom'][:,4], label='qx', color=self.cs_rgb[1])
-        ax[1].plot(self.data_dict['t_odom'], self.data_dict['x_odom'][:,5], label='qy', color=self.cs_rgb[2])
-        ax[1].plot(self.data_dict['t_odom'], self.data_dict['x_odom'][:,6], label='qz', color=self.cs_rgb[3])
-        ax[1].plot(self.data_dict['t_odom'], self.data_dict['x_ref'][:,3], label='qw_ref', color=self.cs_rgb[0], linestyle='dashed')
-        ax[1].plot(self.data_dict['t_odom'], self.data_dict['x_ref'][:,4], label='qx_ref', color=self.cs_rgb[1], linestyle='dashed')
-        ax[1].plot(self.data_dict['t_odom'], self.data_dict['x_ref'][:,5], label='qy_ref', color=self.cs_rgb[2], linestyle='dashed')
-        ax[1].plot(self.data_dict['t_odom'], self.data_dict['x_ref'][:,6], label='qz_ref', color=self.cs_rgb[3], linestyle='dashed')
+        ax[1].plot(t, x_world[:,3], label='qw', color=self.cs_rgb[0])
+        ax[1].plot(t, x_world[:,4], label='qx', color=self.cs_rgb[1])
+        ax[1].plot(t, x_world[:,5], label='qy', color=self.cs_rgb[2])
+        ax[1].plot(t, x_world[:,6], label='qz', color=self.cs_rgb[3])
+        ax[1].plot(t, x_world_ref[:,3], label='qw_ref', color=self.cs_rgb[0], linestyle='dashed')
+        ax[1].plot(t, x_world_ref[:,4], label='qx_ref', color=self.cs_rgb[1], linestyle='dashed')
+        ax[1].plot(t, x_world_ref[:,5], label='qy_ref', color=self.cs_rgb[2], linestyle='dashed')
+        ax[1].plot(t, x_world_ref[:,6], label='qz_ref', color=self.cs_rgb[3], linestyle='dashed')
         ax[1].set_xlabel('Time [s]')
         ax[1].set_ylabel('Quaternion')
         ax[1].set_title('Orientation')
 
-        ax[2].plot(self.data_dict['t_odom'], self.data_dict['x_odom'][:,7], label='vx', color=self.cs_rgb[0])
-        ax[2].plot(self.data_dict['t_odom'], self.data_dict['x_odom'][:,8], label='vy', color=self.cs_rgb[1])
-        ax[2].plot(self.data_dict['t_odom'], self.data_dict['x_odom'][:,9], label='vz', color=self.cs_rgb[2])
-        ax[2].plot(self.data_dict['t_odom'], self.data_dict['x_ref'][:,7], label='vx_ref', color=self.cs_rgb[0], linestyle='dashed')
-        ax[2].plot(self.data_dict['t_odom'], self.data_dict['x_ref'][:,8], label='vy_ref', color=self.cs_rgb[1], linestyle='dashed')
-        ax[2].plot(self.data_dict['t_odom'], self.data_dict['x_ref'][:,9], label='vz_ref', color=self.cs_rgb[2], linestyle='dashed')
+        ax[2].plot(t, x_world[:,7], label='vx', color=self.cs_rgb[0])
+        ax[2].plot(t, x_world[:,8], label='vy', color=self.cs_rgb[1])
+        ax[2].plot(t, x_world[:,9], label='vz', color=self.cs_rgb[2])
+        ax[2].plot(t, x_world_ref[:,7], label='vx_ref', color=self.cs_rgb[0], linestyle='dashed')
+        ax[2].plot(t, x_world_ref[:,8], label='vy_ref', color=self.cs_rgb[1], linestyle='dashed')
+        ax[2].plot(t, x_world_ref[:,9], label='vz_ref', color=self.cs_rgb[2], linestyle='dashed')
 
-        ax[2].plot(self.data_dict['t_odom'], v_norm, label='v_norm', color=self.cs_rgb[3])
-        ax[2].plot(self.data_dict['t_odom'], v_ref_norm, label='v_ref_norm', color=self.cs_rgb[3], linestyle='dashed')
+        ax[2].plot(t, v_norm, label='v_norm', color=self.cs_rgb[3])
+        ax[2].plot(t, v_ref_norm, label='v_ref_norm', color=self.cs_rgb[3], linestyle='dashed')
         ax[2].set_title('Velocity')
         ax[2].set_xlabel('Time [s]')
         ax[2].set_ylabel('Velocity [m/s]')
 
-        ax[3].plot(self.data_dict['t_odom'], self.data_dict['x_odom'][:,10], label='wx', color=self.cs_rgb[0])
-        ax[3].plot(self.data_dict['t_odom'], self.data_dict['x_odom'][:,11], label='wy', color=self.cs_rgb[1])
-        ax[3].plot(self.data_dict['t_odom'], self.data_dict['x_odom'][:,12], label='wz', color=self.cs_rgb[2])
-        ax[3].plot(self.data_dict['t_odom'], self.data_dict['x_ref'][:,10], label='wx_ref', color=self.cs_rgb[0], linestyle='dashed')
-        ax[3].plot(self.data_dict['t_odom'], self.data_dict['x_ref'][:,11], label='wy_ref', color=self.cs_rgb[1], linestyle='dashed')
-        ax[3].plot(self.data_dict['t_odom'], self.data_dict['x_ref'][:,12], label='wz_ref', color=self.cs_rgb[2], linestyle='dashed')
+        ax[3].plot(t, x_world[:,10], label='wx', color=self.cs_rgb[0])
+        ax[3].plot(t, x_world[:,11], label='wy', color=self.cs_rgb[1])
+        ax[3].plot(t, x_world[:,12], label='wz', color=self.cs_rgb[2])
+        ax[3].plot(t, x_world_ref[:,10], label='wx_ref', color=self.cs_rgb[0], linestyle='dashed')
+        ax[3].plot(t, x_world_ref[:,11], label='wy_ref', color=self.cs_rgb[1], linestyle='dashed')
+        ax[3].plot(t, x_world_ref[:,12], label='wz_ref', color=self.cs_rgb[2], linestyle='dashed')
         ax[3].set_title('Angular Velocity')
         ax[3].set_xlabel('Time [s]')
         ax[3].set_ylabel('Angular Velocity [rad/s]')
 
 
-        ax[4].plot(self.data_dict['t_odom'], e_pos_ref[:,0], label='e_x', color=self.cs_rgb[0])
-        ax[4].plot(self.data_dict['t_odom'], e_pos_ref[:,1], label='e_y', color=self.cs_rgb[1])
-        ax[4].plot(self.data_dict['t_odom'], e_pos_ref[:,2], label='e_z', color=self.cs_rgb[2])
-        ax[4].plot(self.data_dict['t_odom'], rms_pos_ref, label="rms", color=self.cs_rgb[3])
+        ax[4].plot(t, e_pos_ref[:,0], label='e_x', color=self.cs_rgb[0])
+        ax[4].plot(t, e_pos_ref[:,1], label='e_y', color=self.cs_rgb[1])
+        ax[4].plot(t, e_pos_ref[:,2], label='e_z', color=self.cs_rgb[2])
+        ax[4].plot(t, rms_pos_ref, label="rms", color=self.cs_rgb[3])
         ax[4].set_title(f"RMS Position Error, Total: {self.rms(rms_pos_ref, 0)*1e3:.2f}mm")
         ax[4].set_xlabel('Time [s]')
         ax[4].set_ylabel('RMS Position Error [m]')
         ax[4].legend()
 
 
-        ax[5].plot(self.data_dict['t_odom'], rms_quat_ref, label='rms', color=self.cs_rgb[0])
+        ax[5].plot(t, rms_quat_ref, label='rms', color=self.cs_rgb[0])
         ax[5].set_title(f'RMS Quaternion Error')
         ax[5].set_xlabel('Time [s]')
         ax[5].set_ylabel('RMS Quaternion Error [m/s]')
 
-        ax[6].plot(self.data_dict['t_odom'], e_vel_ref[:,0], label='e_vx', color=self.cs_rgb[0])
-        ax[6].plot(self.data_dict['t_odom'], e_vel_ref[:,1], label='e_vy', color=self.cs_rgb[1])
-        ax[6].plot(self.data_dict['t_odom'], e_vel_ref[:,2], label='e_vz', color=self.cs_rgb[2])
-        ax[6].plot(self.data_dict['t_odom'], rms_vel_ref, label='rms', color=self.cs_rgb[3])
+        ax[6].plot(t, e_vel_ref[:,0], label='e_vx', color=self.cs_rgb[0])
+        ax[6].plot(t, e_vel_ref[:,1], label='e_vy', color=self.cs_rgb[1])
+        ax[6].plot(t, e_vel_ref[:,2], label='e_vz', color=self.cs_rgb[2])
+        ax[6].plot(t, rms_vel_ref, label='rms', color=self.cs_rgb[3])
         ax[6].set_title(f'RMS Velocity Error, Total: {self.rms(rms_vel_ref, 0)*1000:.2f}mm/s')
         ax[6].set_xlabel('Time [s]')
         ax[6].set_ylabel('RMS Velocity Error [m/s]')
         ax[6].legend()
 
-        ax[7].plot(self.data_dict['t_odom'], e_rate_ref[:,0], label='e_vx', color=self.cs_rgb[0])
-        ax[7].plot(self.data_dict['t_odom'], e_rate_ref[:,1], label='e_vy', color=self.cs_rgb[1])
-        ax[7].plot(self.data_dict['t_odom'], e_rate_ref[:,2], label='e_vz', color=self.cs_rgb[2])
-        ax[7].plot(self.data_dict['t_odom'], rms_rate_ref, label='rms', color=self.cs_rgb[3])
+        ax[7].plot(t, e_rate_ref[:,0], label='e_vx', color=self.cs_rgb[0])
+        ax[7].plot(t, e_rate_ref[:,1], label='e_vy', color=self.cs_rgb[1])
+        ax[7].plot(t, e_rate_ref[:,2], label='e_vz', color=self.cs_rgb[2])
+        ax[7].plot(t, rms_rate_ref, label='rms', color=self.cs_rgb[3])
         ax[7].set_title(f'RMS Angular Velocity Error')
         ax[7].set_xlabel('Time [s]')
         ax[7].set_ylabel('RMS Angular Velocity Error [rad/s]')
         ax[7].legend()
 
 
-        ax[8].plot(self.data_dict['x_odom'][:,7], e_pos_ref[:,0], label='e_vx', color=self.cs_rgb[0])
-        ax[8].plot(self.data_dict['x_odom'][:,8], e_pos_ref[:,1], label='e_vy', color=self.cs_rgb[1])
-        ax[8].plot(self.data_dict['x_odom'][:,9], e_pos_ref[:,2], label='e_vz', color=self.cs_rgb[2])
+        ax[8].plot(x_world[:,7], e_pos_ref[:,0], label='e_vx', color=self.cs_rgb[0])
+        ax[8].plot(x_world[:,8], e_pos_ref[:,1], label='e_vy', color=self.cs_rgb[1])
+        ax[8].plot(x_world[:,9], e_pos_ref[:,2], label='e_vz', color=self.cs_rgb[2])
         ax[8].plot(v_norm, rms_pos_ref, label='rms', color=self.cs_rgb[3])
         ax[8].set_xlabel('Velocity [m/s]')
         ax[8].set_ylabel('Position Error [m]')
         ax[8].set_title('Position error as a function of velocity')
         ax[8].legend()
 
-        ax[9].plot(self.data_dict['t_odom'], self.data_dict['w_odom'][:,0], label='u1', color=self.cs_u[0])
-        ax[9].plot(self.data_dict['t_odom'], self.data_dict['w_odom'][:,1], label='u2', color=self.cs_u[1])
-        ax[9].plot(self.data_dict['t_odom'], self.data_dict['w_odom'][:,2], label='u3', color=self.cs_u[2])
-        ax[9].plot(self.data_dict['t_odom'], self.data_dict['w_odom'][:,3], label='u4', color=self.cs_u[3])
+        ax[9].plot(t, w[:,0], label='u1', color=self.cs_u[0])
+        ax[9].plot(t, w[:,1], label='u2', color=self.cs_u[1])
+        ax[9].plot(t, w[:,2], label='u3', color=self.cs_u[2])
+        ax[9].plot(t, w[:,3], label='u4', color=self.cs_u[3])
         ax[9].set_xlabel('Time [s]')
         ax[9].set_ylabel('Control Input')
         ax[9].set_title('Control Input')
 
-        ax[10].plot(self.data_dict['t_odom'], self.data_dict['t_cpu'][:]*1e3, label='t_cpu', color=self.cs_rgb[0])
+        ax[10].plot(t, t_cpu[:]*1e3, label='t_cpu', color=self.cs_rgb[0])
         ax[10].set_xlabel('Time [s]')
         ax[10].set_ylabel('CPU Time [ms]')
         ax[10].set_title('MPC CPU Time')
 
-        ax[11].plot(self.data_dict['t_odom'], self.data_dict['cost_solution'][:], label='solution_cost', color=self.cs_rgb[0])
+        ax[11].plot(t, cost[:], label='solution_cost', color=self.cs_rgb[0])
         ax[11].set_xlabel('Time [s]')
         ax[11].set_ylabel('Solution Cost')
         ax[11].set_title('Solution Cost')
