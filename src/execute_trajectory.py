@@ -74,7 +74,26 @@ def main():
     # Read arguments from command line
     args = parser.parse_args()
     
-        
+    V_MAX_LIM = 30
+    A_MAX_LIM = 30
+    N_BASIS = 10 # Number of basis functions for the RGP
+
+    # This musnt be faster than the quad is capable of
+    # Max velocity and acceleration along the trajectory
+    v_max = args.v_max
+    a_max = args.a_max
+
+    #explorer = Explorer(gpe)
+    #v_max = explorer.velocity_to_explore
+
+    if v_max > V_MAX_LIM:
+        v_max = V_MAX_LIM
+        print("v_max limited to " + str(V_MAX_LIM))
+    if a_max > A_MAX_LIM:
+        a_max = A_MAX_LIM
+        print("a_max limited to " + str(A_MAX_LIM))
+
+
     # TODO: Implement testing with different air resistance cooefficients/functions together with training GPes
 
     if args.gpe == 0:
@@ -85,6 +104,8 @@ def main():
         gpe = GPEnsemble.fromdir(ensemble_path, "GP")
     elif args.gpe == 2:
         ensemble_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'outputs', 'python_simulation', 'gp_models')
+        n_basis = 10
+        gpe = GPEnsemble.fromrange([(-v_max, v_max) for _ in range (3)], [N_BASIS for _ in range(3)])
         gpe = GPEnsemble.fromdir(ensemble_path, "RGP")
     else:
         raise ValueError("Invalid GPE argument")
@@ -93,23 +114,7 @@ def main():
     logger = Logger(save_filepath)
     trajectory_generator = TrajectoryGenerator()
 
-    v_max_limit = 30
-    a_max_limit = 30
 
-    # This musnt be faster than the quad is capable of
-    # Max velocity and acceleration along the trajectory
-    v_max = args.v_max
-    a_max = args.a_max
-
-    #explorer = Explorer(gpe)
-    #v_max = explorer.velocity_to_explore
-
-    if v_max > v_max_limit:
-        v_max = v_max_limit
-        print("v_max limited to " + str(v_max_limit))
-    if a_max > a_max_limit:
-        a_max = a_max_limit
-        print("a_max limited to " + str(a_max_limit))
 
 
     simulation_dt = 5e-3 # Timestep simulation for the physics
@@ -157,7 +162,8 @@ def main():
     x0 = np.array([0,0,0] + [1,0,0,0] + [0,0,0] + [0,0,0])
     
 
-    simulate_trajectory(quad, quad_opt, quad_nominal, x0, x_trajectory, simulation_length, Nopt, simulation_dt, logger)
+    logger = simulate_trajectory(quad, quad_opt, quad_nominal, x0, x_trajectory, simulation_length, Nopt, simulation_dt, logger)
+    logger.save_log()
     
 
 
@@ -281,7 +287,7 @@ def simulate_trajectory(quad, quad_opt, quad_nominal, x0, x_trajectory, simulati
         # Counts until simulation is finished
         simulation_time += quad_opt.optimization_dt
 
-    
+    return logger # Return logger object with all the collected data
 
 
 

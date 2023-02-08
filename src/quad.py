@@ -82,6 +82,7 @@ class Quadrotor3D:
 		#self.rotor_drag_z = 0.0  # No rotor drag in the z dimension
 		
 		self.rotor_drag = np.array([self.rotor_drag_xy, self.rotor_drag_xy, self.rotor_drag_z])
+		self.rotor_functionality = np.array([1, 1, 1, 1]) # 1 = functional, 0 = not functional
 		#self.aero_drag = 0.08
 		self.aero_drag = 0.8
 
@@ -328,7 +329,8 @@ class Quadrotor3D:
 
 		angle_quaternion = x[3:7]
 
-		f_thrust = u * self.max_thrust
+
+		f_thrust = u * self.rotor_functionality * self.max_thrust
 		a_thrust_body = np.array([0.0, 0.0, np.sum(f_thrust)]) / self.mass # Thrust acceleration in body frame
 		a_thrust_world = v_dot_q(a_thrust_body, angle_quaternion)
 
@@ -355,7 +357,7 @@ class Quadrotor3D:
 		assert u.shape == (4, ), 'u must be a 4-length array'
 		assert t_d.shape == (3, ), 'f_d must be a 3-length array'
 
-		f_thrust = u*self.max_thrust
+		f_thrust = u * self.rotor_functionality * self.max_thrust
 		rate = x[10:13]
 
 		drate = np.array([
