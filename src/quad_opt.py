@@ -315,7 +315,7 @@ class quad_optimizer:
 
         # Solve OCP
         self.acados_ocp_solver.solve()
-        self.acados_ocp_solver.solve()
+        #self.acados_ocp_solver.solve()
         #self.acados_ocp_solver.solve()
 
         #print(x_init)

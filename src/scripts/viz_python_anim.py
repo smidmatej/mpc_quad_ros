@@ -2,6 +2,7 @@ import os
 from Visualiser import Visualiser
 
 dir_path = os.path.dirname(os.path.realpath(__file__))
+dir_path = os.path.join(dir_path, '..') # go up one level
 environment = 'python_simulation'
 data_filename = 'trajectory_using_gp'
 #data_filename = 'test_circle_v20_a5_gp0'
