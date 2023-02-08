@@ -18,7 +18,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
-
+import rospy
 try:
     from GP import GP
     from RGP import RGP
@@ -172,7 +172,7 @@ class GPEnsemble:
 
         mu_dim = [None]*len(self.gp)
         std_dim = [None]*len(self.gp)
-
+        rospy.logwarn(f"X_t[0]: {type(X_t[0])}")
         # Do the predictions
         for n in range(len(self.gp)):
             if std:

@@ -82,8 +82,11 @@ class Quadrotor3D:
 		#self.rotor_drag_z = 0.0  # No rotor drag in the z dimension
 		
 		self.rotor_drag = np.array([self.rotor_drag_xy, self.rotor_drag_xy, self.rotor_drag_z])
-		self.rotor_functionality = np.array([1, 1, 1, 1]) # 1 = functional, 0 = not functional
+		#self.rotor_functionality = np.array([0.1, 1.0, 0.5, 1.0]) # 1 = functional, 0 = not functional
+		self.rotor_functionality = np.array([1.0, 1.0, 1.0, 1.0]) # 1 = functional, 0 = not functional
+		
 		#self.aero_drag = 0.08
+		#self.aero_drag = 0.8 * np.array([1.0, 1.0, 5.0])
 		self.aero_drag = 0.8
 
 		self.payload_mass = 0.3  # kg
@@ -233,7 +236,13 @@ class Quadrotor3D:
 		:param dt: time differential
 		"""
 		assert u.shape == (4,)
-		assert np.all(u >= 0.0) and np.all(u <= 1.0)
+
+		# Ensure control input is between [0.0, 1.0]
+		for i in range(4):
+			if u[i] < 0.0:
+				u[i] = 0.0
+			elif u[i] > 1.0:
+				u[i] = 1.0
 
 		self.u = u # Update control input
 		x = self.get_state(quaternion=True, stacked=True) # Get current state

@@ -313,8 +313,7 @@ class Visualiser:
                 # Inneficient way to take a [:i][d] slice, should have used a array.
                 X_sample_array = np.array([float(self.X_sample[j][d]) for j in range(i+1)]).reshape(-1,1)
                 y_sample_array = np.array([float(self.y_sample[j][d]) for j in range(i+1)]).reshape(-1,1)
-                #breakpoint()
-                print(f'sample: ({self.X_sample[i][d]}, {self.y_sample[i][d]})')
+
 
                 self.scat_samples[d].set_offsets(np.concatenate((X_sample_array, y_sample_array), axis=1))
                 self.rgp_mean_plot[d].set_data(self.X_query[d], self.y_query[i][d])

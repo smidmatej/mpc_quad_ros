@@ -137,7 +137,7 @@ class GP:
         Evaluate the posterior mean m(x) and covariance sigma for supplied values of X_star
         :param X_star: (m,) np.ndarray of values to evaluate the posterior mean and covariance for, where m is the number of evaluation points
         """
-        assert X_star.ndim == 1, "X_star must be a 1D np.ndarray"
+
 
         ### TODO: Add std and variance to casadi prediction ###
         sigma_k = self.calculate_covariance_matrix(self.X, X_star, self.kernel)
@@ -156,7 +156,8 @@ class GP:
                 cov_matrix = np.eye(1) # TODO: Calculate covariance matrix for prediction if needed
 
                
-            else:
+            elif isinstance(X_star, np.ndarray):
+                assert X_star.ndim == 1, "X_star must be a 1D np.ndarray"
                 mean_at_values = sigma_k.T.dot(
                                         self.inv_cov_matrix_of_input_data.dot(
                                             self.y)) 

@@ -597,8 +597,10 @@ class MPC_controller:
 
         # Autopilot needs desired thrust to set rotor speeds
         control_msg.rotor_thrusts = thrust * self.quad_opt.quad.max_thrust / self.quad_opt.quad.mass
-        #np.sum(w_opt[:4]) * self.quad.max_thrust / self.quad.mass
         control_msg.collective_thrust = np.sum(thrust) * self.quad_opt.quad.max_thrust / self.quad_opt.quad.mass
+        # It seems to me that the roror_thrusts should be in newtons, but the autopilot seems to expect it in N/kg
+        #control_msg.rotor_thrusts = thrust * self.quad_opt.quad.max_thrust
+        #control_msg.collective_thrust = np.sum(thrust) * self.quad_opt.quad.max_thrust
 
         self.actuator_publisher.publish(control_msg)
 

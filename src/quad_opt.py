@@ -35,6 +35,7 @@ import pdb
 class quad_optimizer:
     def __init__(self, quad, t_horizon=1, n_nodes=100, gpe=None):
         
+        
         self.n_nodes = n_nodes
         self.t_horizon = t_horizon
         self.gpe = gpe

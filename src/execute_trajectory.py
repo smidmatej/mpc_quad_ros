@@ -122,7 +122,7 @@ def main():
 
     # MPC prediction horizon
     t_lookahead = 1 # Prediction horizon duration
-    n_nodes = 30 # Prediction horizon number of timesteps in t_lookahead
+    n_nodes = 10 # Prediction horizon number of timesteps in t_lookahead
 
 
     # initial condition
@@ -206,7 +206,9 @@ def simulate_trajectory(quad, quad_opt, quad_nominal, x0, x_trajectory, simulati
     print(f'Duration of simulation={simulation_length}, Number of simulation steps={Nopt}')
     simulation_time = 0
     for i in tqdm(range(Nopt)):
-
+        if i / Nopt > 0.2:
+            pass
+            #quad.rotor_functionality = np.array([0.5,0.5,1.0,1.0])
         # ----------- MPC control ----------------
         # Set the part of trajectory relevant for current time as the MPC reference
         x_ref = utils.get_reference_chunk(x_trajectory, i, quad_opt.n_nodes)
