@@ -103,14 +103,12 @@ def main():
         ensemble_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'outputs', 'python_simulation', 'gp_models')
         gpe = GPEnsemble.fromdir(ensemble_path, "GP")
     elif args.gpe == 2:
-        ensemble_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'outputs', 'python_simulation', 'gp_models')
-        n_basis = 10
         gpe = GPEnsemble.fromrange([(-v_max, v_max) for _ in range (3)], [N_BASIS for _ in range(3)])
-        gpe = GPEnsemble.fromdir(ensemble_path, "RGP")
+
     else:
         raise ValueError("Invalid GPE argument")
         
-    save_filepath = args.output
+    save_filepath = os.path.join(dir_path, '..', f'outputs/python_simulation/data/traj{args.trajectory}_v{int(args.v_max)}_a{int(args.a_max)}_gp{args.gpe}')
     logger = Logger(save_filepath)
     trajectory_generator = TrajectoryGenerator()
 
@@ -145,7 +143,7 @@ def main():
 
     if args.trajectory == 2:
         # Circle trajectory
-        radius = 50
+        radius = 10
         t_max = 30
 
         trajectory_generator.sample_circle_trajectory_accelerating(radius, v_max, t_max, quad_opt.optimization_dt)
