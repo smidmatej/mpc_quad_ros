@@ -125,8 +125,14 @@ def main():
 
     # initial condition
     quad = Quadrotor3D(payload=False, drag=True) # Controlled plant 
+    # initial condition
+    x0 = np.array([0,0,3] + [1,0,0,0] + [0,0,0] + [0,0,0])
+    quad.set_state(x0)
+
+
     quad_opt = quad_optimizer(quad, t_horizon=t_lookahead, n_nodes=n_nodes, gpe=gpe) # computing optimal control over model of plant
     quad_nominal = quad_optimizer(quad, t_horizon=t_lookahead, n_nodes=n_nodes, gpe=None) # Predicting the state of the plant with control but without GP
+
 
 
     if args.trajectory == 0:
@@ -136,9 +142,9 @@ def main():
     if args.trajectory == 1:
         # Generate trajectory as reference for the quadrotor
         # new trajectory
-        hsize = 10
-        num_waypoints = 4
-        trajectory_generator.generate_random_waypoints(hsize, num_waypoints)
+        hsize = 30
+        num_waypoints = 10
+        trajectory_generator.generate_random_waypoints(hsize, num_waypoints, start_point=x0[:3])
         trajectory_generator.sample_trajectory('random', v_max, a_max, quad_opt.optimization_dt)
 
     if args.trajectory == 2:
@@ -156,9 +162,7 @@ def main():
     # Simulation runs for simulation_length seconds and MPC is calculated every quad_opt.optimization_dt
     Nopt = round(simulation_length/quad_opt.optimization_dt) # number of times MPC control is calculated steps
 
-    # initial condition
-    x0 = np.array([0,0,0] + [1,0,0,0] + [0,0,0] + [0,0,0])
-    
+
 
     logger = simulate_trajectory(quad, quad_opt, quad_nominal, x0, x_trajectory, simulation_length, Nopt, simulation_dt, logger)
     logger.save_log()
@@ -168,16 +172,7 @@ def main():
 def simulate_trajectory(quad, quad_opt, quad_nominal, x0, x_trajectory, simulation_length, Nopt, simulation_dt, logger):
 
     x = x0
-    # Ground truth data
-    x_sim = list() # World reference frame
-    yref_sim = list()
-    u_sim = list()
-    x_sim_body = list()# Body reference frame
-    x_optim = list() # MPC prediction
-    u_optim = list() # MPC prediction
-    x_pred_sim = list()
-    aero_drag_sim = list()
-    GPE_pred_sim = list() 
+
 
     # Odometry is simulated every MPC timestep
     x_odom = list()
@@ -190,12 +185,7 @@ def simulate_trajectory(quad, quad_opt, quad_nominal, x0, x_trajectory, simulati
     solution_times = list()
     cost_solutions = list()
 
-    rgp_params = list()
-    rgp_basis_vectors = list()
-    mu_regress = list()
-    a_dif = list()
-    a_drag_list = list()
-    v_body_list = list()
+
 
     # Set quad to start position
     #quad.set_state(x)
@@ -262,10 +252,10 @@ def simulate_trajectory(quad, quad_opt, quad_nominal, x0, x_trajectory, simulati
                     x_pred_minus_1 = logger.dictionary['x_pred_odom'][-1]
                 else:
                     x_pred_minus_1 = x
-
+                breakpoint()
                 v_body, a_drag = utils.compute_a_drag(x, x_pred_minus_1, quad_opt.optimization_dt)
                 rgp_mu_g_t, rgp_C_g_t = quad_opt.regress_and_update_RGP_model(v_body, a_drag)
-               # rgp_mu_g_t, rgp_C_g_t = quad_opt.regress_and_update_RGP_model(x, x_pred_minus_1)
+
                 rgp_theta = quad_opt.gpe.get_theta()
         else:
             # If not using RGP, set these to None for logging

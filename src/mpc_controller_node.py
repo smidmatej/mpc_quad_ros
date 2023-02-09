@@ -75,7 +75,7 @@ class MPC_controller:
         self.a_max = rospy.get_param('/mpcros/mpc_controller/a_max')
         self.trajectory_type = rospy.get_param('/mpcros/mpc_controller/trajectory_type') # node_name/argsname
         self.training_run = rospy.get_param('/mpcros/mpc_controller/training') # node_name/argsname
-        self.training_trajectories_count = rospy.get_param('/mpcros/mpc_controller/training_trajectories_count') # node_name/argsname
+        self.trajectories_count_desired = rospy.get_param('/mpcros/mpc_controller/training_trajectories_count') # node_name/argsname
         self.use_gp = rospy.get_param('/mpcros/mpc_controller/use_gp')
         self.gp_path = rospy.get_param('/mpcros/mpc_controller/gp_path')
         self.gp_from_file = rospy.get_param('/mpcros/mpc_controller/gp_from_file')
@@ -95,6 +95,8 @@ class MPC_controller:
                 log_filename = "explore" 
         else:
             log_filename = f"test_{self.trajectory_type}_v{self.v_max:.0f}_a{self.a_max:.0f}_gp{self.use_gp}"
+            
+            self.trajectories_count_desired = 1
         
         self.logger = Logger(log_filename)
 
@@ -317,7 +319,7 @@ class MPC_controller:
 
                 # ------- Log data -------
                 
-                if self.logger is not None:
+                if self.logger is not None and self.doing_a_line == False:
                     dict_to_log = {"x_odom": x, "x_pred_odom": x_pred, "x_ref": x_ref[0,:], "t_odom": timestamp_odometry, \
                         "w_odom": w, 't_cpu': t_cpu, "elapsed_during_mpc": elapsed_during_mpc, "cost_solution": cost_solution, \
                             "rgp_basis_vectors" : rgp_basis_vectors, "rgp_mu_g_t": rgp_mu_g_t, "rgp_C_g_t": rgp_C_g_t, "rgp_theta": rgp_theta, \
@@ -338,7 +340,7 @@ class MPC_controller:
                     # The trajectory is finished
                     rospy.loginfo("Trajectory finished")
 
-                    if self.number_of_trajectories_finished >= self.training_trajectories_count:
+                    if self.number_of_trajectories_finished >= self.trajectories_count_desired:
                         # Shutdown the node after making the required number of trajectories
                         #rospy.on_shutdown(self.shutdown_hook) # Send the signal that this process is about to shutdown
                         rospy.logwarn("Data collection finished.")
@@ -351,6 +353,7 @@ class MPC_controller:
                             self.logger.clear_memory()
                             self.doing_a_line = False
                             self.request_trajectory(x, self.trajectory_type)
+
                         else:
                             # This was a real trajectory, count it as a finished trajectory
                             self.number_of_trajectories_finished += 1
@@ -362,8 +365,10 @@ class MPC_controller:
                                 rospy.loginfo("Cleared logger memory because this is not a training run")
                             rospy.loginfo(f"Explore: {self.explore}")
 
+                            self.request_trajectory(x, self.trajectory_type)
 
-                            if self.explore:
+                            '''
+                                                        if self.explore:
 
                                 self.rebooting_controller = True
 
@@ -395,8 +400,11 @@ class MPC_controller:
                                 # This is used to dump callbacks that accumulate during the reboot
                                 self.last_reboot_timestamp = rospy_time_to_float(rospy.Time.now())
                                 rospy.logwarn(f"Last reboot time: {self.last_reboot_timestamp}")
+                            
+                            '''
 
-                            self.request_trajectory(x, self.trajectory_type)
+
+                            
 
 
         elapsed_during_cb = time.time() - time_at_cb_start

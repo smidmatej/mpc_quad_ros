@@ -375,7 +375,7 @@ class quad_optimizer:
         assert self.gpe is not None, "RGP model has to be initialized before calling this method"
         assert self.gpe.type == 'RGP', "Only RGP models are supported for online regression"
 
-
+        breakpoint()
         # Regress the RGP model and return the new parameters
         mu_g_t, C_g_t = self.gpe.regress(v_body, a_drag)
 

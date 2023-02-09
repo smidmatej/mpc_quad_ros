@@ -3,10 +3,10 @@
 
 <?ignore  Trajectory parameters ?>
 <arg name="trajectory_type" default="random"/>
-<arg name="v_max" default="15.0"/>
-<arg name="a_max" default="5.0"/>
-<arg name="training" default="1"/>
-<arg name="training_trajectories_count" default="1"/>
+<arg name="v_max" default="10.0"/>
+<arg name="a_max" default="10.0"/>
+<arg name="training" default="0"/>
+<arg name="training_trajectories_count" default="0"/>
 
 <?ignore  GP parameters ?>
 <arg name="use_gp" default="2"/>

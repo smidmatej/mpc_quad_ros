@@ -94,7 +94,9 @@ class TrajectoryGenerator:
         
         waypoints = list()
         waypoints.append(start_point)
+
         
+        np.random.seed = 0 # Fixed seed for reproducibility
         if hover_first:
             waypoints.append(np.array([0.0, 0.0, hsize[2]])) # first rise up from the ground plane
         for i in range(num_waypoints):
