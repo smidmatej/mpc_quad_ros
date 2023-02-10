@@ -100,6 +100,7 @@ class Quadrotor3D:
 		Set the state of the quadrotor
 		:param x: 13-element state vector
 		"""
+
 		self.pos = x[0:3]
 		self.angle = x[3:7]
 		self.vel = x[7:10]

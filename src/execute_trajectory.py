@@ -126,7 +126,7 @@ def main():
     # initial condition
     quad = Quadrotor3D(payload=False, drag=True) # Controlled plant 
     # initial condition
-    x0 = np.array([0,0,3] + [1,0,0,0] + [0,0,0] + [0,0,0])
+    x0 = np.array([0.0,0.0,3.0] + [1.0,0.0,0.0,0.0] + [0.0,0.0,0.0] + [0.0,0.0,0.0])
     quad.set_state(x0)
 
 
@@ -252,7 +252,6 @@ def simulate_trajectory(quad, quad_opt, quad_nominal, x0, x_trajectory, simulati
                     x_pred_minus_1 = logger.dictionary['x_pred_odom'][-1]
                 else:
                     x_pred_minus_1 = x
-                breakpoint()
                 v_body, a_drag = utils.compute_a_drag(x, x_pred_minus_1, quad_opt.optimization_dt)
                 rgp_mu_g_t, rgp_C_g_t = quad_opt.regress_and_update_RGP_model(v_body, a_drag)
 
