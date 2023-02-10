@@ -297,6 +297,16 @@ class Visualiser:
         self.prepare_rgp_full_animation_data()
         self.prepare_rgp_full_animation_figure()
 
+
+        for d in range(3):
+            self.scat_basis_vectors[d].set_offsets(np.array([self.X_basis[0][d], self.mu_g_t[0][d]]).T)
+            self.rgp_mean_plot[d].set_data(self.X_query[d], self.y_query[0][d])
+            self.fill_between_plots[d].remove()
+            self.fill_between_plots[d] = self.ax[d].fill_between(self.X_query[d].reshape(-1),
+                self.y_query[0][d].reshape(-1) - 2*self.std_query[0][d], 
+                self.y_query[0][d].reshape(-1) + 2*self.std_query[0][d], color=self.cs[1], alpha=0.2)
+        plt.savefig(result_animation_filename + "1st.pdf", format="pdf", bbox_inches="tight")
+
         interval = 20 # 50 fps    
         self.number_of_frames = len(self.X_basis)
         print('Creating RGP animation...')
@@ -306,22 +316,28 @@ class Visualiser:
 
         def animate(i):
 
+
             for d in range(3):
                 #
-                self.scat_basis_vectors[d].set_offsets(np.array([self.X_basis[i][d], self.mu_g_t[i][d]]).T)
+                
 
                 # Inneficient way to take a [:i][d] slice, should have used a array.
                 X_sample_array = np.array([float(self.X_sample[j][d]) for j in range(i+1)]).reshape(-1,1)
                 y_sample_array = np.array([float(self.y_sample[j][d]) for j in range(i+1)]).reshape(-1,1)
 
 
-                self.scat_samples[d].set_offsets(np.concatenate((X_sample_array, y_sample_array), axis=1))
+                self.scat_basis_vectors[d].set_offsets(np.array([self.X_basis[i][d], self.mu_g_t[i][d]]).T)
                 self.rgp_mean_plot[d].set_data(self.X_query[d], self.y_query[i][d])
                 self.fill_between_plots[d].remove()
                 self.fill_between_plots[d] = self.ax[d].fill_between(self.X_query[d].reshape(-1),
                     self.y_query[i][d].reshape(-1) - 2*self.std_query[i][d], 
                     self.y_query[i][d].reshape(-1) + 2*self.std_query[i][d], color=self.cs[1], alpha=0.2)
+
+                self.scat_samples[d].set_offsets(np.concatenate((X_sample_array, y_sample_array), axis=1))
             self.pbar.update()
+
+            if i == self.number_of_frames-1:
+                plt.savefig(result_animation_filename + "last.pdf", format="pdf", bbox_inches="tight")
 
 
         ani = animation.FuncAnimation(self.fig, animate, frames=self.number_of_frames, interval=interval)           
@@ -435,29 +451,180 @@ class Visualiser:
                 x_min[d] = min(x_min[d], min(self.X_basis[i][d]))
                 x_max[d] = max(x_max[d], max(self.X_basis[i][d]))
 
-        self.X_query = [np.linspace(x_min[d], x_max[d], 10) for d in range(n_dims)]
+        self.X_query = [np.linspace(x_min[d], x_max[d], 100) for d in range(n_dims)]
 
         print("Predicting...")
         pbar = tqdm(total=n_samples)
-        for i in range(n_samples):
+
+        v_list = [(min(self.X_basis[i][d]), max(self.X_basis[i][d])) for d in range(len(self.X_basis[i]))]
+        n_list = [len(self.X_basis[i][d]) for d in range(len(self.X_basis[i]))]
+        self.rgpe = GPEnsemble.fromrange(v_list, n_list, self.theta[i][0])
+        self.y_query[0], self.std_query[0] = self.rgpe.predict(self.X_query, std=True)
+        for i in range(1, n_samples):
             self.rgpe = GPEnsemble.frombasisvectors(self.X_basis[i], self.mu_g_t[i], self.C_g_t[i], self.theta[i])
             self.y_query[i], self.std_query[i] = self.rgpe.predict(self.X_query, std=True)
             pbar.update(1)
         pbar.close()
 
 
-        y_min = [100000]*n_dims
-        y_max = [-100000]*n_dims
+        y_min = 100000
+        y_max = -100000
         for d in range(n_dims):
             for i in range(n_samples):
 
-                y_min[d] = min(y_min[d], min(min(self.mu_g_t[i][d]), min(self.y_query[i][d]), min(self.y_sample[i][d]), -2*min(self.std_query[i][d])))
-                y_max[d] = max(y_max[d], max(max(self.mu_g_t[i][d]), max(self.y_query[i][d]), max(self.y_sample[i][d]), 2*max(self.std_query[i][d])))
+                y_min = min(y_min, min(min(self.mu_g_t[i][d]), min(self.y_query[i][d]), min(self.y_sample[i][d]), -2*min(self.std_query[i][d])))
+                y_max = max(y_max, max(max(self.mu_g_t[i][d]), max(self.y_query[i][d]), max(self.y_sample[i][d]), 2*max(self.std_query[i][d])))
         
 
-        y_lim_dif = [y_max[d]-y_min[d] for d in range(n_dims)]
+        y_lim_dif = y_max-y_min
         self.x_lim = [(x_min[d], x_max[d]) for d in range(n_dims)]
-        self.y_lim = [(y_min[d] - np.sign(y_lim_dif[d])*y_lim_dif[d]/10, y_max[d] + np.sign(y_lim_dif[d])*y_lim_dif[d]/10) for d in range(n_dims)]
+        self.y_lim = [(y_min - np.sign(y_lim_dif)*y_lim_dif/10, y_max + np.sign(y_lim_dif)*y_lim_dif/10) for d in range(n_dims)]
+
+
+    def create_rgp_before_after(self, result_filename, use_color_map=True):
+
+
+        self.prepare_rgp_before_after_data()
+        self.prepare_rgp_before_after_figure()
+
+
+        for d in range(3):
+            self.scat_basis_vectors[d].set_offsets(np.array([self.X_basis[0][d], self.mu_g_t[0][d]]).T)
+            self.rgp_mean_plot[d].set_data(self.X_query[d], self.y_query[0][d])
+            self.fill_between_plots[d].remove()
+            self.fill_between_plots[d] = self.ax[d].fill_between(self.X_query[d].reshape(-1),
+                self.y_query[0][d].reshape(-1) - 2*self.std_query[0][d], 
+                self.y_query[0][d].reshape(-1) + 2*self.std_query[0][d], color=self.cs[1], alpha=0.2)
+
+        plt.savefig(result_filename + "_before.pdf", format="pdf", bbox_inches="tight")
+
+        for d in range(3):
+            self.scat_basis_vectors[d].set_offsets(np.array([self.X_basis[-1][d], self.mu_g_t[-1][d]]).T)
+            self.rgp_mean_plot[d].set_data(self.X_query[d], self.y_query[-1][d])
+            self.fill_between_plots[d].remove()
+            self.fill_between_plots[d] = self.ax[d].fill_between(self.X_query[d].reshape(-1),
+                self.y_query[-1][d].reshape(-1) - 2*self.std_query[-1][d], 
+                self.y_query[-1][d].reshape(-1) + 2*self.std_query[-1][d], color=self.cs[1], alpha=0.2)
+
+            X_sample_array = np.array([float(self.X_sample[j][d]) for j in range(len(self.X_sample))]).reshape(-1,1)
+            y_sample_array = np.array([float(self.y_sample[j][d]) for j in range(len(self.y_sample))]).reshape(-1,1)
+            self.scat_samples[d].set_offsets(np.concatenate((X_sample_array, y_sample_array), axis=1))
+        plt.savefig(result_filename + "_after.pdf", format="pdf", bbox_inches="tight")
+
+        
+
+
+
+
+    def prepare_rgp_before_after_figure(self):
+
+        animation.writer = animation.writers['ffmpeg']
+        plt.ioff() # Turn off interactive mode to hide rendering animations
+
+        # Color scheme convert from [0,255] to [0,1]
+        self.cs = [[x/256 for x in (8, 65, 92)], \
+                [x/256 for x in (204, 41, 54)], \
+                [x/256 for x in (118, 148, 159)], \
+                [x/256 for x in (232, 197, 71)]] 
+
+
+        plt.style.use('fast')
+        sns.set_style("whitegrid")
+
+        gs = gridspec.GridSpec(1, 3)
+        self.fig = plt.figure(figsize=(10,6), dpi=100)
+
+        labels = ['x', 'y', 'z']
+
+        self.ax = [None]*3
+        self.scat_basis_vectors = [None]*3
+        self.scat_samples = [None]*3
+        self.rgp_mean_plot = [None]*3
+        self.fill_between_plots = [None]*3
+
+
+        for d in range(3):
+            self.ax[d] = self.fig.add_subplot(gs[d])
+
+            self.scat_samples[d] = self.ax[d].scatter([], [], marker='.', s=4, color=self.cs[1], label='Samples')
+            self.scat_basis_vectors[d] = self.ax[d].scatter([], [], marker='o', color=self.cs[2], label='Basis Vectors $X$')
+            self.rgp_mean_plot[d], = self.ax[d].plot([], [], '--', color=self.cs[0], label='$\mathrm{E}[\mathrm{g}(x)]$')
+            
+            self.fill_between_plots[d] = self.ax[d].fill_between([],
+                [], 
+                [], color=self.cs[3], alpha=0.2, label="$2 \mathrm{std}$")
+
+            self.ax[d].set_xlim(self.x_lim[d])
+            self.ax[d].set_ylim(self.y_lim[d])
+
+            self.ax[d].set_xlabel('$v_{' + labels[d]+ '} [ms^{-1} ]$')
+            self.ax[d].set_ylabel( '$\hat{a}_{' + labels[d] + '} [ms^{-2} ]$')
+            self.ax[d].legend()
+            #self.ax[d].set_title(f'RGP basis vectors in {labels[d]}')
+
+        self.fig.tight_layout()
+
+
+    def prepare_rgp_before_after_data(self):
+        
+        print("Preparing data...")
+        # Calculates how many datapoints to skip to get the desired number of frames
+        last = len(self.data_dict['x_odom']) - 1 
+        
+        self.X_basis = self.data_dict['rgp_basis_vectors'][::last]
+        self.mu_g_t = self.data_dict['rgp_mu_g_t'][::last]
+        self.C_g_t = self.data_dict['rgp_C_g_t'][::last]
+        self.theta = self.data_dict['rgp_theta'][::last]
+
+        self.X_sample = self.data_dict['v_body'][:]
+        self.y_sample = self.data_dict['a_drag'][:]
+
+
+
+        n_dims = 3
+        n_samples = 2
+
+        self.y_query = [None]*n_samples
+        self.std_query = [None]*n_samples
+
+        
+        x_min = [100000]*n_dims
+        x_max = [-100000]*n_dims
+        for d in range(n_dims):
+            for i in range(n_samples):
+                x_min[d] = min(x_min[d], min(self.X_basis[i][d]))
+                x_max[d] = max(x_max[d], max(self.X_basis[i][d]))
+
+        self.X_query = [np.linspace(x_min[d], x_max[d], 100) for d in range(n_dims)]
+
+        print("Predicting...")
+        pbar = tqdm(total=n_samples)
+
+        v_list = [(min(self.X_basis[i][d]), max(self.X_basis[i][d])) for d in range(len(self.X_basis[i]))]
+        n_list = [len(self.X_basis[i][d]) for d in range(len(self.X_basis[i]))]
+        # Before
+        self.rgpe = GPEnsemble.fromrange(v_list, n_list, self.theta[i][0])
+        self.y_query[0], self.std_query[0] = self.rgpe.predict(self.X_query, std=True)
+
+        # After
+        self.rgpe = GPEnsemble.frombasisvectors(self.X_basis[-1], self.mu_g_t[-1], self.C_g_t[-1], self.theta[-1])
+        self.y_query[-1], self.std_query[-1] = self.rgpe.predict(self.X_query, std=True)
+
+
+
+        y_min = 100000
+        y_max = -100000
+        for d in range(n_dims):
+            for i in range(n_samples):
+
+                y_min = min(y_min, min(min(self.mu_g_t[i][d]), min(self.y_query[i][d]), min(self.y_sample[i][d]), -2*min(self.std_query[i][d])))
+                y_max = max(y_max, max(max(self.mu_g_t[i][d]), max(self.y_query[i][d]), max(self.y_sample[i][d]), 2*max(self.std_query[i][d])))
+        
+
+        y_lim_dif = y_max-y_min
+        self.x_lim = [(x_min[d], x_max[d]) for d in range(n_dims)]
+        self.y_lim = [(y_min - np.sign(y_lim_dif)*y_lim_dif/10, y_max + np.sign(y_lim_dif)*y_lim_dif/10) for d in range(n_dims)]
+
 
 
     @staticmethod

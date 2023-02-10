@@ -125,7 +125,7 @@ class GPEnsemble:
         return cls(gp_list=gp_list, type=type)
     
     @classmethod
-    def fromrange(cls, x_min_max : 'list[tuple[float, float]]', n_basis : 'list[int]'):
+    def fromrange(cls, x_min_max : 'list[tuple[float, float]]', n_basis : 'list[int]', theta : 'list[float]' = None):
         """
         Creates a GPEnsemble from a list of basis vectors and sets their corresponding y values to zero
         :param x_min_max: List of tuples with the minimum and maximum values of the basis vectors
@@ -133,7 +133,7 @@ class GPEnsemble:
         """
         assert len(x_min_max) == 3, "X must have length 3"
         assert len(n_basis) == 3, "n_basis must have length 3"
-        
+
         type = 'RGP'
         gp_list = [None]*3
         for i in range(3):
@@ -141,7 +141,10 @@ class GPEnsemble:
             X_basis = np.linspace(x_min_max[i][0], x_min_max[i][1], n_basis[i])
             #breakpoint()
             y = np.zeros((X_basis.shape[0], ))
-            gp_list[i] = RGP(X_basis, y)
+            if theta is not None:
+                gp_list[i] = RGP(X_basis, y, theta=theta)
+            else:
+                gp_list[i] = RGP(X_basis, y)
 
 
         return cls(gp_list=gp_list, type=type)

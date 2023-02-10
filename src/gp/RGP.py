@@ -163,7 +163,7 @@ class RGP:
         Get the hyperparameters of the RGP
         :return: list of hyperparameters [L, sigma_f, sigma_n]
         """
-        return [self.K.L, self.K.sigma_f, self.sigma_n]
+        return [self.K.L[0,0], self.K.sigma_f, self.sigma_n]
 
     def predict(self, X_t_star : np.ndarray, cov : bool = False, var : bool = False, std : bool = False, return_Jt : bool = False) -> np.ndarray:
         """

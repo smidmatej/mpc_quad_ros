@@ -103,7 +103,7 @@ def main():
         ensemble_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'outputs', 'python_simulation', 'gp_models')
         gpe = GPEnsemble.fromdir(ensemble_path, "GP")
     elif args.gpe == 2:
-        gpe = GPEnsemble.fromrange([(-v_max, v_max) for _ in range (3)], [N_BASIS for _ in range(3)])
+        gpe = GPEnsemble.fromrange([(-v_max, v_max) for _ in range (3)], [N_BASIS for _ in range(3)], theta=[3.0, 0.1, 0.01])
 
     else:
         raise ValueError("Invalid GPE argument")
