@@ -57,7 +57,7 @@ class Logger:
         '''
 
 
-        rospy.loginfo(f"Saving trajectory to {self.filepath_dict}")
+        rospy.logwarn(f"Saving trajectory to {self.filepath_dict}")
         print(f"Saving trajectory to {self.filepath_dict}")
         save_dict(self.dictionary, self.filepath_dict)
         #np.save(self.filepath_npy, self.dictionary['odom'])

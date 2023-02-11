@@ -75,12 +75,60 @@ class TrajectoryGenerator:
                 
 
 
-    def sample_circle_trajectory(self, radius, v_max, t_max=10, dt=0.01):
-        with open(self.sampled_trajectory_filename, "w") as f:
-            f.write("t,x,y,z\n")
+    def sample_circle_trajectory(self, radius, v_max, dt, start_point=np.array([0.0, 0.0, 0.0])):
 
-            for t in np.arange(0, t_max, dt):
-                f.write("{},{},{},{},{}\n".format(t, radius * np.cos(v_max * t), radius * np.sin(v_max * t), 0))
+        w_max = v_max/radius # Maximum angular velocity
+        t_max = 2*np.pi/w_max # Time to complete one circle
+
+        ts = np.arange(0, t_max, dt)
+        p = np.empty((len(ts), 3))
+        v = np.empty((len(ts), 3))
+        a = np.empty((len(ts), 3))
+        w = np.empty((len(ts)))
+        phi = np.empty((len(ts)))
+
+        phi = 0.0 # Initial angle
+        for i, t in zip(range(len(ts)), ts):
+            # 0 -> w_max
+            w[i] = w_max
+            phi = phi + w[i]*dt
+            p[i, :] = np.array([radius * np.cos(phi), radius * np.sin(phi), 0]) + np.array([-radius, 0.0, 0.0]) + start_point
+            v[i, :] = np.array([-radius*w[i] * np.sin(phi), radius*w[i] * np.cos(phi), 0]) # and also here
+            a[i, :] = np.array([0.0,0.0,0.0])
+
+        data = np.concatenate((ts.reshape(-1,1), p, v, a), axis=1)
+        np.savetxt(self.sampled_trajectory_filename, data, fmt="%.6f", delimiter=",", header='t,x,y,z,vx,vy,vz,ax,ay,az')
+
+    def sample_circle_trajectory_acc_dec(self, radius, v_max, dt, start_point=np.array([0.0, 0.0, 0.0])):
+
+        w_max = v_max/radius # Maximum angular velocity
+        acc = w_max*w_max/2.0/np.pi
+        t_mid = w_max/acc
+        t_max = 2*t_mid
+
+
+        ts = np.arange(0, t_max, dt)
+        p = np.empty((len(ts), 3))
+        v = np.empty((len(ts), 3))
+        a = np.empty((len(ts), 3))
+
+        phi = 0.0 # Initial angle
+        w = 0.0 # Initial angular velocity
+        for i, t in zip(range(len(ts)), ts):
+            # 0 -> w_max
+            if t < t_mid:
+                acc = w_max*w_max/2.0/np.pi
+            else:
+                acc = -w_max*w_max/2.0/np.pi
+            w = w + acc*dt
+            phi = phi + w*dt
+            p[i, :] = np.array([radius * np.cos(phi), radius * np.sin(phi), 0.0]) + np.array([-radius, 0.0, 0.0]) + start_point
+            v[i, :] = np.array([-radius*w * np.sin(phi), radius*w * np.cos(phi), 0.0]) # and also here
+            a[i, :] = np.array([-radius*acc * np.cos(phi), -radius*acc * np.sin(phi), 0.0])
+
+        data = np.concatenate((ts.reshape(-1,1), p, v, a), axis=1)
+        np.savetxt(self.sampled_trajectory_filename, data, fmt="%.6f", delimiter=",", header='t,x,y,z,vx,vy,vz,ax,ay,az')
+
 
     def generate_random_waypoints(self, hsize=[10,10,10], num_waypoints=10, hover_first=False, start_point=np.array([0.0, 0.0, 0.0]), end_point=np.array([0.0, 0.0, 0.0])):
         # generate random waypoints in a cube centered around center_of_cube

@@ -170,7 +170,7 @@ class TrajectoryBuilder:
 
         if type == 'circle':
             # Circle trajectory
-            t_max = 30.0
+            t_max = 10.0
 
             # Circle trajectory has no endpoint, but we pass the endpoint in to message because we compute the 
             # radius as dist(start_point, end_point)
@@ -178,7 +178,8 @@ class TrajectoryBuilder:
             radius = np.linalg.norm(start_point - end_point)
 
             #assert end_point is None, "End point should be None for circle trajectory, because we dont know the end"
-            self.trajectory_generator.sample_circle_trajectory_accelerating(radius, v_max, t_max=t_max, dt=self.trajectory_dt, start_point=start_point)
+            #self.trajectory_generator.sample_circle_trajectory_accelerating(radius, v_max, t_max=t_max, dt=self.trajectory_dt, start_point=start_point)
+            self.trajectory_generator.sample_circle_trajectory_acc_dec(radius, v_max, self.trajectory_dt, start_point=start_point)
             
 
         # Loads the sampled trajectory from file to self.x_trajectory and self.t_trajectory

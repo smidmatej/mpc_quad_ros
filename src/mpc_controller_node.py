@@ -340,68 +340,27 @@ class MPC_controller:
                     # The trajectory is finished
                     rospy.loginfo("Trajectory finished")
 
-                    if self.number_of_trajectories_finished >= self.trajectories_count_desired:
-                        # Shutdown the node after making the required number of trajectories
-                        #rospy.on_shutdown(self.shutdown_hook) # Send the signal that this process is about to shutdown
-                        rospy.logwarn("Data collection finished.")
-                        #sys.exit("Number of trajectories finished") # End this python process
-                    else:
-                        # Not finished yet, request a new trajectory
-
-                        if self.doing_a_line:
+                    if self.doing_a_line:
                             # This was a line trajectory, dont count it as a finished trajectory
                             self.logger.clear_memory()
                             self.doing_a_line = False
                             self.request_trajectory(x, self.trajectory_type)
 
-                        else:
-                            # This was a real trajectory, count it as a finished trajectory
-                            self.number_of_trajectories_finished += 1
-                            self.logger.save_log() # Saves the log to a file
-
-                            if not self.training_run:
-                                # Clear memory after every trajectory when not collecting data for training
-                                self.logger.clear_memory()
-                                rospy.loginfo("Cleared logger memory because this is not a training run")
-                            rospy.loginfo(f"Explore: {self.explore}")
-
-                            self.request_trajectory(x, self.trajectory_type)
-
-                            '''
-                                                        if self.explore:
-
-                                self.rebooting_controller = True
-
-                                # Let autopilot take over
-                                self.x_hover = x
-                                self.send_go_to_pose_autopilot_command(self.x_hover)
-                                self._force_hover_pub.publish(Empty())
-                                #rospy.logwarn("Sent go to pose command to autopilot")
-                                rospy.logwarn("Retraining controller")
-                                # Explore the state space
-                                self.retrain_controller()
-                                rospy.logwarn("Retrained controller with new gp")
-                                
-                                #self.mpc_ros_wrapper.quad_opt.acados_ocp.model.
+                    else:
+                        # This was a real trajectory, count it as a finished trajectory
+                        self.number_of_trajectories_finished += 1
+                        self.logger.save_log() # Saves the log to a file
 
 
-                                # Decide what velocity to use for the next trajectory
-                                self.explorer = Explorer(self.quad_opt.gpe)
-                                self.v_max = self.explorer.velocity_to_explore
-                                self.a_max = self.explorer.velocity_to_explore
+                        
 
-                                rospy.logwarn(f"Exploring with velocity {self.v_max} m/s")
-                                #rospy.logwarn(f"Wrapper quad opt gp: {self.mpc_ros_wrapper.quad_opt.gpe}")
+                    if self.number_of_trajectories_finished >= self.trajectories_count_desired:
+                        # Shutdown the node after making the required number of trajectories
+                        rospy.logwarn("Data collection finished.")
+                    else:
+                        # Not finished yet, request a new trajectory
+                        self.request_trajectory(x, self.trajectory_type)
 
-                                # Controller rebooted, now we can go as normal
-                                self.rebooting_controller = False
-                                self.rebooted_controller = True
-                                # Remember the time when the controller was rebooted
-                                # This is used to dump callbacks that accumulate during the reboot
-                                self.last_reboot_timestamp = rospy_time_to_float(rospy.Time.now())
-                                rospy.logwarn(f"Last reboot time: {self.last_reboot_timestamp}")
-                            
-                            '''
 
 
                             

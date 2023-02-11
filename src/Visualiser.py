@@ -18,6 +18,7 @@
 from mpl_toolkits.mplot3d import Axes3D
 from matplotlib import animation
 import matplotlib.pyplot as plt
+import matplotlib
 import numpy as np
 
 from utils.utils import v_dot_q
@@ -35,11 +36,88 @@ from gp.GPE import GPEnsemble
 
 class Visualiser:
     def __init__(self, trajectory_filename):
+
+
+        # Color scheme convert from [0,255] to [0,1]
+        self.cs = [[x/256 for x in (8, 65, 92)], \
+                [x/256 for x in (204, 41, 54)], \
+                [x/256 for x in (118, 148, 159)], \
+                [x/256 for x in (232, 197, 71)]] 
+
         self.trajectory_filename = trajectory_filename
         print(f'Visualising data in {self.trajectory_filename}')
         self.data_dict = load_dict(self.trajectory_filename)
         
 
+
+    def create_3D_plot(self, result_filename):
+        plt.rc('axes', labelsize=14)    # fontsize of the x and y labels
+
+
+
+        # Load data 
+        self.position = np.stack(self.data_dict['x_odom'], axis=0)[:,:3]
+        self.orientation = np.stack(self.data_dict['x_odom'], axis=0)[:, 3:7]
+        self.velocity = np.stack(self.data_dict['x_odom'], axis=0)[:,7:10]
+        self.control = np.stack(self.data_dict['w_odom'], axis=0)[:,:]
+        self.t = np.stack(self.data_dict['t_odom'], axis=0)[:]
+
+
+        self.speed = np.linalg.norm(self.velocity, axis=1)
+
+        self.dp = np.diff(self.position, axis=0)/np.diff(self.t)[:,None]
+        self.dp_norm = np.linalg.norm(self.dp, axis=1)
+
+
+
+
+
+        plt.style.use('fast')
+        sns.set_style("whitegrid")
+
+        self.fig = plt.figure(figsize=(10,10), dpi=100)
+
+        self.ax = self.fig.add_subplot(projection='3d')
+        # Get rid of colored axes planes
+        # First remove fill
+        self.ax.xaxis.pane.fill = False
+        self.ax.yaxis.pane.fill = False
+        self.ax.zaxis.pane.fill = False
+
+        # Now set color to white (or whatever is "invisible")
+        self.ax.xaxis.pane.set_edgecolor('k')
+        self.ax.yaxis.pane.set_edgecolor('k')
+        self.ax.zaxis.pane.set_edgecolor('k')
+
+        self.particle, = plt.plot(self.position[0,0], self.position[0,1], self.position[0,2], marker='o', color=self.cs[3])
+        self.traj, = plt.plot(self.position[:,0], self.position[:,1], self.position[:,2], color=self.cs[1], alpha=0.5)
+
+        #self.ax.set_xlim((self.min_lim, self.max_lim))
+        #self.ax.set_ylim((self.min_lim, self.max_lim))
+        #self.ax.set_zlim((self.min_lim, self.max_lim))
+        
+
+
+        self.ax.set_xlabel('Position $x$ [m]')
+        self.ax.set_ylabel('Position $y$ [m]')
+        self.ax.set_zlabel('Position $z$ [m]')
+
+        self.ax.view_init(elev=20, azim=20, roll=0)
+
+
+        print(f'Saving plot to {result_filename}')
+        plt.savefig(result_filename, format="pdf")
+        plt.show()
+        plt.close()
+
+
+
+        
+
+
+
+
+   
 
     def create_animation(self, result_animation_filename, desired_number_of_frames, use_color_map=True, gif=False):
         self.desired_number_of_frames = desired_number_of_frames
@@ -402,31 +480,6 @@ class Visualiser:
         # Calculates how many datapoints to skip to get the desired number of frames
         skip = len(self.data_dict['x_odom'])//self.desired_number_of_frames
         
-        '''
-        breakpoint()
-        # Load data 
-        X_array = self.data_dict['rgp_basis_vectors'][::skip,:,:]
-        mu_array = self.data_dict['rgp_mu_g_t'][::skip,:,:]
-        C_array = self.data_dict['rgp_C_g_t'][::skip,:,:,:]
-        theta_array = self.data_dict['rgp_theta'][::skip,:,:]
-        breakpoint()
-        n_dims = 3
-        n_samples = X_array.shape[0]
-
-        self.X = [[None]*n_dims]*n_samples
-        self.mu_g_t = [[None]*n_dims]*n_samples
-        self.C_g_t = [[None]*n_dims]*n_samples
-        self.theta = [[None]*n_dims]*n_samples
-        self.y_query = [None]*n_samples
-        self.std_query = [None]*n_samples
-
-        for d in range(n_dims):
-            for i in range(n_samples):
-                self.X[i][d] = X_array[i, d, :]
-                self.mu_g_t[i][d] = mu_array[i, d, :]
-                self.C_g_t[i][d] = C_array[i, d, :, :]
-                self.theta[i][d] = theta_array[i, d, :]
-        '''
         self.X_basis = self.data_dict['rgp_basis_vectors'][::skip]
         self.mu_g_t = self.data_dict['rgp_mu_g_t'][::skip]
         self.C_g_t = self.data_dict['rgp_C_g_t'][::skip]
