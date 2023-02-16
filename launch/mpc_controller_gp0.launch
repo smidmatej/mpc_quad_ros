@@ -16,7 +16,7 @@
 
 <?ignore  MPC parameters ?>
 <arg name="t_lookahead" default="1.0"/>
-<arg name="n_nodes" default="10"/>
+<arg name="n_nodes" default="5"/>
 
 <?ignore  etc ?>
 <arg name="explore" default="0"/>

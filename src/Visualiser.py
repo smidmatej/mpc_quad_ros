@@ -19,6 +19,7 @@ from mpl_toolkits.mplot3d import Axes3D
 from matplotlib import animation
 import matplotlib.pyplot as plt
 import matplotlib
+import pandas as pd
 import numpy as np
 
 from utils.utils import v_dot_q
@@ -49,6 +50,36 @@ class Visualiser:
         self.data_dict = load_dict(self.trajectory_filename)
         
 
+    def visualize_cov_data(self, filepath, result_filename):
+        print(f'Visualising data in {filepath}')
+        df = pd.read_csv(filepath, encoding='utf-8')
+        
+        gp0 = df[df['gp'] == 0]
+        gp2 = df[df['gp'] == 2] 
+
+        plt.style.use('fast')
+        sns.set_style("whitegrid")
+        labs = ['x', 'y', 'z']
+        gs = gridspec.GridSpec(1, 3)
+        self.fig = plt.figure(figsize=(10,6), dpi=100)
+        self.ax = [None]*3
+        for d in range(3):
+            self.ax[d] = self.fig.add_subplot(gs[d])
+
+            self.ax[d].scatter(gp0['v_p'], np.abs(gp0['c_'+labs[d]]), marker='.', color=self.cs[1], label='gp0')
+            self.ax[d].plot(gp0['v_p'], np.abs(gp0['c_'+labs[d]]), '--', color=self.cs[1])
+            self.ax[d].scatter(gp2['v_p'], np.abs(gp2['c_'+labs[d]]), marker='.', color=self.cs[1], label='gp2')
+            self.ax[d].plot(gp2['v_p'], np.abs(gp2['c_'+labs[d]]), '--', color=self.cs[1])
+
+            self.ax[d].set_xlabel(r'Peak velocity $v_{peak}$ [ms-1]')
+            self.ax[d].set_ylabel(r'$\vert cov(v,e) \vert$ [$m^2s^{-1}$]')
+            self.ax[d].legend()
+            self.ax[d].set_title(f'{labs[d]}')
+        
+        plt.tight_layout()
+        print(f'Saving plot to {result_filename}')
+        plt.savefig(result_filename, format="pdf")
+        plt.show()
 
     def create_3D_plot(self, result_filename):
         plt.rc('axes', labelsize=14)    # fontsize of the x and y labels
@@ -685,7 +716,9 @@ class Visualiser:
         return np.sqrt(np.mean(x**2, axis=axis))
 
     def plot_data(self, filepath, show=True, save=True):
-        
+
+ 
+
         x_world = np.stack(self.data_dict['x_odom'], axis=0)
         x_world_ref = np.stack(self.data_dict['x_ref'], axis=0)
 
@@ -697,6 +730,7 @@ class Visualiser:
 
 
         v_norm = np.linalg.norm(x_world[:,7:10], axis=1)
+        
         v_ref_norm = np.linalg.norm(x_world_ref[:,7:10], axis=1)
 
         e_pos_ref = x_world[:,0:3] - x_world_ref[:,0:3]
@@ -714,6 +748,14 @@ class Visualiser:
 
         rms_total_ref = np.sqrt(np.mean((x_world - x_world_ref)**2, axis=1))
 
+        data = {'v_x': x_world[:,7], 'v_y': x_world[:,8], 'v_z': x_world[:,9], 'v_norm': v_norm, \
+               'e_x': e_pos_ref[:,0], 'e_y': e_pos_ref[:,1], 'e_z': e_pos_ref[:,2], 'rms_pos': rms_pos_ref
+        }
+ 
+        df = pd.DataFrame(data)
+ 
+
+        
 
         # Color scheme convert from [0,255] to [0,1]
         self.cs_u = [[x/256 for x in (8, 65, 92)], \
@@ -820,6 +862,20 @@ class Visualiser:
         ax[6].set_ylabel('RMS Velocity Error [m/s]')
         ax[6].legend()
 
+
+        cov = df.cov()
+        matrix = np.triu(cov).T
+        #breakpoint()
+        #features1=list(['cat1','cat2','cat3'])
+        #features2=list(['Cat1', 'Cat2','num1','num2'])
+        #cov = df.loc[['v_x', 'v_y', 'v_z', 'v_norm']].cov(df.loc[['e_x', 'e_y', 'e_z', 'rms_pos']])
+        #cov = df['v_x', 'v_y', 'v_z', 'v_norm'].cov(df['e_x', 'e_y', 'e_z', 'rms_pos'])
+        sns.heatmap(cov, 
+            xticklabels=cov.columns,
+            yticklabels=cov.columns, ax=ax[7], mask=matrix)
+        ax[7].set_title(f'Covariance Matrix')
+        
+        '''
         ax[7].plot(t, e_rate_ref[:,0], label='e_vx', color=self.cs_rgb[0])
         ax[7].plot(t, e_rate_ref[:,1], label='e_vy', color=self.cs_rgb[1])
         ax[7].plot(t, e_rate_ref[:,2], label='e_vz', color=self.cs_rgb[2])
@@ -828,16 +884,18 @@ class Visualiser:
         ax[7].set_xlabel('Time [s]')
         ax[7].set_ylabel('RMS Angular Velocity Error [rad/s]')
         ax[7].legend()
+        '''
 
 
-        ax[8].plot(x_world[:,7], e_pos_ref[:,0], label='e_vx', color=self.cs_rgb[0])
-        ax[8].plot(x_world[:,8], e_pos_ref[:,1], label='e_vy', color=self.cs_rgb[1])
-        ax[8].plot(x_world[:,9], e_pos_ref[:,2], label='e_vz', color=self.cs_rgb[2])
-        ax[8].plot(v_norm, rms_pos_ref, label='rms', color=self.cs_rgb[3])
+
+        ax[8].scatter(x_world[:,7], e_pos_ref[:,0], s=4, label='e_vx', color=self.cs_rgb[0])
+        ax[8].scatter(x_world[:,8], e_pos_ref[:,1], s=4, label='e_vy', color=self.cs_rgb[1])
+        ax[8].scatter(x_world[:,9], e_pos_ref[:,2], s=4, label='e_vz', color=self.cs_rgb[2])
+        ax[8].scatter(v_norm, rms_pos_ref, s=4, label='rms', color=self.cs_rgb[3])
         ax[8].set_xlabel('Velocity [m/s]')
         ax[8].set_ylabel('Position Error [m]')
         ax[8].set_title('Position error as a function of velocity')
-        ax[8].legend()
+        ax[8].legend((f'x: {cov["v_x"]["e_x"]:2f}', f'y: {cov["v_y"]["e_y"]:2f}', f'z: {cov["v_z"]["e_z"]:2f}'))
 
         ax[9].plot(t, w[:,0], label='u1', color=self.cs_u[0])
         ax[9].plot(t, w[:,1], label='u2', color=self.cs_u[1])
