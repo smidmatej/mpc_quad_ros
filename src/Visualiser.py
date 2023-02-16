@@ -36,7 +36,7 @@ from functools import partial
 from gp.GPE import GPEnsemble
 
 class Visualiser:
-    def __init__(self, trajectory_filename):
+    def __init__(self, trajectory_filename=None):
 
 
         # Color scheme convert from [0,255] to [0,1]
@@ -45,15 +45,54 @@ class Visualiser:
                 [x/256 for x in (118, 148, 159)], \
                 [x/256 for x in (232, 197, 71)]] 
 
-        self.trajectory_filename = trajectory_filename
-        print(f'Visualising data in {self.trajectory_filename}')
-        self.data_dict = load_dict(self.trajectory_filename)
-        
+        if trajectory_filename:
+            self.trajectory_filename = trajectory_filename
+            print(f'Visualising data in {self.trajectory_filename}')
+            self.data_dict = load_dict(self.trajectory_filename)
+            
 
-    def visualize_cov_data(self, filepath, result_filename):
+
+    def visualize_trajectory(self, filepath, result_filename):
         print(f'Visualising data in {filepath}')
         df = pd.read_csv(filepath, encoding='utf-8')
+
+        plt.style.use('fast')
+        sns.set_style("whitegrid")
+
+        self.fig = plt.figure(figsize=(10,10), dpi=100)
+
+        self.ax = self.fig.add_subplot(projection='3d')
+        # Get rid of colored axes planes
+        # First remove fill
+        self.ax.xaxis.pane.fill = False
+        self.ax.yaxis.pane.fill = False
+        self.ax.zaxis.pane.fill = False
+
+        # Now set color to white (or whatever is "invisible")
+        self.ax.xaxis.pane.set_edgecolor('k')
+        self.ax.yaxis.pane.set_edgecolor('k')
+        self.ax.zaxis.pane.set_edgecolor('k')
+
+        plt.plot(df['x'], df['y'], df['z'], color=self.cs[1], alpha=0.5)
+
+        self.ax.set_xlabel('Position $x$ [m]')
+        self.ax.set_ylabel('Position $y$ [m]')
+        self.ax.set_zlabel('Position $z$ [m]')
+
+        self.ax.set_zlim([0, 2*max(df['z'])])
+
+        self.ax.view_init(elev=20, azim=20, roll=0)
+
+
+        plt.tight_layout()
+        print(f'Saving plot to {result_filename}')
+        plt.savefig(result_filename, format="pdf")
+        plt.show()
+
+    def visualize_cov_data(self, filepath, result_filename):
         
+        print(f'Visualising data in {filepath}')
+        df = pd.read_csv(filepath, encoding='utf-8')
         gp0 = df[df['gp'] == 0]
         gp2 = df[df['gp'] == 2] 
 

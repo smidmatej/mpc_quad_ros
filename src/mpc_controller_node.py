@@ -88,17 +88,21 @@ class MPC_controller:
 
 
         # --------------------- Logging ---------------------
+        '''
+        
+        '''
         if self.training_run:
             self.trajectory_type = 'random'
-            log_filename = f"training_v{self.v_max:.0f}_a{self.a_max:.0f}_gp{self.use_gp}"
-            if self.explore:
-                log_filename = "explore" 
+            #log_filaenme = f"training_v{self.v_max:.0f}_a{self.a_max:.0f}_gp{self.use_gp}"
+
         else:
-            log_filename = f"test_{self.trajectory_type}_v{self.v_max:.0f}_a{self.a_max:.0f}_gp{self.use_gp}"
+            #log_filename = f"test_{self.trajectory_type}_v{self.v_max:.0f}_a{self.a_max:.0f}_gp{self.use_gp}"
             
             self.trajectories_count_desired = 1
         
-        self.logger = Logger(log_filename)
+        traj_names = {'static': 0, 'random': 1, 'circle': 2}
+        save_filepath = os.path.join(self.dir_path, '..', f'outputs/gazebo_simulation/data/traj{traj_names[self.trajectory_type]}_v{int(self.v_max)}_a{int(self.a_max)}_gp{self.use_gp}')
+        self.logger = Logger(save_filepath)
 
         
         # --------------------- Constants ---------------------

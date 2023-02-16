@@ -209,13 +209,14 @@ class TrajectoryGenerator:
 
         #traj.stretchtime(0.1)
         ts = np.arange(0, traj.duration, dt)
-        evals = np.empty((len(ts), 15))
-        for t, i in zip(ts, range(0, len(ts))):
+        evals = np.empty((len(ts), 9)) # 9 because we have 1+9 columns in the .csv file (t) + (x,y,z,vx,vy,vz,ax,ay,az)
+        for t, i in zip(ts, range(len(ts))):
             e = traj.eval(t)
             evals[i, 0:3]  = e.pos
             evals[i, 3:6]  = e.vel
             evals[i, 6:9]  = e.acc
         data = np.concatenate((ts.reshape(-1,1), evals), axis=1)
+
         np.savetxt(filename, data, fmt="%.6f", delimiter=",", header='t,x,y,z,vx,vy,vz,ax,ay,az')
 
 
