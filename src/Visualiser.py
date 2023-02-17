@@ -100,7 +100,7 @@ class Visualiser:
         sns.set_style("whitegrid")
         labs = ['x', 'y', 'z']
         gs = gridspec.GridSpec(1, 3)
-        self.fig = plt.figure(figsize=(10,6), dpi=100)
+        self.fig = plt.figure(figsize=(12,6), dpi=100)
         self.ax = [None]*3
         for d in range(3):
             self.ax[d] = self.fig.add_subplot(gs[d])
@@ -115,10 +115,10 @@ class Visualiser:
             #self.ax[d].legend()
             self.ax[d].set_title(f'{labs[d]}')
         
-        self.fig.legend(labels=['Nominal', 'RGP augmented'],
-           fancybox=True, shadow=True, ncol=5, loc='upper center', fontsize='large')
-        #plt.tight_layout()
 
+        plt.tight_layout(pad=20)
+        self.fig.legend(labels=['Nominal', 'RGP augmented'], bbox_to_anchor=(0.5, 1), 
+           fancybox=True, shadow=True, ncol=5, loc='upper center', fontsize='large')
 
 
         print(f'Saving plot to {result_filename}')
@@ -458,7 +458,7 @@ class Visualiser:
             self.fill_between_plots[d] = self.ax[d].fill_between(self.X_query[d].reshape(-1),
                 self.y_query[0][d].reshape(-1) - 2*self.std_query[0][d], 
                 self.y_query[0][d].reshape(-1) + 2*self.std_query[0][d], color=self.cs[1], alpha=0.2)
-        plt.savefig(result_animation_filename + "1st.pdf", format="pdf", bbox_inches="tight")
+        plt.savefig(result_animation_filename + "_1st.pdf", format="pdf", bbox_inches="tight")
 
         interval = 20 # 50 fps    
         self.number_of_frames = len(self.X_basis)
@@ -490,9 +490,10 @@ class Visualiser:
             self.pbar.update()
 
             if i == self.number_of_frames-1:
-                plt.savefig(result_animation_filename + "last.pdf", format="pdf", bbox_inches="tight")
+                plt.savefig(result_animation_filename + "_last.pdf", format="pdf", bbox_inches="tight")
 
 
+        print(f'Saving to {result_animation_filename}')
         ani = animation.FuncAnimation(self.fig, animate, frames=self.number_of_frames, interval=interval)           
         ani.save(result_animation_filename + '.mp4', writer='ffmpeg', fps=10, dpi=100)
         if gif:
@@ -516,7 +517,7 @@ class Visualiser:
         sns.set_style("whitegrid")
 
         gs = gridspec.GridSpec(1, 3)
-        self.fig = plt.figure(figsize=(10,6), dpi=100)
+        self.fig = plt.figure(figsize=(12,6), dpi=100)
 
         labels = ['x', 'y', 'z']
 
@@ -543,10 +544,13 @@ class Visualiser:
 
             self.ax[d].set_xlabel('Velocity [ms-1]')
             self.ax[d].set_ylabel('Drag acceleration [ms-2]')
-            self.ax[d].legend()
+            #self.ax[d].legend()
             self.ax[d].set_title(f'RGP basis vectors in {labels[d]}')
 
-        self.fig.tight_layout()
+        plt.tight_layout(pad=20)
+        self.fig.legend(labels=['Samples', 'Basis Vectors', 'E$[g(x)]$'], bbox_to_anchor=(0.5, 1), 
+           fancybox=True, shadow=True, ncol=5, loc='upper center', fontsize='large')
+
 
 
     def prepare_rgp_full_animation_data(self):
@@ -637,6 +641,8 @@ class Visualiser:
             X_sample_array = np.array([float(self.X_sample[j][d]) for j in range(len(self.X_sample))]).reshape(-1,1)
             y_sample_array = np.array([float(self.y_sample[j][d]) for j in range(len(self.y_sample))]).reshape(-1,1)
             self.scat_samples[d].set_offsets(np.concatenate((X_sample_array, y_sample_array), axis=1))
+
+        print(f'Saving to {result_filename + "_after.pdf"}')
         plt.savefig(result_filename + "_after.pdf", format="pdf", bbox_inches="tight")
 
         
@@ -687,11 +693,13 @@ class Visualiser:
 
             self.ax[d].set_xlabel('$v_{' + labels[d]+ '} [ms^{-1} ]$')
             self.ax[d].set_ylabel( '$\hat{a}_{' + labels[d] + '} [ms^{-2} ]$')
-            self.ax[d].legend()
+            #self.ax[d].legend()
             #self.ax[d].set_title(f'RGP basis vectors in {labels[d]}')
 
-        self.fig.tight_layout()
 
+        plt.tight_layout(pad=4, w_pad=0.5)
+        self.fig.legend(labels=['Samples', 'Basis Vectors', '$\mathrm{E}[\mathrm{g}(x)]$', '$2 \cdot$std'], bbox_to_anchor=(0.5, 1), 
+           fancybox=True, shadow=True, ncol=5, loc='upper center', fontsize='large')
 
     def prepare_rgp_before_after_data(self):
         
@@ -949,10 +957,13 @@ class Visualiser:
         ax[9].set_ylabel('Control Input')
         ax[9].set_title('Control Input')
 
+        avg_cpu = np.mean(t_cpu)
+        std_cpu = np.std(t_cpu)
         ax[10].plot(t, t_cpu[:]*1e3, label='t_cpu', color=self.cs_rgb[0])
+        ax[10].plot(t, np.ones_like(t)*avg_cpu*1e3, label='avg_cpu', color=self.cs_rgb[1])
         ax[10].set_xlabel('Time [s]')
         ax[10].set_ylabel('CPU Time [ms]')
-        ax[10].set_title('MPC CPU Time')
+        ax[10].set_title(f'MPC CPU Time, Avg: {avg_cpu*1e3:.2f}ms, STD: {std_cpu*1e3:.2f}')
 
         ax[11].plot(t, cost[:], label='solution_cost', color=self.cs_rgb[0])
         ax[11].set_xlabel('Time [s]')
@@ -963,6 +974,7 @@ class Visualiser:
         plt.tight_layout()
 
         if save:
+            print(f"Saving plot to {filepath}")
             plt.savefig(filepath, format="pdf", bbox_inches="tight")
 
         # Show needs to come after savefig because it clears the figure
