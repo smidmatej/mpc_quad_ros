@@ -106,16 +106,21 @@ class Visualiser:
             self.ax[d] = self.fig.add_subplot(gs[d])
 
             self.ax[d].scatter(gp0['v_p'], np.abs(gp0['c_'+labs[d]]), marker='.', color=self.cs[1], label='gp0')
+            self.ax[d].scatter(gp2['v_p'], np.abs(gp2['c_'+labs[d]]), marker='.', color=self.cs[2], label='gp2')
             self.ax[d].plot(gp0['v_p'], np.abs(gp0['c_'+labs[d]]), '--', color=self.cs[1])
-            self.ax[d].scatter(gp2['v_p'], np.abs(gp2['c_'+labs[d]]), marker='.', color=self.cs[1], label='gp2')
-            self.ax[d].plot(gp2['v_p'], np.abs(gp2['c_'+labs[d]]), '--', color=self.cs[1])
+            self.ax[d].plot(gp2['v_p'], np.abs(gp2['c_'+labs[d]]), '--', color=self.cs[2])
 
             self.ax[d].set_xlabel(r'Peak velocity $v_{peak}$ [ms-1]')
             self.ax[d].set_ylabel(r'$\vert cov(v,e) \vert$ [$m^2s^{-1}$]')
-            self.ax[d].legend()
+            #self.ax[d].legend()
             self.ax[d].set_title(f'{labs[d]}')
         
-        plt.tight_layout()
+        self.fig.legend(labels=['Nominal', 'RGP augmented'],
+           fancybox=True, shadow=True, ncol=5, loc='upper center', fontsize='large')
+        #plt.tight_layout()
+
+
+
         print(f'Saving plot to {result_filename}')
         plt.savefig(result_filename, format="pdf")
         plt.show()
