@@ -54,10 +54,11 @@ class Quadrotor3D:
 
 		# Quadrotor intrinsic parameters
 		self.J = np.array([.03, .03, .06])  # N m s^2 = kg m^2
-		self.mass = 1.0  # kg
-
+		#self.mass = 1.0  # kg
+		self.mass = 0.03  # kg
 		# Length of motor to CoG segment
-		self.length = 0.47 / 2  # m
+		#self.length = 0.47 / 2  # m
+		self.length = 0.08 / 2  # m
 
 		# Positions of thrusters
 

@@ -110,13 +110,14 @@ class Visualiser:
             self.ax[d].plot(gp0['v_p'], np.abs(gp0['c_'+labs[d]]), '--', color=self.cs[1])
             self.ax[d].plot(gp2['v_p'], np.abs(gp2['c_'+labs[d]]), '--', color=self.cs[2])
 
-            self.ax[d].set_xlabel(r'Peak velocity $v_{peak}$ [ms-1]')
-            self.ax[d].set_ylabel(r'$\vert cov(v,e) \vert$ [$m^2s^{-1}$]')
+            self.ax[d].set_xlabel(r'Peak velocity $v_{peak}$   [$ms^{-1}$]')
+            cov_text = f'cov(v_{labs[d]},e_{labs[d]})'
+            self.ax[d].set_ylabel(r'$\vert ' + cov_text + r' \vert$   [$m^2s^{-1}$]')
             #self.ax[d].legend()
-            self.ax[d].set_title(f'{labs[d]}')
+            self.ax[d].set_title(f'${labs[d]}_B$')
         
 
-        plt.tight_layout(pad=20)
+        plt.tight_layout(pad=4, w_pad=0.5)
         self.fig.legend(labels=['Nominal', 'RGP augmented'], bbox_to_anchor=(0.5, 1), 
            fancybox=True, shadow=True, ncol=5, loc='upper center', fontsize='large')
 
