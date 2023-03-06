@@ -285,7 +285,10 @@ class MPC_controller:
                 # MPC uses only the first control command
                 w = w_opt[0, :]
                 # Last three elements of x_opt are the body rates
-                self.publish_control(w, x_opt[1,10:13])
+                if self.environment == 'gazebo':
+                    self.publish_control_gazebo(w, x_opt[1,10:13])
+                elif self.environment == 'cf':
+                    self.publish_control_cf(w, x_opt[1,10:13])
 
                 # Predict next state of quad using optimal control and the nominal model
                 x_pred = self.quad_nominal.discrete_dynamics(x, w, self.ODOMETRY_DT) 
