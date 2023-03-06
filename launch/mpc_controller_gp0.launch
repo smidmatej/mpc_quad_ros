@@ -1,6 +1,11 @@
 <?xml version="1.0"?>
 <launch>
 
+<?ignore  Environment ?>
+<arg name="environment" default="gazebo"/>
+
+
+
 <?ignore  Trajectory parameters ?>
 <arg name="trajectory_type" default="circle"/>
 <arg name="v_max" default="12.0"/>
@@ -24,6 +29,8 @@
 
   <group ns="mpcros">
       <node name="mpc_controller" pkg="mpcros" type="mpc_controller_node.py">
+        <param name="environment" value="$(arg environment)"/>
+
         <param name="trajectory_type" value="$(arg trajectory_type)"/>
         <param name="v_max" value="$(arg v_max)"/>
         <param name="a_max" value="$(arg a_max)"/>

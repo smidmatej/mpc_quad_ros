@@ -23,7 +23,6 @@ import rospy
 import time
 
 from geometry_msgs.msg import Pose, Point
-from mav_msgs.msg import Actuators
 from quadrotor_msgs.msg import ControlCommand
 '''
 # ControlCommand control_mode field
@@ -41,6 +40,7 @@ from visualization_msgs.msg import Marker
 # for path visualization
 from nav_msgs.msg import Path
 from geometry_msgs.msg import PoseStamped 
+from std_msgs.msg import Int32MultiArray
 from tqdm import tqdm
 
 from gp.gp_train import train_gp
@@ -68,7 +68,7 @@ class MPC_controller:
         
     def __init__(self):
 
-        self.quad_name = 'hummingbird'
+
         rospy.init_node('controller')
 
         self.v_max = rospy.get_param('/mpcros/mpc_controller/v_max')
@@ -83,14 +83,18 @@ class MPC_controller:
         self.explore = rospy.get_param('/mpcros/mpc_controller/explore')
         self.t_lookahead = rospy.get_param('/mpcros/mpc_controller/t_lookahead')
         self.n_nodes = rospy.get_param('/mpcros/mpc_controller/n_nodes')
+        self.environment = rospy.get_param('/mpcros/mpc_controller/environment')
 
         self.dir_path = os.path.dirname(os.path.realpath(__file__))
 
 
+        if self.environment == 'gazebo':
+            self.quad_name = 'hummingbird'
+        elif self.environment == 'cf':
+            self.quad_name = 'cf4'
+        else:
+            raise ValueError('Environment not supported')
         # --------------------- Logging ---------------------
-        '''
-        
-        '''
         if self.training_run:
             self.trajectory_type = 'random'
             #log_filaenme = f"training_v{self.v_max:.0f}_a{self.a_max:.0f}_gp{self.use_gp}"
@@ -130,21 +134,17 @@ class MPC_controller:
         # --------------------- Topics ---------------------
         self.reference_trajectory_topic = "reference/trajectory"
         self.new_trajectory_request_topic = "reference/new_trajectory_request"
-        self.pose_topic = "/" + self.quad_name + "/ground_truth/odometry"
         self.autopilot_pose_topic = "/" + self.quad_name  +'/autopilot/pose_command'
-        self.control_topic = "/" + self.quad_name + "/autopilot/control_command_input"
         self.marker_topic = "rviz/marker"
         self.reference_path_chunk_topic = "rviz/reference_chunk"
         self.optimal_path_topic = "rviz/optimal_path"
         self._force_hover__topic = "/" + self.quad_name + "/autopilot/force_hover"
 
-        '''
-        if self.explore:
-            # Let the explorer decide on the maximum velocity
-            self.explorer = Explorer(self.quad_opt.gpe)
-            self.v_max = self.explorer.velocity_to_explore
-            self.a_max = self.explorer.velocity_to_explore
-        '''
+        self.odometry_topic_gazebo = "/" + self.quad_name + "/ground_truth/odometry"
+        self.control_topic_gazebo = "/" + self.quad_name + "/autopilot/control_command_input"
+        self.odometry_topic_cf = "/" + self.quad_name + "/odometry"
+        self.control_topic_cf = "/" + self.quad_name + "/motor_command"
+
 
 
         rospy.logwarn("Initializing subscribers and publishers")
@@ -153,9 +153,12 @@ class MPC_controller:
         self.reference_path_chunk_pub = rospy.Publisher(self.reference_path_chunk_topic, Path, queue_size=1) # Chunk of the reference path that is used for MPC
         self.markerPub = rospy.Publisher(self.marker_topic, Marker, queue_size=10)      
         self.new_trajectory_request_pub = rospy.Publisher(self.new_trajectory_request_topic, Trajectory_request, queue_size=1)
-        self._go_to_pose_pub = rospy.Publisher(self.autopilot_pose_topic, PoseStamped, queue_size=1)
-        self._force_hover_pub = rospy.Publisher(self._force_hover__topic, Empty,queue_size=1)
         self.trajectory_sub = rospy.Subscriber(self.reference_trajectory_topic, Trajectory, self.trajectory_received_cb) # Reference trajectory
+
+        if self.environment == 'gazebo':
+            self._go_to_pose_pub = rospy.Publisher(self.autopilot_pose_topic, PoseStamped, queue_size=1)
+            self._force_hover_pub = rospy.Publisher(self._force_hover__topic, Empty,queue_size=1)
+
 
             
         rospy.logwarn("Initializing MPC controller")
@@ -165,8 +168,12 @@ class MPC_controller:
         
         # ---------------------  Primary Publishers and Subscribers  ---------------------
         # These should be initialized after the MPC controller is initialized
-        self.pose_subscriber = rospy.Subscriber(self.pose_topic, Odometry, self.pose_received_cb) # Pose is published by the simulator at 100 Hz!
-        self.actuator_publisher = rospy.Publisher(self.control_topic, ControlCommand, queue_size=1, tcp_nodelay=True)
+        if self.environment == 'gazebo':
+            self.odometry_subscriber = rospy.Subscriber(self.odometry_topic_gazebo, Odometry, self.pose_received_cb) # Pose is published by the simulator at 100 Hz!
+            self.actuator_publisher = rospy.Publisher(self.control_topic_gazebo, ControlCommand, queue_size=1, tcp_nodelay=True)
+        elif self.environment == 'cf':
+            self.odometry_subscriber = rospy.Subscriber(self.odometry_topic_cf, Odometry, self.pose_received_cb) 
+            self.actuator_publisher = rospy.Publisher(self.control_topic_cf, Int32MultiArray, queue_size=1)
 
 
     def initialize_MPC(self):
@@ -179,8 +186,13 @@ class MPC_controller:
         quad = Quadrotor3D(payload=False, drag=True) # Controlled plant s
         # Loads parameters of  a quad from a xarco file into quad object
         dir_path = os.path.dirname(os.path.realpath(__file__))
-        params_filepath = os.path.join(dir_path, '..' , 'config', self.quad_name + '.xacro')
-        quad.set_parameters_from_file(params_filepath, self.quad_name)
+        if self.environment == 'gazebo':
+            params_filepath = os.path.join(dir_path, '..' , 'config', self.quad_name + '.xacro')
+            quad.set_parameters_from_file(params_filepath, self.quad_name)
+
+        elif self.environment == 'cf':
+            # Real-life environment using crazyflie
+            quad.set_cf_params()
 
         # ---- GPE ----
         self.ensemble_path = os.path.join(self.dir_path, self.gp_path)
@@ -273,7 +285,7 @@ class MPC_controller:
                 # MPC uses only the first control command
                 w = w_opt[0, :]
                 # Last three elements of x_opt are the body rates
-                self.send_control_command(w, x_opt[1,10:13])
+                self.publish_control(w, x_opt[1,10:13])
 
                 # Predict next state of quad using optimal control and the nominal model
                 x_pred = self.quad_nominal.discrete_dynamics(x, w, self.ODOMETRY_DT) 
@@ -522,6 +534,8 @@ class MPC_controller:
         Send a go to pose command to the autopilot
         :param: x: 13D vector. Sends the position, and simple orientation (yaw) in plane to the autopilot
         """
+        assert self.environment == 'gazebo', "This function is only implemented for the gazebo environment"
+
         go_to_pose_msg = PoseStamped()
         go_to_pose_msg.pose.position.x = float(x[0])
         go_to_pose_msg.pose.position.y = float(x[1])
@@ -535,7 +549,7 @@ class MPC_controller:
 
         self._go_to_pose_pub.publish(go_to_pose_msg)
 
-    def send_control_command_hover(self):
+    def publish_control_hover(self):
         """
         Relinquish control to the autopilot
         """
@@ -548,7 +562,7 @@ class MPC_controller:
 
         self.actuator_publisher.publish(control_msg)
 
-    def send_control_command(self, thrust : np.ndarray, body_rates : np.ndarray):
+    def publish_control_gazebo(self, thrust : np.ndarray, body_rates : np.ndarray):
         """
         Creates a ControlCommand message and sends it to the autopilot
         :param thrust: 4x1 array with the thrust for each rotors in range [0-1]
@@ -574,6 +588,19 @@ class MPC_controller:
         #control_msg.collective_thrust = np.sum(thrust) * self.quad_opt.quad.max_thrust
 
         self.actuator_publisher.publish(control_msg)
+
+    def publish_control_cf(self, motor_power : list):
+        """
+        Creates a Int32MultiArray message and sends it to the crazyswarm relay node
+        :param motor_power: 4 element list with the thrust for each rotors in range [0-1]
+        """ 
+
+        CF_MAX_THRUST = 65535
+        msg = Int32MultiArray()
+        
+        msg.data = [CF_MAX_THRUST*int(motor_power[0]), CF_MAX_THRUST*int(motor_power[1]), CF_MAX_THRUST*int(motor_power[2]), CF_MAX_THRUST*int(motor_power[3])]
+        rospy.loginfo(msg)
+        self.actuator_publisher.publish(msg)    
 
     def trajectory_chunk_to_path(self, x_ref : np.ndarray, t_ref : np.ndarray):
         """

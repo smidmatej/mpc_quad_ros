@@ -415,3 +415,22 @@ class Quadrotor3D:
 			self.x_f = np.array([self.length, 0, -self.length, 0])
 			self.y_f = np.array([0, self.length, 0, -self.length])
 			self.z_l_tau = -np.array([-self.c, self.c, -self.c, self.c])
+
+	def set_cf_params(self):
+		"""
+		Sets the parameters of this quad to those of the Crazyflie 2.0
+		"""
+		self.mass = 0.027 # 27g
+		self.J = np.array([1.8e-5, 1.8e-5, 3.3e-5])
+		self.length = 0.04 # 40mm halfsize
+
+		# TODO: Get correct params for the following
+		self.max_thrust = 2.12 # 2.12N
+		self.c = 0.016 # 16mm
+		
+
+		h = np.cos(np.pi / 4) * self.length
+		self.x_f = np.array([h, -h, -h, h])
+		self.y_f = np.array([-h, -h, h, h])
+		self.z_l_tau = np.array([-self.c, self.c, -self.c, self.c])
+
