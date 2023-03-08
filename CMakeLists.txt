@@ -52,6 +52,7 @@ add_message_files(
   FILES
   Trajectory.msg
   Trajectory_request.msg
+  MotorPowerStamped.msg
 )
 
 ## Generate services in the 'srv' folder

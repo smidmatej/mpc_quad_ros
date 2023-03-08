@@ -425,7 +425,7 @@ class Quadrotor3D:
 		self.length = 0.04 # 40mm halfsize
 
 		# TODO: Get correct params for the following
-		self.max_thrust = 2.12 # 2.12N
+		self.max_thrust = 0.3 # 2.12N
 		self.c = 0.016 # 16mm
 		
 

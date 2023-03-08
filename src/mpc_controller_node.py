@@ -40,7 +40,8 @@ from visualization_msgs.msg import Marker
 # for path visualization
 from nav_msgs.msg import Path
 from geometry_msgs.msg import PoseStamped 
-from std_msgs.msg import Int32MultiArray
+
+from mpcros.msg import MotorPowerStamped
 from tqdm import tqdm
 
 from gp.gp_train import train_gp
@@ -173,7 +174,8 @@ class MPC_controller:
             self.actuator_publisher = rospy.Publisher(self.control_topic_gazebo, ControlCommand, queue_size=1, tcp_nodelay=True)
         elif self.environment == 'cf':
             self.odometry_subscriber = rospy.Subscriber(self.odometry_topic_cf, Odometry, self.pose_received_cb) 
-            self.actuator_publisher = rospy.Publisher(self.control_topic_cf, Int32MultiArray, queue_size=1)
+            self.actuator_publisher = rospy.Publisher(self.control_topic_cf, MotorPowerStamped, queue_size=1)
+            self.motorPowerMsg = MotorPowerStamped()
 
 
     def initialize_MPC(self):
@@ -288,7 +290,8 @@ class MPC_controller:
                 if self.environment == 'gazebo':
                     self.publish_control_gazebo(w, x_opt[1,10:13])
                 elif self.environment == 'cf':
-                    self.publish_control_cf(w, x_opt[1,10:13])
+
+                    self.publish_control_cf(w)
 
                 # Predict next state of quad using optimal control and the nominal model
                 x_pred = self.quad_nominal.discrete_dynamics(x, w, self.ODOMETRY_DT) 
@@ -594,16 +597,25 @@ class MPC_controller:
 
     def publish_control_cf(self, motor_power : list):
         """
-        Creates a Int32MultiArray message and sends it to the crazyswarm relay node
+        Creates a MotorPowerStamped message and sends it to the crazyswarm relay node
         :param motor_power: 4 element list with the thrust for each rotors in range [0-1]
         """ 
 
         CF_MAX_THRUST = 65535
-        msg = Int32MultiArray()
+
         
-        msg.data = [CF_MAX_THRUST*int(motor_power[0]), CF_MAX_THRUST*int(motor_power[1]), CF_MAX_THRUST*int(motor_power[2]), CF_MAX_THRUST*int(motor_power[3])]
-        rospy.loginfo(msg)
-        self.actuator_publisher.publish(msg)    
+
+        self.motorPowerMsg.header.stamp = rospy.Time.now()
+        self.motorPowerMsg.header.seq = self.motorPowerMsg.header.seq + 1
+
+        # I hope this casts to uint16 correctly
+        self.motorPowerMsg.m1 = int(CF_MAX_THRUST*motor_power[0])
+        self.motorPowerMsg.m2 = int(CF_MAX_THRUST*motor_power[1])
+        self.motorPowerMsg.m3 = int(CF_MAX_THRUST*motor_power[2])
+        self.motorPowerMsg.m4 = int(CF_MAX_THRUST*motor_power[3])
+
+        rospy.logwarn(self.motorPowerMsg.header.seq)
+        self.actuator_publisher.publish(self.motorPowerMsg)    
 
     def trajectory_chunk_to_path(self, x_ref : np.ndarray, t_ref : np.ndarray):
         """
