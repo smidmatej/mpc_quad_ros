@@ -121,6 +121,7 @@ class MPC_controller:
 
         # --------------------- Variables ---------------------
         self.trajectory_ready = False # Flag for the trajectory request callback
+        self.trajectory_available = False # Flag for the trajectory request callback
         self.need_trajectory_to_hover = True # Flag for request new trajectory to hover
         self.number_of_trajectories_finished = 0 # Counts the number of finished trajectories
 
@@ -359,6 +360,7 @@ class MPC_controller:
                 
                 if self.idx_traj+1 == self.x_trajectory.shape[0] and np.linalg.norm(x[0:3] - x_ref[0,0:3]) < self.EPSILON_TRAJECTORY_FINISHED:
                     
+                    self.trajectory_available = False
                     # The trajectory is finished
                     rospy.loginfo("Trajectory finished")
 
@@ -499,6 +501,9 @@ class MPC_controller:
         :param: msg: Trajectory message
         """
         
+        if self.trajectory_available:
+            rospy.loginfo("Trajectory received, but already following a trajectory. Ignoring new trajectory.")
+            return
         samples_in_trajectory = len(msg.timeStamps)
         rospy.loginfo(f"Parsing new trajectory with {samples_in_trajectory} samples")
         self.idx_traj = 0
@@ -530,6 +535,7 @@ class MPC_controller:
 
         self.trajectory_ready = True
         self.wait_for_trajectory = False
+        self.trajectory_available = True
         self.pbar = tqdm(total=samples_in_trajectory) 
         rospy.logwarn("Received new trajectory with duration {}s".format(self.t_trajectory[-1] - self.t_trajectory[0]))
         
