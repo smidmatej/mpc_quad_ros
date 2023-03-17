@@ -8,8 +8,8 @@
 
 <?ignore  Trajectory parameters ?>
 <arg name="trajectory_type" default="circle"/>
-<arg name="v_max" default="0.5"/>
-<arg name="a_max" default="0.5"/>
+<arg name="v_max" default="0.01"/>
+<arg name="a_max" default="0.01"/>
 <arg name="training" default="0"/>
 <arg name="training_trajectories_count" default="0"/>
 

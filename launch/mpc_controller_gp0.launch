@@ -7,9 +7,9 @@
 
 
 <?ignore  Trajectory parameters ?>
-<arg name="trajectory_type" default="circle"/>
-<arg name="v_max" default="12.0"/>
-<arg name="a_max" default="12.0"/>
+<arg name="trajectory_type" default="static"/>
+<arg name="v_max" default="3.0"/>
+<arg name="a_max" default="3.0"/>
 <arg name="training" default="0"/>
 <arg name="training_trajectories_count" default="0"/>
 
