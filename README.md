@@ -15,11 +15,11 @@ The predictions of the recursive Gaussian process model allow us to make better 
 
 The RGP model is initialized as without any information about the air drag profile of the quadrotor.
 
-![rgp_before](docs/rgp_python_simulation_traj0_v10_a10_gp2_before.jpg)
+![rgp_before](docs/rgpbefore.png)
 
 The RGP learns the air drag profile during flight, with no need to pretrain, an improves the flight control during training. 
 
-![rgp_after](docs/rgp_python_simulation_traj0_v10_a10_gp2_after.jpg)
+![rgp_after](docs/rgpafter.png)
 
 Using a MPC controller augmented with the recursive Gaussian process, we are able to reach significantly higher speeds 
 ![quadcopter_flight](docs/drone_flight.gif)
