@@ -59,6 +59,9 @@ class quad_optimizer:
             if self.gpe.type == 'RGP':
                 self.acados_model.f_expl_expr = self.dynamics(x=self.x, u=self.u, p=self.params)['f'] # x_dot = f
                 self.acados_model.f_impl_expr = self.x_dot - self.dynamics(x=self.x, u=self.u, p=self.params)['f'] # 0 = f - x_dot
+            elif self.gpe.type == 'GP':
+                self.acados_model.f_expl_expr = self.dynamics(x=self.x, u=self.u)['f']
+                self.acados_model.f_impl_expr = self.x_dot - self.dynamics(x=self.x, u=self.u)['f']
         else:
             self.acados_model.f_expl_expr = self.dynamics(x=self.x, u=self.u)['f']
             self.acados_model.f_impl_expr = self.x_dot - self.dynamics(x=self.x, u=self.u)['f']
@@ -206,8 +209,6 @@ class quad_optimizer:
         f_nominal = cs.vertcat(f_p, f_q, f_v, f_r)
 
         if self.gpe is not None:
-
-
             # Transform to body frame because thats what the gpe were trained on
             v_body = v_dot_q(self.v, quaternion_inverse(self.q))
             #breakpoint()
@@ -222,26 +223,40 @@ class quad_optimizer:
                     p_y[d] = cs.MX.sym('p_x', self.gpe.gp[d].X.shape[0], 1) # n x 1 matrix where n is the number of basis vectors inside RGP
                 self.params = cs.horzcat(*p_y) # n x 3 matrix
                 gp_means = self.gpe.predict_using_y(v_body, p_y).T
+                #rospy.logwarn(gp_means.shape)
             elif self.gpe.type == "GP":
-                gpe_predict = self.gpe.predict(v_body)
-                gp_means = np.concatenate(gpe_predict, axis=1).T
+                #gpe_predict = [None]*len(self.gpe.gp)
+                #for d in range(len(self.gpe.gp)):
+                #   gpe_predict[d] = self.gpe.predict(v_body)
+                gp_means = self.gpe.predict(v_body).T
+                #rospy.logwarn(gpe_predict.shape)
+                #gp_means = cs.horzcat(*gpe_predict)
+                #rospy.logwarn(gp_means.type)
+                #gp_means = np.concatenate(gpe_predict, axis=1).T
             else:
                 raise ValueError("Unknown GPE type")
-
+            rospy.logwarn(gp_means.shape)
             # Transform prediction back to world frame because thats what the simulator uses
             gp_means = v_dot_q(gp_means, self.q)
-            
-            # 13 x 3 matrix that maps the 3 gpe means to dvx, dvy, dvz 
+            rospy.logwarn(gp_means.shape)            # 13 x 3 matrix that maps the 3 gpe means to dvx, dvy, dvz 
             B_x = np.concatenate([np.zeros((3,3)), np.zeros((4,3)), np.diag([1,1,1]), np.zeros((3,3))], axis=0)
             f_augment = cs.mtimes(B_x, gp_means)
 
-            
+            # Q: print f_augment data type
+            # A: 
+
+
+            #rospy.logwarn(f"f_augment dynamics: {f_augment.}")   
             # Dynamics correction using learned GP
             f_corrected = f_nominal + f_augment
+            #rospy.logwarn(f"Corrected dynamics: {f_corrected}")   
 
+            if self.gpe.type == "RGP":
+                # Dynamics corrected using the gpe 
+                return cs.Function('x_dot', [self.x, self.u, self.params], [f_corrected], ['x', 'u', 'p'], ['f'])
+            elif self.gpe.type == "GP":
 
-            # Dynamics corrected using the gpe 
-            return cs.Function('x_dot', [self.x, self.u, self.params], [f_corrected], ['x', 'u', 'p'], ['f'])
+                return cs.Function('x_dot', [self.x, self.u], [f_corrected], ['x', 'u'], ['f'])
 
         # Dynamics w/o the gpe augmentation
         return cs.Function('x_dot', [self.x,self.u], [f_nominal], ['x','u'], ['f'])

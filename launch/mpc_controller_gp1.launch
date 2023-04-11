@@ -2,11 +2,11 @@
 <launch>
 
 <?ignore  Trajectory parameters ?>
-<arg name="trajectory_type" default="random"/>
-<arg name="v_max" default="15.0"/>
-<arg name="a_max" default="5.0"/>
-<arg name="training" default="1"/>
-<arg name="training_trajectories_count" default="1"/>
+<arg name="trajectory_type" default="circle"/>
+<arg name="v_max" default="3.0"/>
+<arg name="a_max" default="3.0"/>
+<arg name="training" default="0"/>
+<arg name="training_trajectories_count" default="0"/>
 
 <?ignore  GP parameters ?>
 <arg name="use_gp" default="1"/>
@@ -16,7 +16,7 @@
 
 <?ignore  MPC parameters ?>
 <arg name="t_lookahead" default="1.0"/>
-<arg name="n_nodes" default="10"/>
+<arg name="n_nodes" default="5"/>
 
 <?ignore  etc ?>
 <arg name="explore" default="0"/>

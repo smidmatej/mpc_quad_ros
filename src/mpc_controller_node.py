@@ -316,8 +316,16 @@ class MPC_controller:
                         rgp_mu_g_t, rgp_C_g_t = self.quad_opt.regress_and_update_RGP_model(v_body, a_drag)
 
                         rgp_theta = self.quad_opt.gpe.get_theta()
+                    else:
+                        # If not using RGP, set these to None for logging
+                        v_body = None
+                        a_drag = None
+                        rgp_basis_vectors = None
+                        rgp_mu_g_t = None
+                        rgp_C_g_t = None
+                        rgp_theta = None
                 else:
-                    # If not using RGP, set these to None for logging
+                    # If not using GPE, set these to None for logging
                     v_body = None
                     a_drag = None
                     rgp_basis_vectors = None
@@ -347,7 +355,12 @@ class MPC_controller:
                         "w_odom": w, 't_cpu': t_cpu, "elapsed_during_mpc": elapsed_during_mpc, "cost_solution": cost_solution, \
                             "rgp_basis_vectors" : rgp_basis_vectors, "rgp_mu_g_t": rgp_mu_g_t, "rgp_C_g_t": rgp_C_g_t, "rgp_theta": rgp_theta, \
                                 "v_body": v_body, "a_drag": a_drag}
-                    
+                    #elif self.gpe.type == 'GP':
+                    #    dict_to_log = {"x_odom": x, "x_pred_odom": x_pred, "x_ref": x_ref[0,:], "t_odom": timestamp_odometry, \
+                    #        "w_odom": w, 't_cpu': t_cpu, "elapsed_during_mpc": elapsed_during_mpc, "cost_solution": cost_solution}
+                    #else:
+                    #    # No GPE
+                    #    raise NotImplementedError
                     self.logger.log(dict_to_log)
 
                 

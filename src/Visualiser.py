@@ -56,6 +56,13 @@ class Visualiser:
         print(f'Visualising data in {filepath}')
         df = pd.read_csv(filepath, encoding='utf-8')
 
+
+        font = {'family' : 'normal',
+        'size'   : 14}
+
+        matplotlib.rcParams['pdf.fonttype'] = 42
+        matplotlib.rc('font', **font)
+
         plt.style.use('fast')
         sns.set_style("whitegrid")
 
@@ -81,7 +88,7 @@ class Visualiser:
 
         self.ax.set_zlim([0, 2*max(df['z'])])
 
-        self.ax.view_init(elev=20, azim=20, roll=0)
+        self.ax.view_init(elev=20, azim=120, roll=0)
 
 
         plt.tight_layout()
@@ -92,6 +99,11 @@ class Visualiser:
     def visualize_cov_data(self, filepath, result_filename):
         
         print(f'Visualising data in {filepath}')
+
+        font = {'family' : 'normal',
+        'size'   : 14}
+        matplotlib.rc('font', **font)
+        matplotlib.rcParams['pdf.fonttype'] = 42
         df = pd.read_csv(filepath, encoding='utf-8')
         gp0 = df[df['gp'] == 0]
         gp2 = df[df['gp'] == 2] 
@@ -105,8 +117,8 @@ class Visualiser:
         for d in range(3):
             self.ax[d] = self.fig.add_subplot(gs[d])
 
-            self.ax[d].scatter(gp0['v_p'], np.abs(gp0['c_'+labs[d]]), marker='.', color=self.cs[1], label='gp0')
-            self.ax[d].scatter(gp2['v_p'], np.abs(gp2['c_'+labs[d]]), marker='.', color=self.cs[2], label='gp2')
+            self.ax[d].scatter(gp0['v_p'], np.abs(gp0['c_'+labs[d]]), marker='.', color=self.cs[1], s=100, label='gp0')
+            self.ax[d].scatter(gp2['v_p'], np.abs(gp2['c_'+labs[d]]), marker='.', color=self.cs[2], s=100, label='gp2')
             self.ax[d].plot(gp0['v_p'], np.abs(gp0['c_'+labs[d]]), '--', color=self.cs[1])
             self.ax[d].plot(gp2['v_p'], np.abs(gp2['c_'+labs[d]]), '--', color=self.cs[2])
 
@@ -117,7 +129,8 @@ class Visualiser:
             self.ax[d].set_title(f'${labs[d]}_B$')
         
 
-        plt.tight_layout(pad=4, w_pad=0.5)
+        #plt.tight_layout(pad=4, w_pad=0.5)
+        plt.tight_layout(rect=[0, 0, 1, 0.95])
         self.fig.legend(labels=['Nominal', 'RGP augmented'], bbox_to_anchor=(0.5, 1), 
            fancybox=True, shadow=True, ncol=5, loc='upper center', fontsize='large')
 
@@ -616,10 +629,17 @@ class Visualiser:
 
     def create_rgp_before_after(self, result_filename, use_color_map=True):
 
-
+        font = {'family' : 'normal',
+        'size'   : 14}
+        matplotlib.rc('font', **font)
+        matplotlib.rcParams['pdf.fonttype'] = 42
+                
         self.prepare_rgp_before_after_data()
         self.prepare_rgp_before_after_figure()
 
+
+
+        
 
         for d in range(3):
             self.scat_basis_vectors[d].set_offsets(np.array([self.X_basis[0][d], self.mu_g_t[0][d]]).T)
