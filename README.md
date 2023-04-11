@@ -1,30 +1,25 @@
-# MPC control of quadcopter using Gaussian processes 
-Implementation of MPC controller for a quadrocopter model using python. This repository implements the framework as described in [[1]](#1)
+# Online Learning and Control for Data-Augmented Quadrotor Model
+This repository contains the research code for our paper *Online Learning and Control for Data-Augmented Quadrotor Model*, pre-print available at https://arxiv.org/abs/2304.00503.
 
-Using a python simulation, we tracked a trajectory using an MPC controller. The simulated quadcopter was subject to a quadratic air resistence term which the MPC prediction model does not have access to. This caused a difference between the predicted velocities and the actual velocities of the quadcopter. 
-
-$$\hat{a}_{error} = \frac{v_{true}-v_{\text{pred}}}{\Delta t}$$
+Using Gazebo, we control a quadcopter from the RotorS extension to track a desired trajectory under the presence of unknown air drag. Our solution attempts to fit a model of the air drag profile of the quadcopter *during* flight using recursive Gaussian process regression (RGP). This updated model is immedietly used to augment the first principle model optimized in MPC to find the next control action.
 
 
-Using a [Gaussian process](https://github.com/smidmatej/Gaussian-process) regression, we can fit the acceleration error in axis x to a velocity in x (and for y and z too). Regression allows us access to the mean function $m(v_x)$ and its variance $\text{var}(v_x)$. We use m(v_x) to predict drag acceleration experienced by the quadcopter.
+We estimate the air drag as the difference between the predicted and the measured velocity as
+
+$$\tilde{\textbf{a}}^B_{k} = \frac{\textbf{v}^B_{k+1} - \hat{\textbf{v}}^B_{k+1}}{\Delta t_k}$$
+
+which is used to update the RGP. The implementation of the RGP used can be found at https://github.com/smidmatej/RGP. 
+
+The predictions of the recursive Gaussian process model allow us to make better predictions with the MPC controller, especially at higher velocities, where air resistance becomes more of a factor. Thus reducing the tracking error of the quadcopter to the desired trajectory.
 
 
-$$\hat{a}_{\text{drag}_x} = m(v_x)$$
+The RGP model is initialized as without any information about the air drag profile of the quadrotor.
 
+![rgp_before](docs/rgp_python_simulation_traj0_v10_a10_gp2_before.jpg)
 
-![posterior_distribution_fit](docs/gpe_interpolation.jpg)
+The RGP learns the air drag profile during flight, with no need to pretrain, an improves the flight control during training. 
 
+![rgp_after](docs/rgp_python_simulation_traj0_v10_a10_gp2_after.jpg)
 
-Since the MPC controller uses Acados for its predictions, to augment the prediction model with the Gaussian process, we implement a casadi version of Gaussian process regression. This also allows us to compute a symbolic derivative of the GP predictions w.r.t velocity. 
-![posterior_distribution_fit](docs/gpe_jacobian.jpg)
-
-
-The Gaussian process allows us its predictions to make better predictions with the MPC controller, especially at higher velocities, where air resistance becomes more of a factor.
-
-$$\ddot{\textbf{x}} = f(\textbf{x}) + \hat{ \textbf{a} }_{\text{drag}}$$
-
-Using a MPC controller augmented with the Gaussian process, we are able to reach significantly higher speeds 
+Using a MPC controller augmented with the recursive Gaussian process, we are able to reach significantly higher speeds 
 ![quadcopter_flight](docs/drone_flight.gif)
-## References
-<a id="1">[1]</a> 
-G. Torrente, E. Kaufmann, P. Föhn and D. Scaramuzza, "Data-Driven MPC for Quadrotors," in IEEE Robotics and Automation Letters, vol. 6, no. 2, pp. 3769-3776, April 2021, doi: 10.1109/LRA.2021.3061307.
